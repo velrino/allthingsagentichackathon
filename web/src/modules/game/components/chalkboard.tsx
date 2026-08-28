@@ -309,7 +309,6 @@ function FeedbackPhase() {
     <div className="flex flex-1 flex-col justify-center">
       <p className="chalk text-[1.9em] leading-tight">How was that explanation?</p>
       <p className="chalk mt-[0.6em] text-[1.05em] text-chalk-ink/70">Be honest — I change how I teach based on this.</p>
-      <p className="chalk mt-auto pt-[1em] text-[0.85em] text-chalk-ink/50">↓ pick one below</p>
     </div>
   );
 }
@@ -430,20 +429,23 @@ export function Chalkboard(props: ChalkboardProps) {
         </div>
 
         {lesson.phase === "feedback" ? (
-          <div className="mt-2 grid grid-cols-4 gap-2 pb-[max(env(safe-area-inset-bottom),0.25rem)]">
-            {FEEDBACK.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                onClick={() => onFeedback(item.value)}
-                className="glass font-display animate-rise flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[0.7rem] font-semibold text-white transition hover:bg-white/10 active:translate-y-px sm:text-xs"
-              >
-                <span className="text-base leading-none" aria-hidden>
-                  {item.emoji}
-                </span>
-                {item.label}
-              </button>
-            ))}
+          <div className="mt-1 pb-[max(env(safe-area-inset-bottom),0.25rem)]">
+            <p className="chalk mb-1 text-center text-[0.75rem] text-chalk-ink/55">↓ pick one below</p>
+            <div className="grid grid-cols-4 gap-2">
+              {FEEDBACK.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => onFeedback(item.value)}
+                  className="glass font-display animate-rise flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[0.7rem] font-semibold text-white transition hover:bg-white/10 active:translate-y-px sm:text-xs"
+                >
+                  <span className="text-base leading-none" aria-hidden>
+                    {item.emoji}
+                  </span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="pb-[env(safe-area-inset-bottom)]" />
