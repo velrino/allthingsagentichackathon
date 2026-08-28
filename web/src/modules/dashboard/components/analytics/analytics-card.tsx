@@ -15,9 +15,9 @@ type AnalyticsCardProps = {
 };
 
 const sourceLabels: Record<AnalyticsSource, string> = {
-  demo: "Demo data",
-  estimated: "Class estimate",
-  live: "Live data",
+  demo: "Example",
+  estimated: "Based on class signals",
+  live: "Live class data",
 };
 
 const sourceStyles: Record<AnalyticsSource, string> = {

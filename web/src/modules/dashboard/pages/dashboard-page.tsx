@@ -40,14 +40,18 @@ import {
   type ActivityBuilderForm,
 } from "../components/activity-builder";
 import { AgentInterventionChart } from "../components/analytics/agent-intervention-chart";
+import { AdaptationOverTimeChart } from "../components/analytics/adaptation-over-time-chart";
 import { AnalyticsCard } from "../components/analytics/analytics-card";
 import {
-  buildLearningSignalDataset,
-  buildMisconceptionDataset,
+  buildAdaptationDataset,
+  buildConceptMemoryDataset,
+  buildContextSourceDataset,
   demoInterventionOutcomes,
 } from "../components/analytics/analytics-data";
-import { CollaborativeLearningChart } from "../components/analytics/collaborative-learning-chart";
-import { MisconceptionsChart } from "../components/analytics/misconceptions-chart";
+import { ConceptMemoryHeatmap } from "../components/analytics/concept-memory-heatmap";
+import { ContextSourcesChart } from "../components/analytics/context-sources-chart";
+import { MemoryInActionFlow } from "../components/analytics/memory-in-action-flow";
+import { MemoryReceipts } from "../components/analytics/memory-receipts";
 import { DashboardShell } from "../components/dashboard-shell";
 import { MetricCard } from "../components/metric-card";
 import { RecentPlayersTable } from "../components/recent-players-table";
@@ -294,14 +298,19 @@ export function DashboardPage() {
     overview?.class_code ??
     "";
   const hasSelectedClass = Boolean(selectedClassId);
-  const learningSignalDataset = useMemo(
-    () => buildLearningSignalDataset(students),
+  const adaptationDataset = useMemo(
+    () => buildAdaptationDataset(students),
     [students],
   );
-  const misconceptionDataset = useMemo(
-    () => buildMisconceptionDataset(students),
+  const contextSourceDataset = useMemo(
+    () => buildContextSourceDataset(students),
     [students],
   );
+  const conceptMemoryDataset = useMemo(
+    () => buildConceptMemoryDataset(students),
+    [students],
+  );
+  const memoryFlowStudent = students[0];
 
   async function loadOverview(token: string, classId: string) {
     const response = await API.dashboard.overview(token, {
@@ -517,17 +526,78 @@ export function DashboardPage() {
               />
             </section>
 
+            <div className="pt-2">
+              <h2 className="text-xl font-semibold tracking-tight">
+                How Emily learns with your students
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                See what Emily remembered, how she changed her help, and what
+                the teacher may want to do next.
+              </p>
+            </div>
+
+            <AnalyticsCard
+              contentClassName="px-3 pb-4 sm:px-6"
+              title="Why Emily changed her explanation"
+              description="Before replying, Emily looks up earlier conversations, saved learning notes, and today's goal. Select any step to see why it mattered."
+              source={memoryFlowStudent ? "estimated" : "demo"}
+            >
+              <MemoryInActionFlow
+                learningGoal={activeActivity?.learning_goal}
+                progress={memoryFlowStudent?.progress.percentage}
+                rememberedSignal={memoryFlowStudent?.improvement_areas[0]}
+                studentName={memoryFlowStudent?.student_name}
+              />
+            </AnalyticsCard>
+
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <AnalyticsCard
                 contentClassName="ps-2 sm:ps-4"
-                title="Agent intervention outcomes"
-                description="The share of students progressing independently, with Emily's guidance, or with teacher support."
+                title="Is Emily's help working over time?"
+                description="Understanding and confidence should rise while the need for extra explanations falls."
+                source={adaptationDataset.source}
+              >
+                <AdaptationOverTimeChart data={adaptationDataset.data} />
+              </AnalyticsCard>
+
+              <AnalyticsCard
+                contentClassName="ps-2 sm:ps-4"
+                title="What Emily checked before replying"
+                description="Each bar shows the information Emily used. Over time, earlier sessions and saved notes play a larger role."
+                source={contextSourceDataset.source}
+              >
+                <ContextSourcesChart data={contextSourceDataset.data} />
+              </AnalyticsCard>
+            </section>
+
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.8fr)]">
+              <AnalyticsCard
+                title="What Emily remembers about the class"
+                description="Emily keeps learning patterns between sessions. Lighter cells mean students needed less help with that pattern."
+                source={conceptMemoryDataset.source}
+              >
+                <ConceptMemoryHeatmap data={conceptMemoryDataset.data} />
+              </AnalyticsCard>
+
+              <MemoryReceipts
+                learningGoal={activeActivity?.learning_goal}
+                progress={memoryFlowStudent?.progress.percentage}
+                rememberedSignal={memoryFlowStudent?.improvement_areas[0]}
+                studentName={memoryFlowStudent?.student_name}
+              />
+            </section>
+
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <AnalyticsCard
+                contentClassName="ps-2 sm:ps-4"
+                title="How much support students needed"
+                description="As the activity continues, more students should work independently and fewer should need teacher help."
                 source="demo"
               >
                 <AgentInterventionChart data={demoInterventionOutcomes} />
               </AnalyticsCard>
 
-              <Card className="">
+              <Card>
                 <CardHeader>
                   <CardTitle>Emily notebook</CardTitle>
                   <CardDescription>
@@ -543,25 +613,6 @@ export function DashboardPage() {
                   />
                 </CardContent>
               </Card>
-            </section>
-
-            <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <AnalyticsCard
-                contentClassName="ps-2 sm:ps-4"
-                title="Collaborative learning signals"
-                description="How mastery, confidence, and clarification needs change as Emily adapts the activity."
-                source={learningSignalDataset.source}
-              >
-                <CollaborativeLearningChart data={learningSignalDataset.data} />
-              </AnalyticsCard>
-
-              <AnalyticsCard
-                title="Common misconceptions"
-                description="The reasoning patterns Emily captures most often, ranked so the next lesson has a clear focus."
-                source={misconceptionDataset.source}
-              >
-                <MisconceptionsChart data={misconceptionDataset.data} />
-              </AnalyticsCard>
             </section>
 
             <Card className="gap-0 py-0">

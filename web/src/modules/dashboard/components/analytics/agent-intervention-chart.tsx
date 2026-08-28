@@ -34,15 +34,15 @@ export function AgentInterventionChart({ data }: AgentInterventionChartProps) {
           <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
           <Bar
             dataKey="independent"
-            name="Independent"
+            name="Worked independently"
             stackId="outcomes"
             fill="var(--chart-purple-1)"
             radius={[0, 0, 3, 3]}
           />
-          <Bar dataKey="guided" name="Guided by Emily" stackId="outcomes" fill="var(--chart-purple-2)" />
+          <Bar dataKey="guided" name="Helped by Emily" stackId="outcomes" fill="var(--chart-purple-2)" />
           <Bar
             dataKey="teacher_support"
-            name="Teacher support"
+            name="Needed teacher help"
             stackId="outcomes"
             fill="var(--chart-purple-3)"
             radius={[3, 3, 0, 0]}
