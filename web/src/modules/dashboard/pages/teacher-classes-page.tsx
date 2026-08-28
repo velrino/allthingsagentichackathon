@@ -90,6 +90,12 @@ export function TeacherClassesPage() {
     setClassFormOpen(true);
   }
 
+  function handleCreateClass() {
+    setSelectedClass(null);
+    setClassFormError(null);
+    setClassFormOpen(true);
+  }
+
   async function handleSubmitClass(value: IApiUpsertTeacherClassRequest) {
     if (!auth.user) {
       return;
@@ -132,6 +138,7 @@ export function TeacherClassesPage() {
         <ClassroomCardGrid
           loading={loading}
           teacherClasses={teacherClasses}
+          onCreateClass={handleCreateClass}
           onEditClass={handleEditClass}
           onOpenClass={handleSelectClass}
         />

@@ -13,9 +13,11 @@ import {
   Globe2,
   Landmark,
   Laptop2,
+  LoaderCircle,
   Music2,
   Palette,
   Pencil,
+  Plus,
   Search,
   Settings,
   Sparkles,
@@ -31,6 +33,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type ClassroomCardItem = {
@@ -51,6 +54,7 @@ type ClassroomSort = "created" | "name" | "updated";
 type ClassroomCardGridProps = {
   readonly loading: boolean;
   readonly teacherClasses: IApiTeacherClass[];
+  readonly onCreateClass: () => void;
   readonly onEditClass: (teacherClass: IApiTeacherClass) => void;
   readonly onOpenClass: (teacherClass: IApiTeacherClass) => void;
 };
@@ -67,6 +71,9 @@ type CardColor = {
 };
 
 const cardColorStorageKey = "classgame:classroom-card-colors";
+
+// Set this to a number such as 99 to fill the dashboard with preview classes.
+const simulatedClassroomTotal: number | null = null;
 
 const cardColors: readonly CardColor[] = [
   {
@@ -207,6 +214,7 @@ const fallbackTheme: SubjectTheme = {
 
 export function ClassroomCardGrid({
   loading,
+  onCreateClass,
   onEditClass,
   onOpenClass,
   teacherClasses,
@@ -217,7 +225,11 @@ export function ClassroomCardGrid({
     {},
   );
   const classrooms = useMemo(
-    () => buildClassroomCards(teacherClasses, 99),
+    () =>
+      buildClassroomCards(
+        teacherClasses,
+        simulatedClassroomTotal ?? teacherClasses.length,
+      ),
     [teacherClasses],
   );
   const filteredClassrooms = useMemo(() => {
@@ -287,57 +299,102 @@ export function ClassroomCardGrid({
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-        Your classes
-      </h1>
-
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex w-full min-w-0 gap-2 sm:max-w-xl">
-          <div className="relative min-w-0 flex-1">
-            <Search
-              className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="h-10 bg-background ps-9"
-              placeholder="Find a classroom..."
-              aria-label="Find a classroom"
-            />
-          </div>
-
-          <div className="relative shrink-0">
-            <ArrowUpDown
-              className="pointer-events-none absolute start-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <select
-              value={sortBy}
-              onChange={(event) =>
-                setSortBy(event.target.value as ClassroomSort)
-              }
-              className="h-10 w-[8.75rem] cursor-pointer appearance-none rounded-md border border-input bg-background ps-8 pe-8 text-xs font-medium outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-40 sm:text-sm"
-              aria-label="Sort classrooms"
-            >
-              <option value="name">Name</option>
-              <option value="updated">Last updated</option>
-              <option value="created">Last created</option>
-            </select>
-            <ChevronDown
-              className="pointer-events-none absolute end-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-          </div>
+      {classrooms.length > 0 ? (
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Your classes
+          </h1>
+          <Button onClick={onCreateClass}>
+            <Plus className="size-4" aria-hidden />
+            New class
+          </Button>
         </div>
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          {loading
-            ? "Syncing live classes..."
-            : `Showing ${filteredClassrooms.length} of ${classrooms.length}`}
-        </p>
-      </div>
+      ) : null}
 
-      {filteredClassrooms.length > 0 ? (
+      {classrooms.length > 0 ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full min-w-0 gap-2 sm:max-w-xl">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="h-10 bg-background ps-9"
+                placeholder="Find a classroom..."
+                aria-label="Find a classroom"
+              />
+            </div>
+
+            <div className="relative shrink-0">
+              <ArrowUpDown
+                className="pointer-events-none absolute start-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <select
+                value={sortBy}
+                onChange={(event) =>
+                  setSortBy(event.target.value as ClassroomSort)
+                }
+                className="h-10 w-[8.75rem] cursor-pointer appearance-none rounded-md border border-input bg-background ps-8 pe-8 text-xs font-medium outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-40 sm:text-sm"
+                aria-label="Sort classrooms"
+              >
+                <option value="name">Name</option>
+                <option value="updated">Last updated</option>
+                <option value="created">Last created</option>
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute end-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {loading
+              ? "Syncing live classes..."
+              : `Showing ${filteredClassrooms.length} of ${classrooms.length}`}
+          </p>
+        </div>
+      ) : null}
+
+      {loading && classrooms.length === 0 ? (
+        <section
+          className="grid min-h-[calc(100svh-6rem)] place-items-center px-6 text-center sm:min-h-[calc(100svh-7rem)] md:min-h-[calc(100svh-8rem)]"
+          aria-busy="true"
+          aria-live="polite"
+        >
+          <div>
+            <LoaderCircle
+              className="mx-auto size-6 animate-spin text-muted-foreground"
+              aria-hidden
+            />
+            <p className="mt-3 text-sm font-medium text-muted-foreground">
+              Loading your classes...
+            </p>
+          </div>
+        </section>
+      ) : classrooms.length === 0 ? (
+        <section className="grid min-h-[calc(100svh-6rem)] place-items-center rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center sm:min-h-[calc(100svh-7rem)] md:min-h-[calc(100svh-8rem)]">
+          <div className="max-w-sm">
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#6236ff] text-white shadow-sm">
+              <BookOpenText className="size-5" aria-hidden />
+            </span>
+            <h2 className="mt-5 text-xl font-bold tracking-tight text-foreground">
+              Create your first class
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Add a subject and grade level. We will create a short code your
+              students can easily enter.
+            </p>
+            <Button className="mt-6" onClick={onCreateClass}>
+              <Plus className="size-4" aria-hidden />
+              Add new class
+            </Button>
+          </div>
+        </section>
+      ) : filteredClassrooms.length > 0 ? (
         <section
           className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
           aria-label="Teacher classrooms"
