@@ -1,0 +1,110 @@
+{
+  "asset": "chibi-band-avatar",
+  "description": "Chibi band avatar set built on a licensed chibi base mesh, with script-derived hair, beards and garments.",
+  "generator": "scripts/assets/3d/generate-chibi-band-avatar.py",
+  "glb": "chibi-band-avatar.glb",
+  "publicPath": "/assets/avatars/chibi-band/chibi-band-avatar.glb",
+  "sourceBlend": "apps/assets/3d/avatars/chibi-band/source/chibi-band-avatar.blend",
+  "baseMesh": "apps/assets/3d/avatars/chibi-band/source/chibi-base.obj",
+  "rootNode": "AvatarRig",
+  "armatureNode": "ChibiArmature",
+  "presets": [
+    {
+      "id": "brad",
+      "label": "Brad",
+      "meshPrefix": "Mesh_brad_",
+      "portrait": "/assets/avatars/chibi-band/portraits/brad.png",
+      "hairStyle": "full-curly",
+      "beardStyle": "full",
+      "sleeveStyle": "long",
+      "tattooStyle": "none",
+      "accessoryStyle": "hoodie"
+    },
+    {
+      "id": "colin",
+      "label": "Colin",
+      "meshPrefix": "Mesh_colin_",
+      "portrait": "/assets/avatars/chibi-band/portraits/colin.png",
+      "hairStyle": "curly",
+      "beardStyle": "short",
+      "sleeveStyle": "sleeveless",
+      "tattooStyle": "left-arm",
+      "accessoryStyle": "none"
+    },
+    {
+      "id": "dave",
+      "label": "Dave",
+      "meshPrefix": "Mesh_dave_",
+      "portrait": "/assets/avatars/chibi-band/portraits/dave.png",
+      "hairStyle": "cap",
+      "beardStyle": "full",
+      "sleeveStyle": "sleeveless",
+      "tattooStyle": "both-arms",
+      "accessoryStyle": "cap"
+    },
+    {
+      "id": "emily",
+      "label": "Emily",
+      "meshPrefix": "Mesh_emily_",
+      "portrait": "/assets/avatars/chibi-band/portraits/emily.png",
+      "hairStyle": "long-waves",
+      "beardStyle": "none",
+      "sleeveStyle": "long",
+      "tattooStyle": "none",
+      "accessoryStyle": "striped"
+    },
+    {
+      "id": "joe",
+      "label": "Joe",
+      "meshPrefix": "Mesh_joe_",
+      "portrait": "/assets/avatars/chibi-band/portraits/joe.png",
+      "hairStyle": "center-part",
+      "beardStyle": "none",
+      "sleeveStyle": "long",
+      "tattooStyle": "none",
+      "accessoryStyle": "jacket"
+    },
+    {
+      "id": "mike",
+      "label": "Mike",
+      "meshPrefix": "Mesh_mike_",
+      "portrait": "/assets/avatars/chibi-band/portraits/mike.png",
+      "hairStyle": "buzz",
+      "beardStyle": "goatee",
+      "sleeveStyle": "long",
+      "tattooStyle": "none",
+      "accessoryStyle": "camo"
+    }
+  ],
+  "animationRig": {
+    "type": "single-canonical-skinned-armature",
+    "clone": "three/addons/utils/SkeletonUtils.js clone()",
+    "boneNaming": "canonical, shared across every visual preset",
+    "bones": [
+      "body",
+      "head-pivot",
+      "left-arm-pivot",
+      "right-arm-pivot",
+      "left-leg-pivot",
+      "right-leg-pivot"
+    ]
+  },
+  "runtime": {
+    "scaleReference": "stats.bodyHeight \u2014 hair excluded, identical across presets; load-blender-chibi-avatar.ts divides the target world height by it",
+    "materialsPerAvatar": "2, or 3 where the preset uses modelled hair",
+    "drawCallsPerAvatar": "matches materialsPerAvatar",
+    "variantSelection": "clone one canonical rig and keep only Mesh_<preset-id>_* meshes for the selected avatar",
+    "vertexColours": "COLOR_0 (flat colours baked per part)",
+    "shareGeometryAcrossPlayers": true
+  },
+  "stats": {
+    "avatars": 6,
+    "armatures": 1,
+    "bodyHeight": 1.699,
+    "meshObjects": 14,
+    "materials": 3,
+    "triangles": 121469,
+    "vertices": 61486,
+    "glbBytes": 350976
+  }
+}
