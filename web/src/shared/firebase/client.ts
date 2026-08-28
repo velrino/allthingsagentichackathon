@@ -1,5 +1,6 @@
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getApp, getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
 const requiredEnv = {
@@ -16,6 +17,7 @@ const optionalEnv = {
 } satisfies Pick<FirebaseOptions, "measurementId">;
 
 let firestore: Firestore | null = null;
+let auth: Auth | null = null;
 let analyticsPromise: Promise<Analytics | null> | null = null;
 
 export function isFirebaseConfigured() {
@@ -40,6 +42,11 @@ export function getFirebaseApp(): FirebaseApp {
 export function getFirebaseDb(): Firestore {
   firestore ??= getFirestore(getFirebaseApp());
   return firestore;
+}
+
+export function getFirebaseAuth(): Auth {
+  auth ??= getAuth(getFirebaseApp());
+  return auth;
 }
 
 export function getFirebaseAnalytics(): Promise<Analytics | null> {
