@@ -16,7 +16,9 @@ import (
 	"classgame-api/internal/app"
 	"classgame-api/internal/config"
 	healthcheck "classgame-api/internal/modules/health-check"
-	sharedfirebase "classgame-api/internal/shared/firebase"
+	"classgame-api/internal/modules/users"
+	sharedgoogle "classgame-api/internal/shared/google"
+	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedredis "classgame-api/internal/shared/redis"
 )
 
@@ -35,7 +37,7 @@ func run() error {
 
 	startedAt := time.Now()
 
-	firebaseConnection, err := sharedfirebase.Connect(context.Background(), sharedfirebase.Options{
+	firebaseConnection, err := sharedgoogle.Connect(context.Background(), sharedgoogle.Options{
 		ProjectID:       cfg.FirebaseProjectID,
 		CredentialsFile: cfg.FirebaseCredentialsFile,
 		CredentialsJSON: cfg.FirebaseCredentialsJSON,
@@ -71,6 +73,10 @@ func run() error {
 		}
 	}()
 
+	usersRepository := users.NewRepository(firebaseConnection.FirestoreClient())
+	usersService := users.NewService(usersRepository)
+	authenticator := sharedfirebase.NewFirebaseAuthenticator(firebaseConnection.AuthClient())
+
 	server := app.New(app.Options{
 		Config: cfg,
 		HealthChecks: []healthcheck.Check{
@@ -86,6 +92,10 @@ func run() error {
 			},
 		},
 		StartedAt: startedAt,
+		Users: users.HandlerOptions{
+			Authenticator: authenticator,
+			UsersService:  usersService,
+		},
 	})
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

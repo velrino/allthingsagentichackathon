@@ -9,12 +9,14 @@ import (
 
 	"classgame-api/internal/config"
 	healthcheck "classgame-api/internal/modules/health-check"
+	"classgame-api/internal/modules/users"
 )
 
 type Options struct {
 	Config       config.Config
 	HealthChecks []healthcheck.Check
 	StartedAt    time.Time
+	Users        users.HandlerOptions
 }
 
 func New(options Options) *echo.Echo {
@@ -44,6 +46,8 @@ func New(options Options) *echo.Echo {
 		ServiceTimeout: 3 * time.Second,
 		StartedAt:      options.StartedAt,
 	})
+
+	users.RegisterRoutes(server, options.Users)
 
 	return server
 }

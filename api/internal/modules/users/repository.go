@@ -1,0 +1,168 @@
+package users
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"cloud.google.com/go/firestore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+const usersCollectionName = "users"
+
+type Repository struct {
+	client *firestore.Client
+}
+
+func NewRepository(client *firestore.Client) *Repository {
+	return &Repository{
+		client: client,
+	}
+}
+
+func (repository *Repository) UpsertStudent(
+	ctx context.Context,
+	input UpsertStudentInput,
+) (UserDocument, error) {
+	ref := repository.client.Collection(usersCollectionName).Doc(input.Identity.ProviderUserID)
+
+	var user UserDocument
+	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		now := input.Timestamp
+		createdAt := now
+		firstSeenAt := now
+		loginCount := int64(1)
+
+		snapshot, err := tx.Get(ref)
+		switch {
+		case err == nil:
+			var existing UserDocument
+			if err := snapshot.DataTo(&existing); err != nil {
+				return fmt.Errorf("decode existing user: %w", err)
+			}
+
+			if !existing.CreatedAt.IsZero() {
+				createdAt = existing.CreatedAt
+			}
+			if !existing.Activity.FirstSeenAt.IsZero() {
+				firstSeenAt = existing.Activity.FirstSeenAt
+			}
+			loginCount = existing.Activity.LoginCount + 1
+		case status.Code(err) != codes.NotFound:
+			return fmt.Errorf("read user: %w", err)
+		}
+
+		user = buildStudentUserDocument(buildStudentUserDocumentInput{
+			ID:          ref.ID,
+			Input:       input,
+			CreatedAt:   createdAt,
+			FirstSeenAt: firstSeenAt,
+			LoginCount:  loginCount,
+		})
+
+		if err := tx.Set(ref, user.firestoreMap(), firestore.MergeAll); err != nil {
+			return fmt.Errorf("write user: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return UserDocument{}, fmt.Errorf("upsert student user: %w", err)
+	}
+
+	return user, nil
+}
+
+type buildStudentUserDocumentInput struct {
+	ID          string
+	Input       UpsertStudentInput
+	CreatedAt   time.Time
+	FirstSeenAt time.Time
+	LoginCount  int64
+}
+
+func buildStudentUserDocument(input buildStudentUserDocumentInput) UserDocument {
+	identity := input.Input.Identity
+	now := input.Input.Timestamp
+
+	return UserDocument{
+		ID: input.ID,
+		Identity: UserIdentity{
+			Provider:       identity.Provider,
+			ProviderUserID: identity.ProviderUserID,
+			AuthMethod:     identity.AuthMethod,
+			ProviderIDs:    identity.ProviderIDs,
+			SignInProvider: identity.SignInProvider,
+			CustomClaims:   identity.CustomClaims,
+			Token: IdentityToken{
+				AuthTime:  identity.TokenAuthTime,
+				ExpiresAt: identity.TokenExpiresAt,
+				IssuedAt:  identity.TokenIssuedAt,
+				Issuer:    identity.TokenIssuer,
+				Audience:  identity.TokenAudience,
+			},
+		},
+		Profile: UserProfile{
+			DisplayName:   input.Input.StudentName,
+			Email:         identity.Email,
+			EmailVerified: identity.EmailVerified,
+			PhotoURL:      identity.PhotoURL,
+		},
+		Student: StudentProfile{
+			TurmaID:     input.Input.TurmaID,
+			StudentName: input.Input.StudentName,
+		},
+		Activity: UserActivity{
+			FirstSeenAt: input.FirstSeenAt,
+			LastSeenAt:  now,
+			LoginCount:  input.LoginCount,
+		},
+		Roles:     []UserRole{UserRoleStudent},
+		IsGuest:   true,
+		CreatedAt: input.CreatedAt,
+		UpdatedAt: now,
+	}
+}
+
+func (user UserDocument) firestoreMap() map[string]any {
+	return map[string]any{
+		"id": user.ID,
+		"identity": map[string]any{
+			"provider":         user.Identity.Provider,
+			"provider_user_id": user.Identity.ProviderUserID,
+			"auth_method":      user.Identity.AuthMethod,
+			"provider_ids":     user.Identity.ProviderIDs,
+			"sign_in_provider": user.Identity.SignInProvider,
+			"custom_claims":    user.Identity.CustomClaims,
+			"token": map[string]any{
+				"auth_time":  user.Identity.Token.AuthTime,
+				"expires_at": user.Identity.Token.ExpiresAt,
+				"issued_at":  user.Identity.Token.IssuedAt,
+				"issuer":     user.Identity.Token.Issuer,
+				"audience":   user.Identity.Token.Audience,
+			},
+		},
+		"profile": map[string]any{
+			"display_name":   user.Profile.DisplayName,
+			"email":          user.Profile.Email,
+			"email_verified": user.Profile.EmailVerified,
+			"photo_url":      user.Profile.PhotoURL,
+		},
+		"student": map[string]any{
+			"turma_id":     user.Student.TurmaID,
+			"student_name": user.Student.StudentName,
+		},
+		"activity": map[string]any{
+			"first_seen_at": user.Activity.FirstSeenAt,
+			"last_seen_at":  user.Activity.LastSeenAt,
+			"login_count":   user.Activity.LoginCount,
+		},
+		"roles":      user.Roles,
+		"is_guest":   user.IsGuest,
+		"deleted_at": user.DeletedAt,
+		"created_at": user.CreatedAt,
+		"updated_at": user.UpdatedAt,
+	}
+}

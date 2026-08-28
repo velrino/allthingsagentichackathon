@@ -25,9 +25,25 @@ curl http://localhost:4004/
 ## Runtime
 
 - `GET /` returns the health check and service dependency status.
+- `POST /users/student-session` verifies an anonymous Firebase ID token and upserts `users/{firebase_uid}` in Firestore.
 - Firebase Admin connects to project `allthingsagentichackatho-ee359`.
 - Firestore is the durable database.
 - Redis uses the same Secret Manager value as Unshatter for now.
+
+## Users
+
+Student records are stored in Firestore under `users/{firebase_uid}`. Payloads and document fields use `snake_case`:
+
+```json
+{
+  "identity": { "provider_user_id": "firebase_uid", "auth_method": "anonymous" },
+  "profile": { "display_name": "Student Name" },
+  "student": { "turma_id": "ALG-2026-A", "student_name": "Student Name" },
+  "activity": { "first_seen_at": "...", "last_seen_at": "...", "login_count": 1 },
+  "roles": ["student"],
+  "is_guest": true
+}
+```
 
 ## Secrets
 
