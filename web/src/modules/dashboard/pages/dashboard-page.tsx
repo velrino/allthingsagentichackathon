@@ -7,8 +7,6 @@ import {
   ClipboardList,
   Gamepad2,
   NotebookTabs,
-  TrendingUp,
-  Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -39,21 +37,22 @@ import {
   ActivityBuilder,
   type ActivityBuilderForm,
 } from "../components/activity-builder";
-import { AgentInterventionChart } from "../components/analytics/agent-intervention-chart";
-import { AdaptationOverTimeChart } from "../components/analytics/adaptation-over-time-chart";
 import { AnalyticsCard } from "../components/analytics/analytics-card";
 import {
-  buildAdaptationDataset,
-  buildConceptMemoryDataset,
-  buildContextSourceDataset,
-  demoInterventionOutcomes,
+  buildClassGlance,
+  buildClassSummary,
+  buildGrowthPatterns,
+  buildMissionFunnel,
+  buildNextActivityPrompt,
+  buildStrengthPatterns,
+  planSuggestions,
 } from "../components/analytics/analytics-data";
-import { ConceptMemoryHeatmap } from "../components/analytics/concept-memory-heatmap";
-import { ContextSourcesChart } from "../components/analytics/context-sources-chart";
-import { MemoryInActionFlow } from "../components/analytics/memory-in-action-flow";
-import { MemoryReceipts } from "../components/analytics/memory-receipts";
 import { DashboardShell } from "../components/dashboard-shell";
-import { MetricCard } from "../components/metric-card";
+import { ClassGlanceTiles } from "../components/overview/class-glance-tiles";
+import { ClassPatternsSummary } from "../components/overview/class-patterns-summary";
+import { MissionFunnel } from "../components/overview/mission-funnel";
+import { NextLessonPlan } from "../components/overview/next-lesson-plan";
+import { PatternGroups } from "../components/overview/pattern-groups";
 import { RecentPlayersTable } from "../components/recent-players-table";
 import { StudentsTable } from "../components/students-table";
 import {
@@ -93,6 +92,9 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
+  const [draftVersion, setDraftVersion] = useState(0);
+  const [shareCodeLabel, setShareCodeLabel] = useState("Share code");
 
   useEffect(() => {
     function syncTabFromHash() {
@@ -284,9 +286,11 @@ export function DashboardPage() {
     );
   }, [overview?.teacher_class, selectedClassId, teacherClasses]);
 
-  const metrics = overview?.metrics;
   const activeActivity = overview?.active_activity ?? null;
-  const suggestions = overview?.suggestions ?? [];
+  const suggestions = useMemo(
+    () => overview?.suggestions ?? [],
+    [overview?.suggestions],
+  );
   const students = useMemo(
     () => overview?.students ?? [],
     [overview?.students],
@@ -298,19 +302,35 @@ export function DashboardPage() {
     overview?.class_code ??
     "";
   const hasSelectedClass = Boolean(selectedClassId);
-  const adaptationDataset = useMemo(
-    () => buildAdaptationDataset(students),
+  const glance = useMemo(() => buildClassGlance(students), [students]);
+  const funnel = useMemo(
+    () => buildMissionFunnel(students, activeActivity),
+    [students, activeActivity],
+  );
+  const growthPatterns = useMemo(
+    () => buildGrowthPatterns(students),
     [students],
   );
-  const contextSourceDataset = useMemo(
-    () => buildContextSourceDataset(students),
+  const strengthPatterns = useMemo(
+    () => buildStrengthPatterns(students),
     [students],
   );
-  const conceptMemoryDataset = useMemo(
-    () => buildConceptMemoryDataset(students),
-    [students],
+  const patternSource = growthPatterns.source;
+  const summaryStudentCount =
+    students.length > 0 ? students.length : demoStudentCount(growthPatterns.data, strengthPatterns.data);
+  const classSummary = useMemo(
+    () =>
+      buildClassSummary(
+        growthPatterns.data,
+        strengthPatterns.data,
+        summaryStudentCount,
+      ),
+    [growthPatterns.data, strengthPatterns.data, summaryStudentCount],
   );
-  const memoryFlowStudent = students[0];
+  const plannedSuggestions = useMemo(
+    () => planSuggestions(suggestions),
+    [suggestions],
+  );
 
   async function loadOverview(token: string, classId: string) {
     const response = await API.dashboard.overview(token, {
@@ -406,6 +426,48 @@ export function DashboardPage() {
     setActiveDashboardTab("activity");
   }
 
+  function handleBuildNextActivity() {
+    if (!selectedClassId) {
+      router.push("/dashboard/classes");
+      return;
+    }
+
+    setDraftPrompt(
+      buildNextActivityPrompt(
+        growthPatterns.data,
+        strengthPatterns.data,
+        activeActivity,
+      ),
+    );
+    setDraftVersion((current) => current + 1);
+    setActivityBuilderOpen(true);
+    setActiveDashboardTab("activity");
+  }
+
+  function handlePlanFollowUp() {
+    setActiveDashboardTab("overview");
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("next-lesson")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  async function handleShareCode() {
+    if (!classCode) {
+      router.push("/dashboard/classes");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(classCode);
+      setShareCodeLabel("Code copied");
+    } catch {
+      setShareCodeLabel(`Code: ${classCode}`);
+    }
+    window.setTimeout(() => setShareCodeLabel("Share code"), 2_000);
+  }
+
   function setActiveDashboardTab(value: DashboardTab) {
     setActiveTab(value);
 
@@ -454,6 +516,7 @@ export function DashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {classCode ? <ClassCodeBadge value={classCode} compact /> : null}
             <Button variant="outline" asChild>
               <Link href="/home">
                 <Gamepad2 className="size-4" aria-hidden />
@@ -499,121 +562,85 @@ export function DashboardPage() {
           </div>
 
           <TabsContent value="overview" className="mt-2 space-y-4">
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard
-                icon={Users}
-                label="Students"
-                value={String(metrics?.total_students ?? 0)}
-                detail={`${metrics?.active_students ?? 0} active in this class`}
-              />
-              <MetricCard
-                icon={CheckCircle2}
-                label="Completed"
-                value={String(metrics?.completed_students ?? 0)}
-                detail="Finished the current activity"
-              />
-              <MetricCard
-                icon={TrendingUp}
-                label="Average progress"
-                value={`${metrics?.average_progress ?? 0}%`}
-                detail="Across visible students"
-              />
-              <MetricCard
-                icon={AlertTriangle}
-                label="Needs attention"
-                value={String(metrics?.needs_attention ?? 0)}
-                detail={`${metrics?.notebook_notes ?? 0} notebook notes`}
-              />
-            </section>
-
-            <div className="pt-2">
-              <h2 className="text-xl font-semibold tracking-tight">
-                How Emily learns with your students
-              </h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                See what Emily remembered, how she changed her help, and what
-                the teacher may want to do next.
-              </p>
-            </div>
+            <SectionHeading
+              eyebrow="Overview"
+              title="Class at a glance"
+              detail={
+                students.length > 0
+                  ? `${students.length} students joined with the class code. Counts come from live game presence.`
+                  : "Counts come from live game presence and will fill in as students join with the class code."
+              }
+            />
+            <ClassGlanceTiles
+              glance={glance}
+              shareCodeLabel={shareCodeLabel}
+              onPlanFollowUp={handlePlanFollowUp}
+              onShareCode={handleShareCode}
+            />
 
             <AnalyticsCard
-              contentClassName="px-3 pb-4 sm:px-6"
-              title="Why Emily changed her explanation"
-              description="Before replying, Emily looks up earlier conversations, saved learning notes, and today's goal. Select any step to see why it mattered."
-              source={memoryFlowStudent ? "estimated" : "demo"}
+              title="Where the class is in the mission"
+              description="Each column is a stage of the mission. Students move right as Emily unlocks the next stage; a review sends them back one column for a moment."
+              source={funnel.source}
             >
-              <MemoryInActionFlow
-                learningGoal={activeActivity?.learning_goal}
-                progress={memoryFlowStudent?.progress.percentage}
-                rememberedSignal={memoryFlowStudent?.improvement_areas[0]}
-                studentName={memoryFlowStudent?.student_name}
+              <MissionFunnel
+                steps={funnel.data}
+                totalStudents={students.length > 0 ? students.length : summaryStudentCount}
               />
             </AnalyticsCard>
 
-            <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <AnalyticsCard
-                contentClassName="ps-2 sm:ps-4"
-                title="Is Emily's help working over time?"
-                description="Understanding and confidence should rise while the need for extra explanations falls."
-                source={adaptationDataset.source}
-              >
-                <AdaptationOverTimeChart data={adaptationDataset.data} />
-              </AnalyticsCard>
+            <SectionHeading
+              eyebrow="Patterns"
+              title="What stood out across the class"
+              detail="Emily writes down how each student reasons. These are the patterns she saw most often."
+              source={patternSource}
+            />
+            <ClassPatternsSummary
+              growth={growthPatterns.data}
+              strengths={strengthPatterns.data}
+              summary={classSummary}
+              totalStudents={summaryStudentCount}
+            />
 
-              <AnalyticsCard
-                contentClassName="ps-2 sm:ps-4"
-                title="What Emily checked before replying"
-                description="Each bar shows the information Emily used. Over time, earlier sessions and saved notes play a larger role."
-                source={contextSourceDataset.source}
-              >
-                <ContextSourcesChart data={contextSourceDataset.data} />
-              </AnalyticsCard>
-            </section>
+            <SectionHeading
+              eyebrow="Areas for growth"
+              title="See where students need to grow"
+              detail="Grouped by pattern. Strong need means Emily saw it repeatedly; mild means it showed up once."
+              source={patternSource}
+            />
+            <PatternGroups
+              variant="growth"
+              groups={growthPatterns.data}
+              totalStudents={summaryStudentCount}
+              emptyMessage="No growth patterns yet. They appear after students answer and explain their reasoning to Emily."
+            />
 
-            <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.8fr)]">
-              <AnalyticsCard
-                title="What Emily remembers about the class"
-                description="Emily keeps learning patterns between sessions. Lighter cells mean students needed less help with that pattern."
-                source={conceptMemoryDataset.source}
-              >
-                <ConceptMemoryHeatmap data={conceptMemoryDataset.data} />
-              </AnalyticsCard>
+            <SectionHeading
+              eyebrow="Strengths"
+              title="See who's showing each strength"
+              detail="Use this to pair students, or to pick who can explain a step to the class."
+              source={patternSource}
+            />
+            <PatternGroups
+              variant="strength"
+              groups={strengthPatterns.data}
+              totalStudents={summaryStudentCount}
+              emptyMessage="No strengths recorded yet. Emily notes them as students explain answers and finish stages."
+            />
 
-              <MemoryReceipts
-                learningGoal={activeActivity?.learning_goal}
-                progress={memoryFlowStudent?.progress.percentage}
-                rememberedSignal={memoryFlowStudent?.improvement_areas[0]}
-                studentName={memoryFlowStudent?.student_name}
+            <div id="next-lesson" className="scroll-mt-24">
+              <SectionHeading
+                eyebrow="Next lesson"
+                title="Plan the follow-up"
+                detail="Emily's suggestions for reteaching, the whole class, and the students who are ahead."
+                source={activeActivity ? (overview?.generated_by_ai ? "live" : "estimated") : undefined}
               />
-            </section>
-
-            <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <AnalyticsCard
-                contentClassName="ps-2 sm:ps-4"
-                title="How much support students needed"
-                description="As the activity continues, more students should work independently and fewer should need teacher help."
-                source="demo"
-              >
-                <AgentInterventionChart data={demoInterventionOutcomes} />
-              </AnalyticsCard>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Emily notebook</CardTitle>
-                  <CardDescription>
-                    {students.length > 0
-                      ? `${students.length} student signals available for this class.`
-                      : "Student signals will appear after students play."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <RecentStudentSignals
-                    students={students}
-                    suggestions={suggestions}
-                  />
-                </CardContent>
-              </Card>
-            </section>
+            </div>
+            <NextLessonPlan
+              canBuild={hasSelectedClass}
+              suggestions={plannedSuggestions}
+              onBuildNextActivity={handleBuildNextActivity}
+            />
 
             <Card className="gap-0 py-0">
               <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
@@ -672,10 +699,11 @@ export function DashboardPage() {
 
         {selectedClassId ? (
           <ActivityBuilder
-            key={`${selectedClassId}:${activeActivity?.id ?? "empty"}:${previewActivity?.id ?? "preview"}`}
+            key={`${selectedClassId}:${activeActivity?.id ?? "empty"}:${previewActivity?.id ?? "preview"}:${draftVersion}`}
             activeActivity={activeActivity}
             approving={approving}
             classId={selectedClassId}
+            draftPrompt={draftPrompt ?? undefined}
             open={activityBuilderOpen}
             previewActivity={previewActivity}
             processing={processing}
@@ -858,61 +886,55 @@ function ActivityBuilderLauncherCard({
   );
 }
 
-function RecentStudentSignals({
-  students,
-  suggestions,
+function SectionHeading({
+  detail,
+  eyebrow,
+  source,
+  title,
 }: {
-  readonly students: IApiDashboardStudent[];
-  readonly suggestions: IApiSuggestion[];
+  readonly detail: string;
+  readonly eyebrow: string;
+  readonly source?: "demo" | "estimated" | "live";
+  readonly title: string;
 }) {
-  const visibleStudents = [...students].sort(compareStudentSignals).slice(0, 5);
-
-  if (visibleStudents.length === 0) {
-    const visibleSuggestions =
-      suggestions.length > 0 ? suggestions.slice(0, 3) : starterSuggestions();
-
-    return (
-      <div className="space-y-6">
-        {visibleSuggestions.map((suggestion) => (
-          <div key={suggestion.id} className="flex items-start gap-4">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-bold">
-              AI
-            </div>
-            <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-sm leading-none font-medium">
-                {suggestion.title}
-              </p>
-              <p className="line-clamp-2 text-sm text-muted-foreground">
-                {suggestion.reason}
-              </p>
-            </div>
-          </div>
-        ))}
+  return (
+    <div className="flex flex-col gap-1 pt-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p className="text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
+          {eyebrow}
+        </p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight">{title}</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+          {detail}
+        </p>
       </div>
-    );
-  }
+      {source ? <SourceBadge source={source} /> : null}
+    </div>
+  );
+}
+
+function SourceBadge({
+  source,
+}: {
+  readonly source: "demo" | "estimated" | "live";
+}) {
+  const label = {
+    demo: "Example data",
+    estimated: "Based on class signals",
+    live: "Live class data",
+  }[source];
+  const className = {
+    demo: "bg-amber-50 text-amber-800",
+    estimated: "bg-cyan-50 text-cyan-800",
+    live: "bg-emerald-50 text-emerald-800",
+  }[source];
 
   return (
-    <div className="space-y-8">
-      {visibleStudents.map((student) => (
-        <div key={student.id} className="flex items-center gap-4">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-bold">
-            {studentInitials(student.student_name)}
-          </div>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0 space-y-1">
-              <p className="truncate text-sm leading-none font-medium">
-                {student.student_name}
-              </p>
-              <p className="truncate text-sm text-muted-foreground">
-                {student.improvement_areas[0] ?? "No notes yet"}
-              </p>
-            </div>
-            <div className="font-medium">{student.progress.percentage}%</div>
-          </div>
-        </div>
-      ))}
-    </div>
+    <span
+      className={`w-fit shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold ${className}`}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -932,50 +954,6 @@ function StudentsTableSection({
       <StudentsTable students={students} />
     </section>
   );
-}
-
-function compareStudentSignals(
-  left: IApiDashboardStudent,
-  right: IApiDashboardStudent,
-) {
-  const leftNeedsAttention = left.progress.status === "needs_attention" ? 1 : 0;
-  const rightNeedsAttention =
-    right.progress.status === "needs_attention" ? 1 : 0;
-  if (leftNeedsAttention !== rightNeedsAttention) {
-    return rightNeedsAttention - leftNeedsAttention;
-  }
-
-  return (
-    new Date(right.last_activity_at).getTime() -
-    new Date(left.last_activity_at).getTime()
-  );
-}
-
-function studentInitials(value: string) {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "?";
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
-  return `${parts[0][0] ?? ""}${parts[parts.length - 1]?.[0] ?? ""}`.toUpperCase();
-}
-
-function starterSuggestions(): IApiSuggestion[] {
-  return [
-    {
-      id: "starter",
-      title: "Start with a teacher prompt",
-      reason:
-        "Emily needs the class goal, grade level, and the point students found confusing.",
-      activity:
-        "Create a short diagnostic activity before students enter the game.",
-      questions: [],
-      focus_skills: ["Teacher context"],
-    },
-  ];
 }
 
 function NotebookPanel({
@@ -1111,7 +1089,26 @@ function InfoPanel({
   );
 }
 
-function ClassCodeBadge({ value }: { readonly value: string }) {
+function ClassCodeBadge({
+  compact = false,
+  value,
+}: {
+  readonly compact?: boolean;
+  readonly value: string;
+}) {
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm">
+        <span className="text-[11px] font-bold uppercase text-emerald-700">
+          Code
+        </span>
+        <span className="font-mono text-base font-black text-emerald-900">
+          {value}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
       <span className="block text-xs font-bold uppercase text-emerald-700">
@@ -1122,6 +1119,17 @@ function ClassCodeBadge({ value }: { readonly value: string }) {
       </span>
     </div>
   );
+}
+
+function demoStudentCount(...groups: { students: { id: string }[] }[][]) {
+  const ids = new Set<string>();
+  for (const group of groups.flat()) {
+    for (const student of group.students) {
+      ids.add(student.id);
+    }
+  }
+
+  return ids.size;
 }
 
 function StatusBadge({ value }: { readonly value: string }) {

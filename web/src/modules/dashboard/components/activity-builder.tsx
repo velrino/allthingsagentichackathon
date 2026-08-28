@@ -20,6 +20,8 @@ type ActivityBuilderProps = {
   readonly activeActivity: IApiTeacherClassActivity | null;
   readonly approving: boolean;
   readonly classId: string;
+  /** Pre-written teacher prompt, e.g. built from the class patterns on the dashboard. */
+  readonly draftPrompt?: string;
   readonly open: boolean;
   readonly previewActivity: IApiTeacherClassActivity | null;
   readonly processing: boolean;
@@ -33,6 +35,7 @@ export function ActivityBuilder({
   activeActivity,
   approving,
   classId,
+  draftPrompt,
   onApprove,
   onOpenChange,
   onProcess,
@@ -48,7 +51,7 @@ export function ActivityBuilder({
     subject: activeActivity?.subject ?? teacherClass?.subject ?? "",
     grade_level: activeActivity?.grade_level ?? teacherClass?.grade_level ?? "",
     learning_goal: activeActivity?.learning_goal ?? "",
-    teacher_prompt: activeActivity?.teacher_prompt ?? "",
+    teacher_prompt: draftPrompt ?? activeActivity?.teacher_prompt ?? "",
     attachments: activeActivity?.attachments ?? [],
   }));
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);

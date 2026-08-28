@@ -1,270 +1,418 @@
-import type { IApiDashboardStudent } from "@/backend/api/api.interface";
+import type {
+  IApiDashboardStudent,
+  IApiSuggestion,
+  IApiTeacherClassActivity,
+} from "@/backend/api/api.interface";
+import { POD_LABELS, POD_ORDER, type PodId } from "@/modules/game/types/game";
 
-export type LearningSignal = {
-  readonly name: string;
-  readonly mastery: number;
-  readonly confidence: number;
-  readonly clarification_load: number;
-};
-
-export type InterventionOutcome = {
-  readonly stage: string;
-  readonly independent: number;
-  readonly guided: number;
-  readonly teacher_support: number;
-};
-
-export type MisconceptionSignal = {
-  readonly name: string;
-  readonly signals: number;
-};
-
-export type AdaptationSession = {
-  readonly session: string;
-  readonly understanding: number;
-  readonly confidence: number;
-  readonly help_needed: number;
-  readonly memory_used: boolean;
-};
-
-export type ContextSourceSession = {
-  readonly session: string;
-  readonly current_conversation: number;
-  readonly past_sessions: number;
-  readonly student_memory: number;
-  readonly lesson_materials: number;
-};
-
-export type MemoryDifficulty = "often" | "sometimes" | "rarely" | "resolved";
-
-export type ConceptMemory = {
-  readonly concept: string;
-  readonly sessions: readonly MemoryDifficulty[];
-};
+export type AnalyticsSource = "demo" | "estimated" | "live";
 
 export type AnalyticsDataset<T> = {
-  readonly data: T[];
-  readonly source: "demo" | "estimated" | "live";
+  readonly data: T;
+  readonly source: AnalyticsSource;
 };
 
-const demoLearningSignals: LearningSignal[] = [
-  { name: "Warm-up", mastery: 38, confidence: 34, clarification_load: 78 },
-  { name: "Check 1", mastery: 49, confidence: 44, clarification_load: 66 },
-  { name: "Guided", mastery: 61, confidence: 57, clarification_load: 52 },
-  { name: "Retry", mastery: 69, confidence: 64, clarification_load: 42 },
-  { name: "Explain", mastery: 76, confidence: 71, clarification_load: 31 },
-  { name: "Exit", mastery: 84, confidence: 80, clarification_load: 24 },
+export type StudentRef = {
+  readonly id: string;
+  readonly name: string;
+};
+
+/** Class glance: computed from live game presence only. */
+export type ClassGlance = {
+  readonly total: number;
+  readonly notStarted: StudentRef[];
+  readonly playingNow: StudentRef[];
+  readonly atTheDesk: StudentRef[];
+  readonly inReview: StudentRef[];
+  readonly completed: StudentRef[];
+};
+
+export type FunnelStepKind = "not_started" | "stage" | "completed";
+
+export type FunnelStep = {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: FunnelStepKind;
+  readonly students: StudentRef[];
+};
+
+/** high = strongest signal (strong need / excels), low = weakest (mild / emerging). */
+export type PatternLevel = "high" | "medium" | "low";
+
+export type PatternStudent = StudentRef & {
+  readonly level: PatternLevel;
+};
+
+export type PatternGroup = {
+  readonly pattern: string;
+  readonly students: PatternStudent[];
+};
+
+export type SuggestionTier = "reteaching" | "whole_class" | "enrichment";
+
+export type PlannedSuggestion = IApiSuggestion & {
+  readonly tier: SuggestionTier;
+};
+
+const demoStudents: StudentRef[] = [
+  { id: "demo-maya", name: "Maya Silva" },
+  { id: "demo-theo", name: "Theo Park" },
+  { id: "demo-ana", name: "Ana Costa" },
+  { id: "demo-luca", name: "Luca Rossi" },
+  { id: "demo-noor", name: "Noor Haddad" },
+  { id: "demo-ravi", name: "Ravi Menon" },
+  { id: "demo-june", name: "June Okafor" },
+  { id: "demo-eli", name: "Eli Brandt" },
 ];
 
-export const demoInterventionOutcomes: InterventionOutcome[] = [
-  { stage: "Start", independent: 22, guided: 44, teacher_support: 34 },
-  { stage: "After a hint", independent: 35, guided: 48, teacher_support: 17 },
-  { stage: "Practice", independent: 49, guided: 41, teacher_support: 10 },
-  { stage: "Final task", independent: 66, guided: 29, teacher_support: 5 },
+const demoGrowthPatterns: PatternGroup[] = [
+  {
+    pattern: "Divides instead of multiplying to clear a denominator",
+    students: [
+      { ...demoStudents[3], level: "high" },
+      { ...demoStudents[0], level: "medium" },
+      { ...demoStudents[5], level: "medium" },
+      { ...demoStudents[7], level: "low" },
+    ],
+  },
+  {
+    pattern: "Adds numerators and denominators straight across",
+    students: [
+      { ...demoStudents[3], level: "high" },
+      { ...demoStudents[4], level: "medium" },
+      { ...demoStudents[1], level: "low" },
+    ],
+  },
+  {
+    pattern: "Moves a term without doing the same on both sides",
+    students: [
+      { ...demoStudents[2], level: "medium" },
+      { ...demoStudents[6], level: "low" },
+    ],
+  },
 ];
 
-const demoMisconceptions: MisconceptionSignal[] = [
-  { name: "Sign errors", signals: 9 },
-  { name: "Fraction operations", signals: 7 },
-  { name: "Order of operations", signals: 5 },
-  { name: "Explaining reasoning", signals: 4 },
-  { name: "Variable isolation", signals: 3 },
+const demoStrengthPatterns: PatternGroup[] = [
+  {
+    pattern: "Explains the reason before seeing the answer",
+    students: [
+      { ...demoStudents[1], level: "high" },
+      { ...demoStudents[2], level: "high" },
+      { ...demoStudents[6], level: "medium" },
+      { ...demoStudents[4], level: "medium" },
+      { ...demoStudents[0], level: "low" },
+    ],
+  },
+  {
+    pattern: "Keeps trying after a wrong answer",
+    students: [
+      { ...demoStudents[0], level: "high" },
+      { ...demoStudents[5], level: "high" },
+      { ...demoStudents[7], level: "medium" },
+      { ...demoStudents[3], level: "low" },
+    ],
+  },
+  {
+    pattern: "Picks the right next move in two-step equations",
+    students: [
+      { ...demoStudents[1], level: "high" },
+      { ...demoStudents[2], level: "medium" },
+      { ...demoStudents[6], level: "medium" },
+    ],
+  },
 ];
 
-const demoAdaptationSessions: AdaptationSession[] = [
-  { session: "Session 1", understanding: 38, confidence: 34, help_needed: 78, memory_used: false },
-  { session: "Session 2", understanding: 49, confidence: 44, help_needed: 66, memory_used: true },
-  { session: "Session 3", understanding: 61, confidence: 57, help_needed: 52, memory_used: false },
-  { session: "Session 4", understanding: 71, confidence: 67, help_needed: 39, memory_used: true },
-  { session: "Session 5", understanding: 84, confidence: 80, help_needed: 24, memory_used: true },
+const demoFunnel: FunnelStep[] = [
+  { id: "not_started", label: "Not started", kind: "not_started", students: [demoStudents[7]] },
+  { id: "fractions", label: POD_LABELS.fractions, kind: "stage", students: [demoStudents[3], demoStudents[4]] },
+  {
+    id: "simple-equations",
+    label: POD_LABELS["simple-equations"],
+    kind: "stage",
+    students: [demoStudents[0], demoStudents[5]],
+  },
+  {
+    id: "two-step-equations",
+    label: POD_LABELS["two-step-equations"],
+    kind: "stage",
+    students: [demoStudents[2]],
+  },
+  { id: "completed", label: "Completed", kind: "completed", students: [demoStudents[1], demoStudents[6]] },
 ];
 
-const demoContextSources: ContextSourceSession[] = [
-  { session: "Session 1", current_conversation: 62, past_sessions: 0, student_memory: 8, lesson_materials: 30 },
-  { session: "Session 2", current_conversation: 47, past_sessions: 18, student_memory: 14, lesson_materials: 21 },
-  { session: "Session 3", current_conversation: 38, past_sessions: 24, student_memory: 19, lesson_materials: 19 },
-  { session: "Session 4", current_conversation: 32, past_sessions: 27, student_memory: 25, lesson_materials: 16 },
-  { session: "Session 5", current_conversation: 27, past_sessions: 30, student_memory: 30, lesson_materials: 13 },
-];
-
-const demoConceptMemory: ConceptMemory[] = [
-  { concept: "Sign errors", sessions: ["often", "often", "sometimes", "sometimes", "rarely"] },
-  { concept: "Fraction operations", sessions: ["often", "sometimes", "sometimes", "rarely", "resolved"] },
-  { concept: "Order of operations", sessions: ["sometimes", "sometimes", "rarely", "resolved", "resolved"] },
-  { concept: "Explaining reasoning", sessions: ["often", "often", "sometimes", "sometimes", "rarely"] },
-];
-
-export function buildAdaptationDataset(students: IApiDashboardStudent[]): AnalyticsDataset<AdaptationSession> {
-  if (students.length === 0) {
-    return { data: demoAdaptationSessions, source: "demo" };
-  }
-
-  const averageProgress =
-    students.reduce((total, student) => total + student.progress.percentage, 0) / Math.max(students.length, 1);
-  const attentionRatio =
-    students.filter((student) => student.progress.status === "needs_attention").length / Math.max(students.length, 1);
-  const confidenceBase = clamp(Math.round(averageProgress - attentionRatio * 16), 22, 88);
-  const helpBase = clamp(Math.round(76 - averageProgress * 0.42 + attentionRatio * 22), 20, 86);
-
-  return {
-    source: "estimated",
-    data: demoAdaptationSessions.map((session, index) => {
-      const step = index / Math.max(demoAdaptationSessions.length - 1, 1);
-
-      return {
-        ...session,
-        understanding: clamp(Math.round(averageProgress * (0.6 + step * 0.44)), 24, 96),
-        confidence: clamp(Math.round(confidenceBase * (0.68 + step * 0.38)), 20, 94),
-        help_needed: clamp(Math.round(helpBase * (1.16 - step * 0.7)), 8, 90),
-      };
-    }),
-  };
-}
-
-export function buildContextSourceDataset(students: IApiDashboardStudent[]): AnalyticsDataset<ContextSourceSession> {
-  if (students.length === 0) {
-    return { data: demoContextSources, source: "demo" };
-  }
-
-  const notebookDepth = clamp(
-    students.reduce((total, student) => total + student.notebook_notes, 0),
-    0,
-    18,
-  );
-
-  return {
-    source: "estimated",
-    data: demoContextSources.map((session, index) => {
-      const memoryBoost = Math.min(Math.round(notebookDepth / 3), 6);
-      const studentMemory = clamp(session.student_memory + Math.round((memoryBoost * index) / 4), 8, 36);
-      const pastSessions = session.past_sessions;
-      const lessonMaterials = session.lesson_materials;
-
-      return {
-        ...session,
-        student_memory: studentMemory,
-        current_conversation: 100 - pastSessions - studentMemory - lessonMaterials,
-      };
-    }),
-  };
-}
-
-export function buildConceptMemoryDataset(students: IApiDashboardStudent[]): AnalyticsDataset<ConceptMemory> {
-  const counts = collectImprovementAreas(students);
-  if (counts.length === 0) {
-    return { data: demoConceptMemory, source: "demo" };
-  }
-
-  const patterns: readonly (readonly MemoryDifficulty[])[] = [
-    ["often", "often", "sometimes", "sometimes", "rarely"],
-    ["often", "sometimes", "sometimes", "rarely", "resolved"],
-    ["sometimes", "sometimes", "rarely", "resolved", "resolved"],
-    ["sometimes", "rarely", "rarely", "resolved", "resolved"],
-  ];
-
-  return {
-    source: "estimated",
-    data: counts.slice(0, 4).map((entry, index) => ({
-      concept: shortenLabel(entry.label, 28),
-      sessions: patterns[Math.min(index, patterns.length - 1)],
-    })),
-  };
-}
-
-export function buildLearningSignalDataset(students: IApiDashboardStudent[]): AnalyticsDataset<LearningSignal> {
-  if (students.length === 0) {
-    return { data: demoLearningSignals, source: "demo" };
-  }
-
-  const averageProgress =
-    students.reduce((total, student) => total + student.progress.percentage, 0) / Math.max(students.length, 1);
-  const attentionRatio =
-    students.filter((student) => student.progress.status === "needs_attention").length / Math.max(students.length, 1);
-  const confidenceBase = clamp(Math.round(averageProgress - attentionRatio * 18), 18, 92);
-  const clarificationBase = clamp(Math.round(72 - averageProgress * 0.45 + attentionRatio * 24), 18, 88);
-
-  return {
-    source: "estimated",
-    data: demoLearningSignals.map((signal, index) => {
-      const step = index / Math.max(demoLearningSignals.length - 1, 1);
-
-      return {
-        ...signal,
-        mastery: clamp(Math.round(averageProgress * (0.62 + step * 0.42)), 24, 96),
-        confidence: clamp(Math.round(confidenceBase * (0.68 + step * 0.38)), 20, 94),
-        clarification_load: clamp(Math.round(clarificationBase * (1.18 - step * 0.72)), 8, 90),
-      };
-    }),
-  };
-}
-
-export function buildMisconceptionDataset(
-  students: IApiDashboardStudent[],
-): AnalyticsDataset<MisconceptionSignal> {
-  const counts = new Map<string, { label: string; signals: number }>();
+export function buildClassGlance(students: IApiDashboardStudent[]): ClassGlance {
+  const notStarted: StudentRef[] = [];
+  const playingNow: StudentRef[] = [];
+  const atTheDesk: StudentRef[] = [];
+  const inReview: StudentRef[] = [];
+  const completed: StudentRef[] = [];
 
   for (const student of students) {
-    for (const improvementArea of student.improvement_areas) {
-      const label = improvementArea.trim();
-      if (!label) {
-        continue;
-      }
+    const ref = toStudentRef(student);
+    const session = student.session;
+    const status = session?.status ?? "";
 
-      const key = label.toLocaleLowerCase("en");
-      const current = counts.get(key);
-      counts.set(key, {
-        label: current?.label ?? label,
-        signals: (current?.signals ?? 0) + 1,
+    if (!session || !session.started_at) {
+      notStarted.push(ref);
+      continue;
+    }
+    if (session.is_online) {
+      playingNow.push(ref);
+    }
+    if (status === "learning" || status === "thinking" || status === "reviewing") {
+      atTheDesk.push(ref);
+    }
+    if (status === "reviewing") {
+      inReview.push(ref);
+    }
+    if (status === "completed") {
+      completed.push(ref);
+    }
+  }
+
+  return { total: students.length, notStarted, playingNow, atTheDesk, inReview, completed };
+}
+
+export function buildMissionFunnel(
+  students: IApiDashboardStudent[],
+  activeActivity: IApiTeacherClassActivity | null,
+): AnalyticsDataset<FunnelStep[]> {
+  if (students.length === 0) {
+    return { data: demoFunnel, source: "demo" };
+  }
+
+  const notStarted: StudentRef[] = [];
+  const completed: StudentRef[] = [];
+  const byStage = new Map<string, { label: string; students: StudentRef[] }>();
+
+  for (const student of students) {
+    const ref = toStudentRef(student);
+    const session = student.session;
+
+    if (!session || !session.started_at) {
+      notStarted.push(ref);
+      continue;
+    }
+    if (session.status === "completed") {
+      completed.push(ref);
+      continue;
+    }
+
+    const stageId = session.stage_id || "unknown";
+    const current = byStage.get(stageId);
+    if (current) {
+      current.students.push(ref);
+    } else {
+      byStage.set(stageId, {
+        label: session.stage_name || stageLabelFromActivity(stageId, activeActivity) || "In the classroom",
+        students: [ref],
       });
     }
   }
 
-  if (counts.size === 0) {
-    return { data: demoMisconceptions, source: "demo" };
-  }
+  // The game always reports the mission pods, so those columns are shown even when empty.
+  // Stage ids from the published activity or unknown ids only appear when a student is there.
+  const activityStageIds = activeActivity?.stages.map((stage) => stage.id) ?? [];
+  const orderedIds = unique([...POD_ORDER, ...activityStageIds, ...byStage.keys()]);
+
+  const stageSteps: FunnelStep[] = orderedIds
+    .filter((stageId) => byStage.has(stageId) || isPodId(stageId))
+    .map((stageId) => ({
+      id: stageId,
+      kind: "stage" as const,
+      label: byStage.get(stageId)?.label ?? (isPodId(stageId) ? POD_LABELS[stageId] : stageId),
+      students: byStage.get(stageId)?.students ?? [],
+    }));
 
   return {
     source: "live",
-    data: [...counts.values()]
-      .sort((left, right) => right.signals - left.signals)
-      .slice(0, 5)
-      .map((entry) => ({
-        name: shortenLabel(entry.label, 24),
-        signals: entry.signals,
-      })),
+    data: [
+      { id: "not_started", label: "Not started", kind: "not_started", students: notStarted },
+      ...stageSteps,
+      { id: "completed", label: "Completed", kind: "completed", students: completed },
+    ],
   };
 }
 
-function collectImprovementAreas(students: IApiDashboardStudent[]) {
-  const counts = new Map<string, { label: string; signals: number }>();
+export function buildGrowthPatterns(students: IApiDashboardStudent[]): AnalyticsDataset<PatternGroup[]> {
+  if (students.length === 0) {
+    return { data: demoGrowthPatterns, source: "demo" };
+  }
+
+  return {
+    source: "estimated",
+    data: groupPatterns(students, (student) => student.improvement_areas, growthLevel),
+  };
+}
+
+export function buildStrengthPatterns(students: IApiDashboardStudent[]): AnalyticsDataset<PatternGroup[]> {
+  if (students.length === 0) {
+    return { data: demoStrengthPatterns, source: "demo" };
+  }
+
+  return {
+    source: "estimated",
+    data: groupPatterns(students, (student) => student.strengths, strengthLevel),
+  };
+}
+
+export function buildClassSummary(
+  growth: PatternGroup[],
+  strengths: PatternGroup[],
+  totalStudents: number,
+): string {
+  const topGrowth = growth[0];
+  const topStrength = strengths[0];
+  const strongNeed = new Set(
+    growth.flatMap((group) => group.students.filter((student) => student.level === "high").map((student) => student.id)),
+  );
+
+  const parts: string[] = [];
+  if (topStrength) {
+    parts.push(
+      `${topStrength.students.length} of ${totalStudents} students ${lowerFirst(topStrength.pattern)}.`,
+    );
+  }
+  if (topGrowth) {
+    parts.push(
+      `The most common pattern to work on is "${lowerFirst(topGrowth.pattern)}" (${topGrowth.students.length} of ${totalStudents}).`,
+    );
+  }
+  if (strongNeed.size > 0) {
+    parts.push(
+      `${strongNeed.size} ${strongNeed.size === 1 ? "student needs" : "students need"} a short small-group review before the next mission.`,
+    );
+  }
+
+  return parts.join(" ") || "Class patterns will appear after students play the mission.";
+}
+
+export function planSuggestions(suggestions: IApiSuggestion[]): PlannedSuggestion[] {
+  const tierOrder: SuggestionTier[] = ["reteaching", "whole_class", "enrichment"];
+
+  return suggestions.slice(0, 3).map((suggestion, index) => ({
+    ...suggestion,
+    tier: readTier(suggestion) ?? tierOrder[index] ?? "whole_class",
+  }));
+}
+
+export function buildNextActivityPrompt(
+  growth: PatternGroup[],
+  strengths: PatternGroup[],
+  activeActivity: IApiTeacherClassActivity | null,
+): string {
+  const lines: string[] = [];
+
+  if (activeActivity) {
+    lines.push(`Follow-up to "${activeActivity.title}" (${activeActivity.learning_goal}).`);
+  }
+
+  const growthLines = growth.slice(0, 3).map((group) => {
+    const strong = group.students.filter((student) => student.level === "high").map((student) => student.name);
+    const suffix = strong.length > 0 ? ` Strongest need: ${strong.join(", ")}.` : "";
+    return `- ${group.pattern} (${group.students.length} students).${suffix}`;
+  });
+  if (growthLines.length > 0) {
+    lines.push("", "Patterns Emily noticed that students still need to work on:", ...growthLines);
+  }
+
+  const strengthLines = strengths.slice(0, 2).map((group) => `- ${group.pattern} (${group.students.length} students).`);
+  if (strengthLines.length > 0) {
+    lines.push("", "Strengths to build on:", ...strengthLines);
+  }
+
+  lines.push(
+    "",
+    "Please build a short review mission that starts with the most common pattern, asks students why before explaining, and gives the strongest students one harder example.",
+  );
+
+  return lines.join("\n");
+}
+
+function groupPatterns(
+  students: IApiDashboardStudent[],
+  pick: (student: IApiDashboardStudent) => string[],
+  levelFor: (student: IApiDashboardStudent) => PatternLevel,
+): PatternGroup[] {
+  const groups = new Map<string, { pattern: string; students: Map<string, PatternStudent> }>();
 
   for (const student of students) {
-    for (const improvementArea of student.improvement_areas) {
-      const label = improvementArea.trim();
-      if (!label) {
+    const level = levelFor(student);
+    for (const raw of pick(student)) {
+      const pattern = raw.trim();
+      if (!pattern) {
         continue;
       }
 
-      const key = label.toLocaleLowerCase("en");
-      const current = counts.get(key);
-      counts.set(key, {
-        label: current?.label ?? label,
-        signals: (current?.signals ?? 0) + 1,
-      });
+      const key = pattern.toLocaleLowerCase("en");
+      const group = groups.get(key) ?? { pattern, students: new Map<string, PatternStudent>() };
+      group.students.set(student.id, { ...toStudentRef(student), level });
+      groups.set(key, group);
     }
   }
 
-  return [...counts.values()].sort((left, right) => right.signals - left.signals);
+  return [...groups.values()]
+    .map((group) => ({
+      pattern: group.pattern,
+      students: [...group.students.values()].sort(compareByLevel),
+    }))
+    .sort((left, right) => right.students.length - left.students.length);
 }
 
-function shortenLabel(value: string, maximumLength: number) {
-  if (value.length <= maximumLength) {
-    return value;
+function growthLevel(student: IApiDashboardStudent): PatternLevel {
+  if (student.progress.status === "needs_attention") {
+    return "high";
+  }
+  if (student.progress.status === "completed") {
+    return "low";
   }
 
-  return `${value.slice(0, maximumLength - 1).trimEnd()}...`;
+  return "medium";
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
+function strengthLevel(student: IApiDashboardStudent): PatternLevel {
+  if (student.progress.status === "completed") {
+    return "high";
+  }
+  if (student.progress.status === "needs_attention") {
+    return "low";
+  }
+
+  return "medium";
+}
+
+const levelRank: Record<PatternLevel, number> = { high: 0, medium: 1, low: 2 };
+
+function compareByLevel(left: PatternStudent, right: PatternStudent) {
+  const rank = levelRank[left.level] - levelRank[right.level];
+  return rank !== 0 ? rank : left.name.localeCompare(right.name);
+}
+
+function readTier(suggestion: IApiSuggestion): SuggestionTier | null {
+  const tier = (suggestion as IApiSuggestion & { tier?: string }).tier;
+  if (tier === "reteaching" || tier === "whole_class" || tier === "enrichment") {
+    return tier;
+  }
+
+  return null;
+}
+
+function stageLabelFromActivity(stageId: string, activeActivity: IApiTeacherClassActivity | null) {
+  return activeActivity?.stages.find((stage) => stage.id === stageId)?.title ?? "";
+}
+
+function isPodId(value: string): value is PodId {
+  return (POD_ORDER as readonly string[]).includes(value);
+}
+
+function unique<T>(values: T[]): T[] {
+  return [...new Set(values)];
+}
+
+function toStudentRef(student: IApiDashboardStudent): StudentRef {
+  return { id: student.id, name: student.student_name };
+}
+
+function lowerFirst(value: string) {
+  return value.charAt(0).toLocaleLowerCase("en") + value.slice(1);
 }
