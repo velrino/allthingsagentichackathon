@@ -59,23 +59,25 @@ The teacher side adds the second collaborator: the same notebook, aggregated per
 → back to 1, until the mission is complete
 ```
 
-## What exists today (frontend, mocked agent)
+## What exists today
 
-Everything below runs in `apps/web` with no backend. The agent is a deterministic mock behind the exact interface the real one will implement.
+The game loop still uses a mocked tutor agent, but student entry now touches the real API and Firestore.
 
 - **3D classroom** (Three.js, low-poly GLB). The merged mesh is split into connected islands at load time, the room shell is stretched 2× and the furniture spread apart so it's walkable; the whiteboard is recoloured to match the lesson board (`scene/classroom-layout.ts`).
 - **Third-person camera**: drag to orbit, returns behind the avatar while walking, slides along walls instead of clipping.
 - **Collision** with walls and furniture; joystick on phones, WASD + mouse on desktop; tap the glowing desk to walk to it.
 - **Characters**: six chibi avatars (from Unshatter's chibi-band set). The student picks one from the top bar; **Emily** is the teacher, standing at the whiteboard.
+- **Student entry**: first visit to `/home` blocks the game with a centered modal for `turma_id` and `student_name`; the web signs in anonymously with Firebase Auth and posts to the API.
 - **One desk**: the student sits at the desk in front of the teacher's; the whole mission happens there.
 - **Chalkboard lesson UI** (Bully: Scholarship Edition style, no timer): multiple choice for fractions, "pick the next move" for equations, the *why* card, step/visual explanations (fraction bars, equation chains), feedback pills, decision card with its *why*.
 - **Emily's notebook**: notes (type, skill, evidence, count) with "That's not how I think", adaptation state, decision log, reset.
 - **Persistent memory** in `localStorage` (mirrors the Firestore document): close the tab, come back, *"Welcome back — last time you were on Fractions."*
+- **Student user records** in Firestore: `POST /users/student-session` verifies the anonymous Firebase token and upserts `users/{firebase_uid}` with nested `identity`, `profile`, `student`, and `activity` objects, all `snake_case`.
 - **Demo content**: the Algebra Mission — Fractions → Simple equations → Two-step equations, 12 questions whose wrong options are tagged with named misconceptions (`content/algebra-mission.ts`). This becomes the few-shot example for generated missions.
 
-Also started: `apps/api`, a Go API skeleton in the same style as Unshatter, with Echo, config validation, Firebase Admin/Firestore connection, shared Redis connection and `GET /` health checks.
+The agent is still a deterministic mock behind the exact interface the real one will implement.
 
-Not built yet: teacher form, mission generation, Gemini 3.5+ tutor turns, class notebook, dashboard login, deploy.
+Not built yet: teacher form, mission generation, Gemini 3.5+ tutor turns, class notebook, dashboard login.
 
 ## Pedagogical goal of the demo mission
 
@@ -125,14 +127,24 @@ missions/{code}/students/{studentId}    # Emily's memory of one student
 
 missions/{code}/students/{studentId}/attempts/{attemptId}
   questionId, answer, correct, reasoning, feedback, at
+
+users/{firebase_uid}
+  identity: { provider, provider_user_id, auth_method, sign_in_provider, token }
+  profile:  { display_name, email, email_verified, photo_url }
+  student:  { turma_id, student_name }
+  activity: { first_seen_at, last_seen_at, login_count }
+  roles, is_guest, created_at, updated_at
 ```
 
 The class notebook is a read over `missions/{code}/students/*`: notes grouped by misconception, counts, who needed a review, what Emily changed.
 
+Current MVP identity rule: a returning student is matched by Firebase anonymous UID, so the same browser/device remains the same student even if the display name changes from `denis` to `Denis M`. Future classroom rosters should add a teacher-issued `student_code` for cross-device matching and dashboard merge tools.
+
 ### API
 
 ```txt
-GET  /healthz
+GET  /
+POST /users/student-session          anonymous Firebase token + turma/student name → Firestore user
 POST /missions                       teacher input → generated mission + code
 GET  /missions/{code}                mission content for the game
 POST /missions/{code}/students/{id}/turn     one tutor turn (answer / why / feedback)
@@ -163,8 +175,9 @@ The frontend already treats `agent/mock-tutor.ts` as the boundary. The real agen
 
 Day 1 (done): 3D classroom, camera, collision, characters, chalkboard loop, notebook, mock agent, local memory.
 
+Day 2 foundation (done): Go API, Firebase Admin/Firestore, anonymous student session endpoint, frontend student entry modal, Cloud Run services, GitHub Cloud Build triggers.
+
 **Day 2 — make Emily real**
-- `apps/api` skeleton (Go, Cloud Run Dockerfile, `/healthz`).
 - `POST /missions`: Gemini 3.5+ structured output from teacher text; the Algebra Mission as few-shot; Firestore write.
 - `POST …/turn`: replace `decideAfterFeedback`, `noteFromReasoning`, `buildWhyOptions` with Gemini 3.5+; keep the reducer.
 - Frontend: fetch mission by code; student memory to Firestore instead of `localStorage`.

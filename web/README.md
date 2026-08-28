@@ -13,12 +13,14 @@ Open [http://localhost:3000/home](http://localhost:3000/home).
 
 ## Firebase
 
-The app has a Firebase client foundation in `src/modules/firebase/client.ts`.
+The app has a Firebase client foundation in `src/shared/firebase/client.ts`.
 
 - Local config lives in `.env.local` and is ignored by git.
 - Required deploy envs are listed in `.env.example`.
 - Firestore project: `allthingsagentichackatho-ee359`.
-- Current game state still uses `localStorage`; Firestore will be wired when `/teach`, `/join`, mission codes and student IDs are added.
+- `/home` requires an anonymous Firebase session before the game loads. The first visit shows a blocking student modal for `turma_id` and `student_name`, then posts to `POST /users/student-session`.
+- Current lesson state still uses `localStorage`; Firestore now receives the student user record that the future teacher dashboard will list.
+- Returning students are matched by Firebase anonymous UID on the same browser/device. A teacher-issued `student_code` is the planned next step for cross-device identity.
 
 ## Validation
 
@@ -46,7 +48,7 @@ set +a
 
 gcloud builds submit \
   --config web/infra/cloud-run/production/cloudbuild.yaml \
-  --substitutions=_NEXT_PUBLIC_FIREBASE_API_KEY="$NEXT_PUBLIC_FIREBASE_API_KEY",_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",_NEXT_PUBLIC_FIREBASE_PROJECT_ID="$NEXT_PUBLIC_FIREBASE_PROJECT_ID",_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",_NEXT_PUBLIC_FIREBASE_APP_ID="$NEXT_PUBLIC_FIREBASE_APP_ID",_NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID" \
+  --substitutions=_NEXT_PUBLIC_FIREBASE_API_KEY="$NEXT_PUBLIC_FIREBASE_API_KEY",_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",_NEXT_PUBLIC_FIREBASE_PROJECT_ID="$NEXT_PUBLIC_FIREBASE_PROJECT_ID",_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",_NEXT_PUBLIC_FIREBASE_APP_ID="$NEXT_PUBLIC_FIREBASE_APP_ID",_NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID",_NEXT_PUBLIC_CLASSGAME_API_BASE_URL="${NEXT_PUBLIC_CLASSGAME_API_BASE_URL:-https://classgame-api-2057331207.us-east1.run.app}" \
   .
 ```
 
@@ -91,6 +93,7 @@ Everything Emily "decides" today comes from `src/modules/game/agent/mock-tutor.t
 ## Structure
 
 ```txt
+src/backend/api/                 API client, endpoints, request/response types
 src/modules/game/
   agent/mock-tutor.ts          decisions, notes, "why" options — swap for the API
   avatars/                     presets, localStorage choice, GLB loader, rig animation
@@ -111,8 +114,10 @@ src/modules/game/
     session-reducer.ts         the lesson loop (pure)
     student-memory.ts          memory model + localStorage
     use-game-session.ts        React glue: hydration, thinking pause, directive ref
+  student-session/             blocking anonymous auth + student modal
   types/                       shared types
   pages/game-page.tsx
+src/shared/firebase/client.ts    Firebase app/auth/firestore client
 ```
 
 ## Assets
