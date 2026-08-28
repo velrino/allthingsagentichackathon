@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { HomePage } from "@/modules/home/pages/home-page";
+
+import { GamePage } from "@/modules/game/pages/game-page";
 
 export const metadata: Metadata = {
-  title: "ClassGame | Home",
+  title: "ClassGame | Algebra Mission",
 };
 
 export default function Page() {
-  return <HomePage />;
+  return <GamePage />;
 }
