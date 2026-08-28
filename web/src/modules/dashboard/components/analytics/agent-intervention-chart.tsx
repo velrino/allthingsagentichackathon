@@ -36,15 +36,15 @@ export function AgentInterventionChart({ data }: AgentInterventionChartProps) {
             dataKey="independent"
             name="Independent"
             stackId="outcomes"
-            fill="var(--chart-emerald)"
+            fill="var(--chart-purple-1)"
             radius={[0, 0, 3, 3]}
           />
-          <Bar dataKey="guided" name="Guided by Emily" stackId="outcomes" fill="var(--chart-cyan)" />
+          <Bar dataKey="guided" name="Guided by Emily" stackId="outcomes" fill="var(--chart-purple-2)" />
           <Bar
             dataKey="teacher_support"
             name="Teacher support"
             stackId="outcomes"
-            fill="var(--chart-amber)"
+            fill="var(--chart-purple-3)"
             radius={[3, 3, 0, 0]}
           />
         </BarChart>

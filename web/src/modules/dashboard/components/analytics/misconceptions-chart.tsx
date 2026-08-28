@@ -33,7 +33,7 @@ export function MisconceptionsChart({ data }: MisconceptionsChartProps) {
             axisLine={false}
           />
           <Tooltip content={<ChartTooltip valueSuffix=" signals" />} />
-          <Bar dataKey="signals" name="Captured signals" fill="var(--chart-rose)" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="signals" name="Captured signals" fill="var(--chart-purple-1)" radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

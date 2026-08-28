@@ -430,12 +430,11 @@ export function DashboardPage() {
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-7">
               <AnalyticsCard
                 className="col-span-1 lg:col-span-4"
-                contentClassName="ps-2 sm:ps-4"
-                title="Collaborative learning signals"
-                description="How mastery, confidence, and clarification needs change as Emily adapts the activity."
-                source={learningSignalDataset.source}
+                title="Agent intervention outcomes"
+                description="The share of students progressing independently, with Emily's guidance, or with teacher support."
+                source="demo"
               >
-                <CollaborativeLearningChart data={learningSignalDataset.data} />
+                <AgentInterventionChart data={demoInterventionOutcomes} />
               </AnalyticsCard>
 
               <Card className="col-span-1 lg:col-span-3">
@@ -455,11 +454,12 @@ export function DashboardPage() {
 
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <AnalyticsCard
-                title="Agent intervention outcomes"
-                description="The share of students progressing independently, with Emily's guidance, or with teacher support."
-                source="demo"
+                contentClassName="ps-2 sm:ps-4"
+                title="Collaborative learning signals"
+                description="How mastery, confidence, and clarification needs change as Emily adapts the activity."
+                source={learningSignalDataset.source}
               >
-                <AgentInterventionChart data={demoInterventionOutcomes} />
+                <CollaborativeLearningChart data={learningSignalDataset.data} />
               </AnalyticsCard>
 
               <AnalyticsCard

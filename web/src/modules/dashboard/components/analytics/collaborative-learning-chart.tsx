@@ -35,8 +35,8 @@ export function CollaborativeLearningChart({ data }: CollaborativeLearningChartP
         <AreaChart data={data} margin={{ top: 8, right: 12, left: -10, bottom: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--chart-primary)" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="var(--chart-primary)" stopOpacity={0.02} />
+              <stop offset="5%" stopColor="var(--chart-collaborative-1)" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="var(--chart-collaborative-1)" stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -62,7 +62,7 @@ export function CollaborativeLearningChart({ data }: CollaborativeLearningChartP
             type="monotone"
             dataKey="mastery"
             name="Skill mastery"
-            stroke="var(--chart-primary)"
+            stroke="var(--chart-collaborative-1)"
             strokeWidth={2}
             fill={`url(#${gradientId})`}
           />
@@ -70,7 +70,7 @@ export function CollaborativeLearningChart({ data }: CollaborativeLearningChartP
             type="monotone"
             dataKey="confidence"
             name="Student confidence"
-            stroke="var(--chart-cyan)"
+            stroke="var(--chart-collaborative-2)"
             strokeWidth={2}
             dot={{ r: 3 }}
           />
@@ -78,7 +78,7 @@ export function CollaborativeLearningChart({ data }: CollaborativeLearningChartP
             type="monotone"
             dataKey="clarification_load"
             name="Clarification load"
-            stroke="var(--chart-amber)"
+            stroke="var(--chart-collaborative-3)"
             strokeWidth={2}
             dot={{ r: 3 }}
           />
