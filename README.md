@@ -79,6 +79,23 @@ The agent is still a deterministic mock behind the exact interface the real one 
 
 Not built yet: teacher form, mission generation, Gemini 3.5+ tutor turns, class notebook, dashboard login.
 
+## Current progress
+
+Status on **August 28, 2026**:
+
+- GitHub repository is connected: `https://github.com/velrino/allthingsagentichackathon`.
+- Cloud Build triggers are active for both services:
+  - `classgame-web-main` builds and deploys `apps/web`.
+  - `classgame-api-main` builds and deploys `apps/api`.
+- Cloud Run services are deployed in `us-east1`:
+  - Web: `https://classgame-web-mzkj6f7g3a-ue.a.run.app/home`
+  - API: `https://classgame-api-2057331207.us-east1.run.app`
+- Production web is configured to call the production API through `NEXT_PUBLIC_CLASSGAME_API_BASE_URL`.
+- The student entry flow is live in the frontend: first visit opens the required class/student modal, signs in anonymously with Firebase Auth, and calls the API.
+- The API route `POST /users/student-session` is live and returns `401` without a valid Firebase token, confirming the route exists and auth is enforced.
+- Firestore student users are created under `users/{firebase_uid}` with nested `identity`, `profile`, `student`, and `activity` objects.
+- Redis is enabled for the API health/cache path without TLS.
+
 ## Pedagogical goal of the demo mission
 
 > A 12–14-year-old solves `2x/3 + 1 = 5` on their own.
@@ -221,7 +238,7 @@ apps/
   README.md                 this plan
   assets/3d/avatars/        chibi-band source (.blend, .obj, .fbx) + build notes
   web/                      Next.js game (see web/README.md for structure and controls)
-  api/                      Go API skeleton with Firebase, Redis and GET / health check
+  api/                      Go API with Firebase Auth, Firestore, Redis, GET /, and student session creation
 ```
 
 ## Deployment
