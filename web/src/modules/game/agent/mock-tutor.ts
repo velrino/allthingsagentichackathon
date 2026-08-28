@@ -1,6 +1,6 @@
 /**
  * The mock tutor. Every function here is pure and is the exact boundary the
- * real Gemini-backed agent will replace: same inputs, same outputs, just async.
+ * real Gemini 3.5+-backed agent will replace: same inputs, same outputs, just async.
  */
 import {
   GUESSED_ID,

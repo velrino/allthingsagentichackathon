@@ -69,14 +69,6 @@ body {
     font-family: var(--font-display), var(--font-geist-sans), system-ui, sans-serif;
   }
 
-  /* Lumen's avatar orb. */
-  .orb {
-    background: radial-gradient(circle at 35% 30%, #ffffff 0%, #9af1ff 25%, #22d3ee 55%, #0e7490 100%);
-    box-shadow:
-      0 0 14px rgba(103, 232, 249, 0.9),
-      0 0 34px rgba(34, 211, 238, 0.45);
-  }
-
   /* Handwriting on a dusty board. */
   .chalk {
     font-family: var(--font-chalk), "Comic Sans MS", cursive;

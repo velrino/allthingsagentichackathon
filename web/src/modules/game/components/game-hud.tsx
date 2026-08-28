@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { getAvatarPreset } from "../avatars/avatar-presets";
+import { getAvatarPreset, teacherAvatarPresetId } from "../avatars/avatar-presets";
 import { MISSION_TITLE, TUTOR_NAME } from "../content/algebra-mission";
 import type { PodProgress } from "../state/student-memory";
 import { POD_LABELS, POD_ORDER, type MovementRef, type PodId, type PodStatus } from "../types/game";
@@ -69,7 +69,7 @@ function sitLabel(status: PodStatus, pod: PodId) {
 
 /**
  * Roaming HUD. Four things, in the corners, and nothing in the middle:
- * where you are in the mission, the tutor's notebook, what Lumen is saying,
+ * where you are in the mission, the tutor's notebook, what Emily is saying,
  * and the one action you can take right now.
  */
 export function GameHud({
@@ -87,6 +87,7 @@ export function GameHud({
 }: GameHudProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const avatar = getAvatarPreset(avatarPresetId);
+  const tutorAvatar = getAvatarPreset(teacherAvatarPresetId);
   const stageStatus = progress[tutorPod].status;
   const canSit = nearSeat && (stageStatus === "ready" || stageStatus === "review");
 
@@ -151,7 +152,7 @@ export function GameHud({
       {tutorLine ? (
         <div className="absolute bottom-[calc(190px+4rem+env(safe-area-inset-bottom))] left-3 right-3 sm:right-auto sm:bottom-7 sm:left-6 sm:max-w-md">
           <div className="glass animate-rise flex items-start gap-3 rounded-2xl px-4 py-3">
-            <span className="orb mt-0.5 size-8 shrink-0 rounded-full" aria-hidden />
+            <AvatarPortrait preset={tutorAvatar} className="mt-0.5 size-10 shrink-0 shadow-[0_0_18px_rgba(103,232,249,0.45)]" />
             <div className="min-w-0">
               <p className="font-display text-[0.62rem] font-semibold tracking-[0.2em] text-cyan-200/90 uppercase">{TUTOR_NAME}</p>
               <p className="mt-0.5 text-[0.95rem] leading-snug text-slate-100">{tutorLine}</p>
