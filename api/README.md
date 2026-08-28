@@ -49,3 +49,31 @@ gcloud secrets create allthingsagentichackathon-api-firebase-credentials-json \
 gcloud secrets versions add allthingsagentichackathon-api-firebase-credentials-json \
   --data-file=/path/to/classgame-firebase-adminsdk.json
 ```
+
+## Deploy To Google Cloud Run
+
+Run the deploy from the monorepo root, `apps/`, not from `apps/api/`.
+
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+
+gcloud artifacts repositories create classgame \
+  --repository-format=docker \
+  --location=us-east1 \
+  --description="ClassGame containers"
+
+gcloud builds submit \
+  --config api/infra/cloud-run/production/cloudbuild.yaml \
+  .
+```
+
+If the Artifact Registry repository already exists, skip the `create` command.
+
+### GitHub deploy trigger
+
+The production trigger watches only `api/**` in the monorepo:
+
+- Trigger name: `classgame-api-main`
+- Repository: `velrino/allthingsagentichackathon`
+- Branch: `master`
+- Build config: `api/infra/cloud-run/production/cloudbuild.yaml`

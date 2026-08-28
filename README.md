@@ -211,6 +211,16 @@ apps/
   api/                      Go API skeleton with Firebase, Redis and GET / health check
 ```
 
+## Deployment
+
+Production uses one public GitHub repository and two Cloud Run services:
+
+- Repository: `velrino/allthingsagentichackathon`
+- Web service: `classgame-web`, built from `web/infra/cloud-run/production/cloudbuild.yaml`, triggered by changes under `web/**`.
+- API service: `classgame-api`, built from `api/infra/cloud-run/production/cloudbuild.yaml`, triggered by changes under `api/**`.
+
+Cloud Build runs from the monorepo root (`apps/`), so both build configs use an `_APP_DIR` substitution (`web` or `api`) for Dockerfile paths and build context.
+
 ## Credits
 
 - **Low Poly ClassRoom** by **Mumladze28** — [Sketchfab](https://sketchfab.com/3d-models/low-poly-classroom-8b1bf103c90349d981c9c2ae1c0596e5), [ArtStation](https://www.artstation.com/artwork/N5dg5q).

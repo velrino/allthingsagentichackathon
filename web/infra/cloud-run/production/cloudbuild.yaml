@@ -2,6 +2,7 @@ substitutions:
   _REGION: us-east1
   _REPOSITORY: classgame
   _SERVICE_NAME: classgame-web
+  _APP_DIR: web
   _IMAGE_TAG: production
   _NEXT_PUBLIC_FIREBASE_API_KEY: ""
   _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ""
@@ -16,7 +17,7 @@ steps:
     args:
       - build
       - -f
-      - infra/cloud-run/Dockerfile
+      - ${_APP_DIR}/infra/cloud-run/Dockerfile
       - --build-arg
       - NEXT_PUBLIC_FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY}
       - --build-arg
@@ -35,7 +36,7 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$BUILD_ID
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:${_IMAGE_TAG}
-      - .
+      - ${_APP_DIR}
 
   - name: gcr.io/cloud-builders/docker
     args:

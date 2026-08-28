@@ -30,7 +30,7 @@ npm run build
 
 ## Deploy To Google Cloud Run
 
-The web app is deployed as a standalone Next.js container.
+The web app is deployed as a standalone Next.js container. Run these commands from the monorepo root, `apps/`, not from `apps/web/`.
 
 ```bash
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
@@ -41,16 +41,25 @@ gcloud artifacts repositories create classgame \
   --description="ClassGame containers"
 
 set -a
-source .env.local
+source web/.env.local
 set +a
 
 gcloud builds submit \
-  --config infra/cloud-run/production/cloudbuild.yaml \
+  --config web/infra/cloud-run/production/cloudbuild.yaml \
   --substitutions=_NEXT_PUBLIC_FIREBASE_API_KEY="$NEXT_PUBLIC_FIREBASE_API_KEY",_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",_NEXT_PUBLIC_FIREBASE_PROJECT_ID="$NEXT_PUBLIC_FIREBASE_PROJECT_ID",_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",_NEXT_PUBLIC_FIREBASE_APP_ID="$NEXT_PUBLIC_FIREBASE_APP_ID",_NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID" \
   .
 ```
 
 If the Artifact Registry repository already exists, skip the `create` command.
+
+### GitHub deploy trigger
+
+The production trigger watches only `web/**` in the monorepo:
+
+- Trigger name: `classgame-web-main`
+- Repository: `velrino/allthingsagentichackathon`
+- Branch: `master`
+- Build config: `web/infra/cloud-run/production/cloudbuild.yaml`
 
 There is no test runner yet. The lesson reducer is pure and was exercised with a scripted walkthrough (sit → wrong → why → explain → feedback → decision → redirect → review → mission complete); wire that into a test runner before the API lands.
 
