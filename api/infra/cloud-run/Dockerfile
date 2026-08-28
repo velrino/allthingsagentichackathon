@@ -23,7 +23,6 @@ ENV HOST=0.0.0.0 \
     PORT=8080
 
 COPY --from=builder /out/classgame-api /app/classgame-api
-COPY infra/redis/redis_ca.pem /app/infra/redis/redis_ca.pem
 
 EXPOSE 8080
 
