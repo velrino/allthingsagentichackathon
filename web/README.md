@@ -18,9 +18,19 @@ The app has a Firebase client foundation in `src/shared/firebase/client.ts`.
 - Local config lives in `.env.local` and is ignored by git.
 - Required deploy envs are listed in `.env.example`.
 - Firestore project: `allthingsagentichackatho-ee359`.
-- `/home` requires an anonymous Firebase session before the game loads. The first visit shows a blocking student modal for `turma_id` and `student_name`, then posts to `POST /users/student-session`.
-- Current lesson state still uses `localStorage`; Firestore now receives the student user record that the future teacher dashboard will list.
+- `/home` requires an anonymous Firebase session before the game loads. The first visit shows a blocking student modal for `class_id` and `student_name`, then posts to `POST /users/student-session`.
+- While the game tab is visible, it posts the current subject, stage, and status to `POST /users/student-presence` every 15 seconds. Presence failures never block gameplay.
+- `/dashboard` and `/dashboard/classes` require Google sign-in. Teachers can manage classes, create and approve activity previews, inspect learning analytics, and see the 10 most recently active players. Dashboard data refreshes in the background every 8 seconds.
+- Current lesson state still uses `localStorage`; Firestore now receives the student user record that the teacher dashboard lists.
 - Returning students are matched by Firebase anonymous UID on the same browser/device. A teacher-issued `student_code` is the planned next step for cross-device identity.
+
+## Uploadcare
+
+The teacher activity builder supports optional file attachments.
+
+- `NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY` is safe to expose and is required for direct browser uploads.
+- The Uploadcare secret key must stay out of frontend code, screenshots and git. Move it to Secret Manager only when the API adds signed upload generation.
+- Current MVP limit: 5 files, 20 MB each.
 
 ## Validation
 
@@ -48,7 +58,7 @@ set +a
 
 gcloud builds submit \
   --config web/infra/cloud-run/production/cloudbuild.yaml \
-  --substitutions=_NEXT_PUBLIC_FIREBASE_API_KEY="$NEXT_PUBLIC_FIREBASE_API_KEY",_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",_NEXT_PUBLIC_FIREBASE_PROJECT_ID="$NEXT_PUBLIC_FIREBASE_PROJECT_ID",_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",_NEXT_PUBLIC_FIREBASE_APP_ID="$NEXT_PUBLIC_FIREBASE_APP_ID",_NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID",_NEXT_PUBLIC_CLASSGAME_API_BASE_URL="${NEXT_PUBLIC_CLASSGAME_API_BASE_URL:-https://classgame-api-2057331207.us-east1.run.app}" \
+  --substitutions=_NEXT_PUBLIC_FIREBASE_API_KEY="$NEXT_PUBLIC_FIREBASE_API_KEY",_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",_NEXT_PUBLIC_FIREBASE_PROJECT_ID="$NEXT_PUBLIC_FIREBASE_PROJECT_ID",_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",_NEXT_PUBLIC_FIREBASE_APP_ID="$NEXT_PUBLIC_FIREBASE_APP_ID",_NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID",_NEXT_PUBLIC_CLASSGAME_API_BASE_URL="${NEXT_PUBLIC_CLASSGAME_API_BASE_URL:-https://classgame-api-2057331207.us-east1.run.app}",_NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY="$NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY" \
   .
 ```
 
@@ -78,9 +88,12 @@ Stick directions are read against the camera as it was when you pressed, and the
 
 Dev-only: `__classgameDebug()` in the browser console returns `{ cameraYaw, avatarYaw, inputYaw, dragging, x, z }`.
 
-## Current scope (frontend-only, mocked agent)
+## Current scope
 
 - Route `/home`: the game.
+- Route `/login`: Google sign-in for teachers.
+- Route `/dashboard`: teacher overview with reusable analytics, Emily suggestions, student metrics, and live recent-player presence.
+- Route `/dashboard/classes`: responsive class table, class creation/edit dialog, and activity builder dialog with optional Uploadcare files and an approve/publish flow.
 - 3D classroom (GLB) laid out at load time: shell stretched 2×, furniture spread apart, whiteboard recoloured, colliders derived from the geometry.
 - Third-person camera with orbit, wall pull-in and wall escape.
 - Six chibi characters; the student picks one from the top bar, Emily teaches from the whiteboard.
@@ -94,6 +107,7 @@ Everything Emily "decides" today comes from `src/modules/game/agent/mock-tutor.t
 
 ```txt
 src/backend/api/                 API client, endpoints, request/response types
+src/modules/dashboard/           teacher auth, dashboard, classes, analytics, dialogs
 src/modules/game/
   agent/mock-tutor.ts          decisions, notes, "why" options — swap for the API
   avatars/                     presets, localStorage choice, GLB loader, rig animation
@@ -114,7 +128,7 @@ src/modules/game/
     session-reducer.ts         the lesson loop (pure)
     student-memory.ts          memory model + localStorage
     use-game-session.ts        React glue: hydration, thinking pause, directive ref
-  student-session/             blocking anonymous auth + student modal
+  student-session/             blocking anonymous auth, student modal, presence heartbeat
   types/                       shared types
   pages/game-page.tsx
 src/shared/firebase/client.ts    Firebase app/auth/firestore client
@@ -131,7 +145,8 @@ src/shared/firebase/client.ts    Firebase app/auth/firestore client
 - Load the mission by code from the API instead of `content/algebra-mission.ts`.
 - Replace `mock-tutor.ts` calls with `POST /missions/{code}/students/{id}/turn` backed by Gemini 3.5+.
 - Move `student-memory.ts` persistence from `localStorage` to Firestore (through the API).
-- Routes `/teach` (mission form), `/join` (code + character), `/teach/{code}` (class notebook).
+- Aggregate real student attempts into the class notebook and make `/home` load the active activity by class code.
+- Add signed Uploadcare uploads through the API before opening file uploads to broad public traffic.
 
 ## Credits
 

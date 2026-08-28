@@ -61,23 +61,28 @@ The teacher side adds the second collaborator: the same notebook, aggregated per
 
 ## What exists today
 
-The game loop still uses a mocked tutor agent, but student entry now touches the real API and Firestore.
+The game loop still uses a mocked tutor agent, but student entry and live game presence now use the real API and Firestore.
 
 - **3D classroom** (Three.js, low-poly GLB). The merged mesh is split into connected islands at load time, the room shell is stretched 2× and the furniture spread apart so it's walkable; the whiteboard is recoloured to match the lesson board (`scene/classroom-layout.ts`).
 - **Third-person camera**: drag to orbit, returns behind the avatar while walking, slides along walls instead of clipping.
 - **Collision** with walls and furniture; joystick on phones, WASD + mouse on desktop; tap the glowing desk to walk to it.
 - **Characters**: six chibi avatars (from Unshatter's chibi-band set). The student picks one from the top bar; **Emily** is the teacher, standing at the whiteboard.
-- **Student entry**: first visit to `/home` blocks the game with a centered modal for `turma_id` and `student_name`; the web signs in anonymously with Firebase Auth and posts to the API.
+- **Student entry**: first visit to `/home` blocks the game with a centered modal for `class_id` and `student_name`; the web signs in anonymously with Firebase Auth and posts to the API.
+- **Teacher login and dashboard**: `/dashboard` and `/dashboard/classes` are protected by Firebase Google sign-in; unauthenticated or anonymous users go to `/login`. Teachers can create classes, build activities with optional files, process them with Emily, review and approve a student-facing preview, inspect reusable learning charts, and see the 10 most recently active players with live presence.
 - **One desk**: the student sits at the desk in front of the teacher's; the whole mission happens there.
 - **Chalkboard lesson UI** (Bully: Scholarship Edition style, no timer): multiple choice for fractions, "pick the next move" for equations, the *why* card, step/visual explanations (fraction bars, equation chains), feedback pills, decision card with its *why*.
 - **Emily's notebook**: notes (type, skill, evidence, count) with "That's not how I think", adaptation state, decision log, reset.
 - **Persistent memory** in `localStorage` (mirrors the Firestore document): close the tab, come back, *"Welcome back — last time you were on Fractions."*
-- **Student user records** in Firestore: `POST /users/student-session` verifies the anonymous Firebase token and upserts `users/{firebase_uid}` with nested `identity`, `profile`, `student`, and `activity` objects, all `snake_case`.
+- **Student user records and presence** in Firestore: `POST /users/student-session` verifies the anonymous Firebase token and upserts `users/{firebase_uid}`. While the game is visible, `POST /users/student-presence` updates the nested `activity.current_game` every 15 seconds so the dashboard can show subject, stage, status, and online state. All fields use `snake_case`.
+- **Teacher class records** in Firestore: `POST /teacher-classes` verifies a Google Firebase token and upserts `teacher_classes/{class_id}` with nested `teacher`, `active_activity_id`, `activity_count`, status and timestamps.
+- **Teacher activity records** in Firestore: `POST /teacher-classes/{class_id}/activities/preview` creates a preview under `teacher_classes/{class_id}/activities/{activity_id}`. The API calls the reusable GenAI adapter through the orchestrator, stores generated preview questions, stages, suggestions and signals, and falls back to a deterministic local blueprint if GenAI is unavailable. `POST /teacher-classes/{class_id}/activities/{activity_id}/approve` publishes the chosen preview and makes it the class' active activity.
+- **Uploadcare file input** in the dashboard: the web uploads optional teacher files with the Uploadcare public key and sends only file metadata/URLs to the API. The Uploadcare secret key must stay out of frontend code and git; use Secret Manager and signed uploads before turning uploads on for open production traffic.
+- **Student activity memory model** in `api/internal/modules/teacher-class-student`: future tutor turns can write per-class student thinking summaries, activity progress, feedback counts and notebook notes under `teacher_classes/{class_id}/students/{student_id}`.
 - **Demo content**: the Algebra Mission — Fractions → Simple equations → Two-step equations, 12 questions whose wrong options are tagged with named misconceptions (`content/algebra-mission.ts`). This becomes the few-shot example for generated missions.
 
-The agent is still a deterministic mock behind the exact interface the real one will implement.
+The in-game student tutor is still deterministic behind the exact interface the real Gemini implementation will use. The teacher activity builder now has a real GenAI integration with local fallback.
 
-Not built yet: teacher form, mission generation, Gemini 3.5+ tutor turns, class notebook, dashboard login.
+Not built yet: real tutor turns, playable mission loading from Firestore, persisted attempts/progress, aggregated class notebook from real answers.
 
 ## Current progress
 
@@ -93,7 +98,10 @@ Status on **August 28, 2026**:
 - Production web is configured to call the production API through `NEXT_PUBLIC_CLASSGAME_API_BASE_URL`.
 - The student entry flow is live in the frontend: first visit opens the required class/student modal, signs in anonymously with Firebase Auth, and calls the API.
 - The API route `POST /users/student-session` is live and returns `401` without a valid Firebase token, confirming the route exists and auth is enforced.
-- Firestore student users are created under `users/{firebase_uid}` with nested `identity`, `profile`, `student`, and `activity` objects.
+- Firestore student users are created under `users/{firebase_uid}` with nested `identity`, `profile`, `student`, and `activity.current_game` objects.
+- Teacher dashboard work is implemented, committed, and validated locally: `/login`, `/dashboard`, `/dashboard/classes`, `GET /dashboard/overview`, `POST /teacher-classes`, `GET /teacher-classes/{class_id}`, `GET /teacher-classes/{class_id}/activities`, `POST /teacher-classes/{class_id}/activities/preview`, `POST /teacher-classes/{class_id}/activities`, and `POST /teacher-classes/{class_id}/activities/{activity_id}/approve`. Deployment of this dashboard pass is still pending.
+- The game sends a best-effort presence heartbeat every 15 seconds; the dashboard refreshes in the background every 8 seconds and computes online state from a 45-second server-side window.
+- The API now includes a reusable Google GenAI adapter in `api/internal/shared/google/genai` and an orchestrator module in `api/internal/modules/orchestrator`.
 - Redis is enabled for the API health/cache path without TLS.
 
 ## Pedagogical goal of the demo mission
@@ -115,15 +123,16 @@ One repository, two deployable services, one database.
 ```txt
 apps/
   web/   Next.js + React + Three.js — the game, the teacher form, the class notebook
-  api/   Go — mission generation and the tutor agent (Gemini 3.5+ via Genkit Go), Firestore
+  api/   Go — teacher activity orchestration, future tutor agent, Google GenAI SDK, Firestore, Redis
 ```
 
-- **Gemini 3.5 or newer** does two jobs, both with **structured output** (JSON schemas already defined by the frontend types):
-  1. `generateMission(teacherInput) → Mission` — stages, questions, wrong options tagged with misconceptions, "why" reasons, explanations (steps + visual).
-  2. `tutorTurn(memory, lesson, event) → { note, explanationStyle, decision, why }` — replaces `agent/mock-tutor.ts` one function at a time.
+- **Gemini 3.5 or newer** uses the Google GenAI Go SDK with structured JSON output:
+  1. `buildClassActivity(teacherInput) → ActivityBlueprint` — title, summary, stages, suggested questions, positive signals, improvement signals.
+  2. `tutorTurn(memory, lesson, event) → { note, explanationStyle, decision, why }` — next step after the teacher activity flow, replacing `agent/mock-tutor.ts` one function at a time.
 - **Firestore** is the only database. Student memory, missions, notes and decisions live there. Firebase project: `allthingsagentichackatho-ee359`.
 - **Cloud Run** hosts `classgame-web` and `classgame-api`.
-- **Cut from the MVP** (on purpose): Redis / job queue / orchestrator, multiple rooms, login, grades, deadlines, a teacher dashboard beyond one page. A Gemini 3.5+ call with a 1–3 s "Emily is thinking…" pulse is enough; the queue added risk and nothing a judge can see.
+- **Redis** is available for health/cache and future queue work, but the activity builder runs synchronously for the MVP so the teacher sees the result immediately.
+- **Cut from the MVP** (on purpose): multiple rooms, grades, deadlines, roster import and high-stakes scoring. The demo should show the teacher setting the learning goal, Emily generating the mission plan, and students reviewing it in the classroom.
 
 ### Data model (Firestore)
 
@@ -148,9 +157,30 @@ missions/{code}/students/{studentId}/attempts/{attemptId}
 users/{firebase_uid}
   identity: { provider, provider_user_id, auth_method, sign_in_provider, token }
   profile:  { display_name, email, email_verified, photo_url }
-  student:  { turma_id, student_name }
+  student:  { class_id, student_name }
   activity: { first_seen_at, last_seen_at, login_count }
+  activity.current_game: { activity_id, subject, stage_id, stage_name, status, started_at, last_heartbeat_at }
   roles, is_guest, created_at, updated_at
+
+teachers/{firebase_uid}
+  identity, profile, roles, activity, created_at, updated_at
+
+teacher_classes/{class_id}
+  class_id, class_code, class_name, subject, grade_level, teacher_id
+  teacher, active_activity_id, activity_count, status, created_at, updated_at
+
+teacher_classes/{class_id}/activities/{activity_id}
+  activity_name, title, summary, subject, grade_level, learning_goal, teacher_prompt
+  attachments[], preview_questions[], stages[], suggestions[], positive_signals[], improvement_signals[]
+  orchestration: { provider, model, model_version, generated_by_ai, generated_by_mock, token_counts }
+  created_by, updated_by, status, published_at, created_at, updated_at
+
+teacher_classes/{class_id}/students/{student_id}
+  student_id, student_name, current_activity_id
+  thinking_summary: { preferred_explanation_style, reasoning_patterns[], strengths[], improvement_areas[] }
+  activity_summaries: activity_id → { status, completed_questions, total_questions, correct_answers, last_decision, last_feedback }
+  notebook_notes[]: { activity_id, skill, kind, text, evidence[], count }
+  feedback_summary: { helpful_count, confusing_count, too_easy_count, too_hard_count }
 ```
 
 The class notebook is a read over `missions/{code}/students/*`: notes grouped by misconception, counts, who needed a review, what Emily changed.
@@ -161,7 +191,15 @@ Current MVP identity rule: a returning student is matched by Firebase anonymous 
 
 ```txt
 GET  /
-POST /users/student-session          anonymous Firebase token + turma/student name → Firestore user
+POST /users/student-session          anonymous Firebase token + class/student name → Firestore user
+POST /users/student-presence         anonymous Firebase token + current game state → presence heartbeat
+GET  /dashboard/overview             Google Firebase token + class_id → teacher dashboard data
+POST /teacher-classes                Google Firebase token + class metadata → Firestore teacher class
+GET  /teacher-classes/{class_id}      Google Firebase token → one teacher class
+GET  /teacher-classes/{class_id}/activities
+POST /teacher-classes/{class_id}/activities/preview
+POST /teacher-classes/{class_id}/activities
+POST /teacher-classes/{class_id}/activities/{activity_id}/approve
 POST /missions                       teacher input → generated mission + code
 GET  /missions/{code}                mission content for the game
 POST /missions/{code}/students/{id}/turn     one tutor turn (answer / why / feedback)
@@ -194,15 +232,19 @@ Day 1 (done): 3D classroom, camera, collision, characters, chalkboard loop, note
 
 Day 2 foundation (done): Go API, Firebase Admin/Firestore, anonymous student session endpoint, frontend student entry modal, Cloud Run services, GitHub Cloud Build triggers.
 
+Day 2 dashboard pass (done locally, deployment pending): Firebase Google login for teachers, `/dashboard`, `/dashboard/classes`, Firestore `teacher_classes/{class_id}`, activity subcollection, Uploadcare optional file input, process/preview/approve flow, reusable analytics, live recent-player presence, student metrics, and Emily's GenAI-backed suggestions with local fallback.
+
 **Day 2 — make Emily real**
-- `POST /missions`: Gemini 3.5+ structured output from teacher text; the Algebra Mission as few-shot; Firestore write.
+- `POST /teacher-classes/{class_id}/activities/preview`: Gemini 3.5+ structured output from teacher text and optional file URLs; Firestore preview write. **Done locally.**
+- `POST /teacher-classes/{class_id}/activities/{activity_id}/approve`: publish the approved preview and expose the class code. **Done locally.**
+- `POST /missions`: convert the active teacher activity into playable mission content; Firestore write.
 - `POST …/turn`: replace `decideAfterFeedback`, `noteFromReasoning`, `buildWhyOptions` with Gemini 3.5+; keep the reducer.
 - Frontend: fetch mission by code; student memory to Firestore instead of `localStorage`.
 
 **Day 3 — close the loop with the teacher**
-- Teacher page `/teach`: one form (topic, what you noticed) → mission code.
-- Student entry `/join`: code + character.
-- Teacher page `/teach/{code}`: the class notebook.
+- Teacher pages: connect the implemented dashboard and class management UI to real attempt-driven notebook aggregation.
+- Student entry `/home`: class code + character + classroom mission.
+- API: aggregate real notebook notes from student attempts instead of mock progress.
 - Deploy both services to Cloud Run; verify Firestore in the console.
 
 **Day 4 — submission**
@@ -211,12 +253,12 @@ Day 2 foundation (done): Go API, Firebase Admin/Firestore, anonymous student ses
 
 ## Demo script
 
-1. **Teacher** opens `/teach`, types: *"Today: solving two-step equations. Several students slipped on fractions."* → Emily generates the mission, shows the code `K7PQ`.
-2. **Student** opens the game on a phone, enters `K7PQ`, picks a character, walks to the desk, sits.
+1. **Teacher** opens `/dashboard`, types: *"Today: solving two-step equations. Several students slipped on fractions."* → Emily generates the activity and keeps the class code visible.
+2. **Student** opens `/home` on a phone, enters the same class code, picks a character, walks to the desk, sits.
 3. Gets `2x/3 = 4` wrong by dividing by 3. Emily asks why; the student picks *"To get rid of the /3 I divided by 3."*
 4. A note appears pinned under the board. Emily explains; the student taps **confusing** → Emily switches to drawing.
 5. Emily: *"That slip wasn't algebra — it was fractions."* Two fraction questions, then back to the same equation. Solved.
-6. **Teacher** opens `/teach/K7PQ`: the class notebook — *"3 students divide instead of multiply to clear a denominator"*, who got a review, what Emily changed and why.
+6. **Teacher** reopens `/dashboard`: the class notebook — *"3 students divide instead of multiply to clear a denominator"*, who got a review, what Emily changed and why.
 7. Show Firestore documents and the two Cloud Run services.
 
 ## Success criteria
