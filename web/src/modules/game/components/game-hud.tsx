@@ -57,7 +57,7 @@ function NotebookIcon() {
 }
 
 const pill =
-  "pointer-events-auto font-display inline-flex h-12 select-none items-center gap-2 rounded-full px-5 text-[0.95rem] font-semibold tracking-tight transition active:translate-y-px disabled:opacity-60";
+  "pointer-events-auto font-display inline-flex h-12 select-none items-center justify-center gap-2 rounded-full px-5 text-center text-[0.95rem] font-semibold tracking-tight transition active:translate-y-px disabled:opacity-60";
 
 function sitLabel(status: PodStatus, pod: PodId) {
   if (status === "complete") {
@@ -162,13 +162,13 @@ export function GameHud({
       ) : null}
 
       {/* The one action */}
-      <div className="absolute right-3 bottom-[calc(190px+env(safe-area-inset-bottom))] flex flex-col items-end gap-2 sm:right-6 sm:bottom-7">
+      <div className="absolute inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 flex justify-center sm:inset-x-auto sm:right-6 sm:bottom-7 sm:items-end">
         {nearSeat ? (
           <button
             type="button"
             disabled={!canSit}
             onClick={() => canSit && onSit()}
-            className={`${pill} animate-rise ${canSit ? "cta hover:brightness-105" : "glass text-slate-200"}`}
+            className={`${pill} w-full max-w-[18rem] animate-rise sm:w-auto sm:max-w-none ${canSit ? "cta hover:brightness-105" : "glass text-slate-200"}`}
           >
             <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M5 4v6M19 4v6M5 10h14v4H5zM7 14v6M17 14v6" />
