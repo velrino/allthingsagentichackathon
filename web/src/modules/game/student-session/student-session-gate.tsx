@@ -7,6 +7,7 @@ import { API } from "@/backend/api/api.endpoints";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/shared/firebase/client";
 
 import { StudentSessionModal, type StudentSessionFormValue } from "./student-session-modal";
+import { studentSessionReadyEvent } from "./use-student-presence";
 
 type StudentSessionGateProps = {
   readonly children: ReactNode;
@@ -48,10 +49,11 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
 
       await API.users.studentSession(idToken, {
         student_name: value.studentName,
-        turma_id: value.turmaId,
+        class_id: value.classId,
       });
 
       setStatus("ready");
+      window.dispatchEvent(new Event(studentSessionReadyEvent));
     } catch (caughtError) {
       setStatus("needs_student_session");
       setError(caughtError instanceof Error ? caughtError.message : "Could not start the student session.");

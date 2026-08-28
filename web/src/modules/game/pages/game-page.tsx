@@ -6,14 +6,34 @@ import { Chalkboard } from "../components/chalkboard";
 import { GameCanvas } from "../components/game-canvas";
 import { GameHud } from "../components/game-hud";
 import { TutorNotebook } from "../components/tutor-notebook";
+import { MISSION_ID, MISSION_SUBJECT } from "../content/algebra-mission";
 import { useGameSession } from "../state/use-game-session";
 import { StudentSessionGate } from "../student-session/student-session-gate";
-import type { MovementState } from "../types/game";
+import { useStudentPresence } from "../student-session/use-student-presence";
+import { POD_LABELS, type MovementState } from "../types/game";
 
 export function GamePage() {
   const movementRef = useRef<MovementState>({ forward: 0, right: 0 });
   const { session, report, directiveRef, avatarPresetId, handlers } = useGameSession();
   const seatedLesson = session.seatedAt && session.lesson ? session.lesson : null;
+  const completedMission = Object.values(session.memory.progress).every((progress) => progress.status === "complete");
+  const presenceStatus = completedMission
+    ? "completed"
+    : session.lesson?.phase === "thinking"
+      ? "thinking"
+      : session.seatedAt
+        ? session.memory.progress[session.tutorPod].status === "review"
+          ? "reviewing"
+          : "learning"
+        : "exploring";
+
+  useStudentPresence({
+    activity_id: MISSION_ID,
+    subject: MISSION_SUBJECT,
+    stage_id: session.tutorPod,
+    stage_name: POD_LABELS[session.tutorPod],
+    status: presenceStatus,
+  });
 
   return (
     <StudentSessionGate>

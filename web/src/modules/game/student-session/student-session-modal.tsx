@@ -2,8 +2,10 @@
 
 import { useId, useState } from "react";
 
+import { demoClassCode } from "@/shared/demo-class";
+
 export type StudentSessionFormValue = {
-  readonly turmaId: string;
+  readonly classId: string;
   readonly studentName: string;
 };
 
@@ -13,14 +15,12 @@ type StudentSessionModalProps = {
   readonly onSubmit: (value: StudentSessionFormValue) => void;
 };
 
-const defaultTurmaId = "ALG-2026-A";
-
 export function StudentSessionModal({ error, loading, onSubmit }: StudentSessionModalProps) {
-  const turmaIdInputId = useId();
+  const classIdInputId = useId();
   const studentNameInputId = useId();
-  const [turmaId, setTurmaId] = useState(defaultTurmaId);
+  const [classId, setClassId] = useState(demoClassCode);
   const [studentName, setStudentName] = useState("");
-  const canSubmit = turmaId.trim().length >= 2 && studentName.trim().length >= 2 && !loading;
+  const canSubmit = classId.trim().length >= 2 && studentName.trim().length >= 2 && !loading;
 
   return (
     <div className="pointer-events-auto fixed inset-0 z-50 grid place-items-center bg-slate-950/72 px-4 py-[max(env(safe-area-inset-top),1rem)] backdrop-blur-md">
@@ -37,18 +37,18 @@ export function StudentSessionModal({ error, loading, onSubmit }: StudentSession
             event.preventDefault();
 
             if (canSubmit) {
-              onSubmit({ turmaId, studentName });
+              onSubmit({ classId, studentName });
             }
           }}
         >
           <div>
-            <label htmlFor={turmaIdInputId} className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase">
+            <label htmlFor={classIdInputId} className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase">
               Class ID
             </label>
             <input
-              id={turmaIdInputId}
-              value={turmaId}
-              onChange={(event) => setTurmaId(event.target.value)}
+              id={classIdInputId}
+              value={classId}
+              onChange={(event) => setClassId(event.target.value)}
               disabled={loading}
               autoComplete="off"
               className="mt-2 h-12 w-full rounded-xl border border-white/12 bg-white/8 px-4 text-center font-display text-base font-semibold tracking-[0.08em] text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/70 focus:bg-white/12 disabled:opacity-60"

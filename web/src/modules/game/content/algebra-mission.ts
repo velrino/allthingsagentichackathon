@@ -1,6 +1,8 @@
 import type { PodId } from "../types/game";
 
 export const TUTOR_NAME = "Emily";
+export const MISSION_ID = "algebra-mission";
+export const MISSION_SUBJECT = "Algebra";
 export const MISSION_TITLE = "Algebra Mission";
 export const MISSION_GOAL = "Solve 2x/3 + 1 = 5 on your own.";
 

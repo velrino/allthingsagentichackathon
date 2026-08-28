@@ -14,8 +14,16 @@ export interface IApiRequest {
 }
 
 export interface IApiStudentSession {
-  turma_id: string;
+  class_id: string;
   student_name: string;
+}
+
+export interface IApiStudentPresence {
+  activity_id: string;
+  subject: string;
+  stage_id: string;
+  stage_name: string;
+  status: "exploring" | "learning" | "thinking" | "reviewing" | "completed";
 }
 
 export interface IApiStudentSessionUser {
@@ -33,13 +41,22 @@ export interface IApiStudentSessionUser {
     photo_url: string;
   };
   student: {
-    turma_id: string;
+    class_id: string;
     student_name: string;
   };
   activity: {
     first_seen_at: string;
     last_seen_at: string;
     login_count: number;
+    current_game: {
+      activity_id: string;
+      subject: string;
+      stage_id: string;
+      stage_name: string;
+      status: string;
+      started_at: string;
+      last_heartbeat_at: string;
+    };
   };
   roles: string[];
   is_guest: boolean;
@@ -50,4 +67,190 @@ export interface IApiStudentSessionUser {
 
 export interface IApiStudentSessionResponse {
   user: IApiStudentSessionUser;
+}
+
+export interface IApiDashboardOverviewRequest {
+  class_id?: string;
+}
+
+export interface IApiActivityAttachment {
+  uploadcare_uuid: string;
+  cdn_url: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+}
+
+export interface IApiCreateTeacherClassActivityRequest {
+  class_id?: string;
+  class_name: string;
+  activity_name: string;
+  subject: string;
+  grade_level: string;
+  learning_goal: string;
+  teacher_prompt: string;
+  attachments: IApiActivityAttachment[];
+}
+
+export interface IApiUpsertTeacherClassRequest {
+  class_id: string;
+  class_name: string;
+  subject: string;
+  grade_level: string;
+}
+
+export interface IApiTeacher {
+  provider_user_id: string;
+  display_name: string;
+  email: string;
+  photo_url: string;
+}
+
+export interface IApiSuggestion {
+  id: string;
+  title: string;
+  reason: string;
+  activity: string;
+  questions: string[];
+  focus_skills: string[];
+}
+
+export interface IApiTeacherClass {
+  id: string;
+  class_id: string;
+  class_code: string;
+  class_name: string;
+  subject: string;
+  grade_level: string;
+  teacher_id: string;
+  teacher: IApiTeacher;
+  active_activity_id: string;
+  activity_count: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IApiActivityStage {
+  id: string;
+  title: string;
+  goal: string;
+  checks: string[];
+  unlocks_when: string;
+}
+
+export interface IApiActivityPreviewQuestion {
+  id: string;
+  prompt: string;
+  answer_type: "multiple_choice" | "next_step" | "short_text" | string;
+  options: string[];
+  expected_answer: string;
+  misconception_traps: string[];
+}
+
+export interface IApiActivityOrchestration {
+  provider: string;
+  model: string;
+  model_version: string;
+  generated_by_ai: boolean;
+  generated_by_mock: boolean;
+  fallback_reason: string;
+  prompt_token_count: number;
+  candidates_token_count: number;
+  thoughts_token_count: number;
+  total_token_count: number;
+}
+
+export interface IApiTeacherClassActivity {
+  id: string;
+  class_id: string;
+  class_code: string;
+  class_name: string;
+  activity_name: string;
+  title: string;
+  summary: string;
+  subject: string;
+  grade_level: string;
+  learning_goal: string;
+  teacher_prompt: string;
+  attachments: IApiActivityAttachment[];
+  preview_questions: IApiActivityPreviewQuestion[];
+  suggested_duration_minutes: number;
+  stages: IApiActivityStage[];
+  suggestions: IApiSuggestion[];
+  positive_signals: string[];
+  improvement_signals: string[];
+  orchestration: IApiActivityOrchestration;
+  status: string;
+  created_by: IApiTeacher;
+  updated_by: IApiTeacher;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IApiTeacherClassActivityResponse {
+  activity: IApiTeacherClassActivity;
+}
+
+export interface IApiTeacherClassActivitiesResponse {
+  activities: IApiTeacherClassActivity[];
+}
+
+export interface IApiTeacherClassResponse {
+  teacher_class: IApiTeacherClass;
+}
+
+export interface IApiTeacherClassesResponse {
+  teacher_classes: IApiTeacherClass[];
+}
+
+export interface IApiDashboardMetrics {
+  total_students: number;
+  active_students: number;
+  completed_students: number;
+  average_progress: number;
+  needs_attention: number;
+  notebook_notes: number;
+}
+
+export interface IApiStudentProgress {
+  completed_questions: number;
+  total_questions: number;
+  percentage: number;
+  status: "completed" | "in_progress" | "needs_attention" | string;
+}
+
+export interface IApiDashboardStudent {
+  id: string;
+  student_name: string;
+  class_id: string;
+  progress: IApiStudentProgress;
+  strengths: string[];
+  improvement_areas: string[];
+  last_activity_at: string;
+  notebook_notes: number;
+  session?: {
+    activity_id: string;
+    subject: string;
+    stage_id: string;
+    stage_name: string;
+    status: string;
+    is_online: boolean;
+    started_at: string;
+    last_heartbeat_at: string;
+  };
+}
+
+export interface IApiDashboardOverviewResponse {
+  class_id: string;
+  class_code: string;
+  teacher_class: IApiTeacherClass | null;
+  active_activity: IApiTeacherClassActivity | null;
+  metrics: IApiDashboardMetrics;
+  students: IApiDashboardStudent[];
+  suggestions: IApiSuggestion[];
+  generated_by_ai: boolean;
+  generated_by_mock: boolean;
+  teacher: IApiTeacher;
 }
