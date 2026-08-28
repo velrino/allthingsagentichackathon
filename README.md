@@ -1,8 +1,8 @@
 # ClassGame
 
-**ClassGame** is a 3D educational game where an autonomous AI tutor adapts the learning path based on each student's progress.
+**ClassGame** is a 3D educational game where an autonomous AI tutor leads each student through a learning mission, asks clarifying questions, takes structured notes, and adapts the path based on the student's progress and feedback.
 
-The project is designed for the **All Things Agentic Hackathon** as a **Collaborative Partner** agent. The Three.js game is the interactive learning interface, while the real product is the agent behind it: a tutor that observes performance, remembers mistakes, adjusts difficulty, generates new exercises, and decides what the student should practice next.
+The project is designed for the **All Things Agentic Hackathon** as a **Collaborative Partner** agent. The Three.js game is the interactive learning interface, while the real product is the agent behind it: a tutor that leads the way, keeps notes about how the student thinks, captures feedback, remembers mistakes, adjusts difficulty, generates new exercises, and decides what the student should practice next.
 
 The experience must be **responsive and mobile-first**. The first usable version should work well on a phone screen, then scale up to tablets and desktop. The 3D scene, quiz panels, tutor dialogue, and progress UI should avoid fixed desktop-only layouts.
 
@@ -19,6 +19,21 @@ Students enter a small 3D learning observatory. Each room represents part of a s
 - **Mastery Room**: gives a final personalized challenge before the student advances.
 
 The Gemini-powered tutor appears as a holographic guide. It is not just a chatbot. It makes learning decisions autonomously and changes the game flow based on evidence from the student's answers.
+
+## Collaborative Partner Alignment
+
+ClassGame should directly satisfy the Collaborative Partner challenge:
+
+> Build an agent that leads the way and takes notes. It should ask clarifying questions, guide the user step-by-step, and have a clear way to capture feedback, so it constantly adapts to the user's unique way of thinking.
+
+The MVP should make this visible in the product, not just describe it in the README:
+
+- **Leads the way**: the tutor chooses the next learning step and tells the student what to do next.
+- **Asks clarifying questions**: before giving another exercise, the tutor asks what confused the student or why they chose an answer.
+- **Guides step-by-step**: the tutor breaks a problem into smaller prompts instead of only marking answers right or wrong.
+- **Takes notes**: the agent records observations such as "confuses numerator with denominator" or "prefers visual examples."
+- **Captures feedback**: the UI should let the student mark an explanation as helpful, confusing, too easy, or too hard.
+- **Adapts to thinking style**: future questions and explanations should use the captured notes and feedback.
 
 ## Example Flow
 
@@ -201,7 +216,17 @@ Suggested `POST /agent/answer` response:
   "detectedWeakSkill": "fractions",
   "agentDecision": "redirect_to_reinforcement",
   "nextRoom": "reinforcement-room",
+  "clarifyingQuestion": "What made 6/9 feel closer to 6/3 than 2/3?",
   "tutorMessage": "Let's strengthen fractions before returning to algebra.",
+  "agentNotes": [
+    "Student may be simplifying numerator and denominator separately.",
+    "Student responds better to visual fraction bars."
+  ],
+  "feedbackPrompt": {
+    "id": "explanation-helpfulness",
+    "question": "Was this explanation helpful?",
+    "options": ["helpful", "still confused", "too easy", "too hard"]
+  },
   "nextChallenge": {
     "skill": "fractions",
     "question": "Simplify 6/9.",
@@ -249,6 +274,9 @@ The first version should stay small and demo-friendly:
 - One playable mobile-first 3D environment.
 - One tutor NPC/hologram.
 - Diagnostic quiz.
+- Clarifying question flow after mistakes.
+- Visible agent notes panel for the demo.
+- Student feedback capture for explanations and difficulty.
 - Adaptive practice questions.
 - Firestore-backed progress memory.
 - Redis-backed queue for Gemini/adaptive tutor jobs.
@@ -276,6 +304,9 @@ Core requirements:
 The demo should clearly show the agent doing autonomous work:
 
 - Detecting a weak skill from incorrect answers.
+- Asking a clarifying question before deciding the next step.
+- Taking a visible note about how the student is thinking.
+- Capturing whether the explanation was helpful, confusing, too easy, or too hard.
 - Changing the student's route inside the 3D world.
 - Generating a new exercise set.
 - Explaining why the student was redirected.
@@ -313,6 +344,8 @@ The demo should clearly show the agent doing autonomous work:
 - Make rooms unlock, lock, or redirect based on agent decisions.
 - Add tutor dialogue.
 - Add the visible agent decision log.
+- Add the visible agent notes panel.
+- Add explanation feedback controls.
 - Improve visual polish, lighting, labels, and feedback states.
 
 ### Day 4: Submission
@@ -330,12 +363,14 @@ The demo should clearly show the agent doing autonomous work:
 1. Open ClassGame and enter the learning observatory.
 2. Start the Algebra mission.
 3. Answer diagnostic questions with intentional fraction mistakes.
-4. Show the agent detecting the weakness.
-5. Show the game redirecting the student to the reinforcement room.
-6. Show Gemini-generated practice questions.
-7. Answer correctly and unlock the next room.
-8. Show Firestore storing progress and agent decisions.
-9. Show Cloud Run deployments for both `classgame-web` and `classgame-api`.
+4. Show the agent asking a clarifying question about the student's reasoning.
+5. Show the agent taking a note about the student's thinking pattern.
+6. Submit feedback that the explanation is still confusing or too hard.
+7. Show the game redirecting the student to the reinforcement room.
+8. Show Gemini-generated practice questions adapted to the captured note.
+9. Answer correctly and unlock the next room.
+10. Show Firestore storing progress, feedback, notes, and agent decisions.
+11. Show Cloud Run deployments for both `classgame-web` and `classgame-api`.
 
 ## Success Criteria
 
@@ -344,8 +379,17 @@ The project is successful if the demo proves that:
 - The 3D world is interactive and educational.
 - Gemini is used for real reasoning, not decorative chat.
 - The agent has persistent memory.
+- The agent asks clarifying questions.
+- The agent takes visible notes.
+- The user can give feedback that changes future guidance.
 - The agent changes the student's learning path autonomously.
 - The system runs with at least one required Google Cloud service.
+
+## Credits
+
+- **Low Poly ClassRoom** 3D model by **Mumladze28**.
+- Sketchfab: [Low Poly ClassRoom](https://sketchfab.com/3d-models/low-poly-classroom-8b1bf103c90349d981c9c2ae1c0596e5)
+- ArtStation: [Mumladze28 project page](https://www.artstation.com/artwork/N5dg5q)
 
 ## Short Pitch
 

@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClassGame Web
 
-## Getting Started
+Mobile-first Next.js, React, TypeScript, Tailwind, and Three.js frontend for **ClassGame**.
 
-First, run the development server:
+## Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000/home](http://localhost:3000/home).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Validation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+```
 
-## Learn More
+## Current Scope
 
-To learn more about Next.js, take a look at the following resources:
+- Playable `/home` route.
+- Three.js classroom scene.
+- Fixed CCTV-style classroom camera.
+- Mobile-first HUD and movement controls.
+- Mocked tutor/agent state for the frontend-only demo.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Collaborative Partner Demo Goal
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The frontend should make the agent behavior visible:
 
-## Deploy on Vercel
+- The tutor leads the student through the next step.
+- The tutor asks clarifying questions after mistakes.
+- The UI shows captured agent notes.
+- The student can give feedback on explanations and difficulty.
+- Mocked API/SSE states should still demonstrate how the future Go API will adapt the path.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Credits
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Low Poly ClassRoom** 3D model by **Mumladze28**.
+- Sketchfab: [Low Poly ClassRoom](https://sketchfab.com/3d-models/low-poly-classroom-8b1bf103c90349d981c9c2ae1c0596e5)
+- ArtStation: [Mumladze28 project page](https://www.artstation.com/artwork/N5dg5q)
