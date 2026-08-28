@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { buildWhyOptions } from "../agent/mock-tutor";
 import { MISSION_TITLE, TUTOR_NAME, type Explanation, type Question, type Visual } from "../content/algebra-mission";
@@ -27,8 +27,46 @@ type ChalkboardProps = {
 /** Slight, deterministic tilt per option so the board reads as handwriting, not a form. */
 const TILT = ["-rotate-1", "rotate-1", "rotate-[0.5deg]", "-rotate-[1.5deg]"];
 
+/*
+ * Everything on the board is sized in `em` against the board body's font-size.
+ * `useFitScale` shrinks that font-size until the content fits the board with no
+ * scrolling — an option hidden below the fold is an answer nobody chose on purpose.
+ */
+const BASE_FONT_PX = 16;
+const MIN_SCALE = 0.55;
+/** Tilted option buttons poke a couple of px past the layout box; that is not overflow. */
+const OVERFLOW_TOLERANCE_PX = 6;
+
+function useFitScale(ref: React.RefObject<HTMLElement | null>, deps: readonly unknown[]) {
+  useLayoutEffect(() => {
+    const element = ref.current;
+
+    if (!element) {
+      return;
+    }
+
+    const fit = () => {
+      let scale = 1;
+      element.style.fontSize = `${BASE_FONT_PX}px`;
+
+      while (element.scrollHeight > element.clientHeight + OVERFLOW_TOLERANCE_PX && scale > MIN_SCALE) {
+        scale = Math.round((scale - 0.05) * 100) / 100;
+        element.style.fontSize = `${BASE_FONT_PX * scale}px`;
+      }
+    };
+
+    fit();
+
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
 const chalkButton =
-  "chalk-line chalk pointer-events-auto rounded-sm border-2 px-4 py-3 text-2xl leading-none transition hover:bg-white/10 active:bg-white/15 active:translate-y-px disabled:opacity-40 sm:text-3xl";
+  "chalk-line chalk pointer-events-auto rounded-sm border-2 px-[0.8em] py-[0.5em] leading-tight transition hover:bg-white/10 active:bg-white/15 active:translate-y-px disabled:opacity-40";
 const chalkPrimary = `${chalkButton} border-chalk-accent text-chalk-accent`;
 
 const FEEDBACK: readonly { value: FeedbackValue; label: string; emoji: string }[] = [
@@ -42,9 +80,9 @@ const FEEDBACK: readonly { value: FeedbackValue; label: string; emoji: string }[
 
 function FractionBar({ num, den, label }: { readonly num: number; readonly den: number; readonly label: string }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="chalk w-24 text-right text-xl">{label}</span>
-      <div className="chalk-line flex h-8 flex-1 gap-[3px] rounded-sm border-2 p-[3px]">
+    <div className="flex items-center gap-[0.6em]">
+      <span className="chalk w-[5.5em] text-right text-[1.05em]">{label}</span>
+      <div className="chalk-line flex h-[1.6em] flex-1 gap-[3px] rounded-sm border-2 p-[3px]">
         {Array.from({ length: den }, (_, index) => (
           <div key={index} className={`flex-1 rounded-[2px] ${index < num ? "bg-chalk-ink/85" : "bg-white/5"}`} />
         ))}
@@ -55,12 +93,12 @@ function FractionBar({ num, den, label }: { readonly num: number; readonly den: 
 
 function ChainVisual({ lines, upTo }: { readonly lines: readonly string[]; readonly upTo: number }) {
   return (
-    <ol className="chalk space-y-1">
+    <ol className="chalk space-y-[0.2em]">
       {lines.slice(0, upTo).map((line, index) => {
         const isOp = index % 2 === 1;
 
         return (
-          <li key={`${line}-${index}`} className={`animate-pop ${isOp ? "pl-8 text-lg text-chalk-accent" : "text-3xl"}`}>
+          <li key={`${line}-${index}`} className={`animate-pop ${isOp ? "pl-[1.5em] text-[1em] text-chalk-accent" : "text-[1.6em]"}`}>
             {isOp ? `↓ ${line}` : line}
           </li>
         );
@@ -72,7 +110,7 @@ function ChainVisual({ lines, upTo }: { readonly lines: readonly string[]; reado
 function VisualExplanation({ visual, upTo }: { readonly visual: Visual; readonly upTo: number }) {
   if (visual.kind === "fraction-bars") {
     return (
-      <div className="space-y-3">
+      <div className="space-y-[0.6em]">
         {visual.bars.slice(0, upTo).map((bar) => (
           <div key={bar.label} className="animate-pop">
             <FractionBar {...bar} />
@@ -94,10 +132,10 @@ function QuestionPhase({ lesson, onChoose, onStep }: Pick<ChalkboardProps, "less
   if (question.kind === "choice") {
     return (
       <>
-        <p className="chalk text-4xl leading-tight sm:text-5xl">{question.prompt}</p>
-        <div className="mt-auto grid grid-cols-2 gap-3 pt-6">
+        <p className="chalk text-[1.9em] leading-tight">{question.prompt}</p>
+        <div className="mt-auto grid grid-cols-2 gap-[0.6em] pt-[1em] pb-[3px]">
           {question.options.map((option, index) => (
-            <button key={option.text} type="button" onClick={() => onChoose(index)} className={`${chalkButton} ${TILT[index % TILT.length]}`}>
+            <button key={option.text} type="button" onClick={() => onChoose(index)} className={`${chalkButton} text-[1.4em] ${TILT[index % TILT.length]}`}>
               {option.text}
             </button>
           ))}
@@ -110,17 +148,17 @@ function QuestionPhase({ lesson, onChoose, onStep }: Pick<ChalkboardProps, "less
 
   return (
     <>
-      <p className="chalk text-base text-chalk-ink/70">Get x alone. Pick the next move.</p>
-      <ol className="chalk mt-2 space-y-1">
+      <p className="chalk text-[0.85em] text-chalk-ink/70">Get x alone. Pick the next move.</p>
+      <ol className="chalk mt-[0.4em] space-y-[0.15em]">
         {lesson.lines.map((line, index) => (
-          <li key={`${line}-${index}`} className={`text-4xl leading-tight sm:text-5xl ${index === 0 ? "" : "animate-pop"}`}>
+          <li key={`${line}-${index}`} className={`text-[1.9em] leading-tight ${index === 0 ? "" : "animate-pop"}`}>
             {line}
           </li>
         ))}
       </ol>
-      <div className="mt-auto grid grid-cols-2 gap-3 pt-6">
+      <div className="mt-auto grid grid-cols-2 gap-[0.6em] pt-[1em] pb-[3px]">
         {moves.map((move, index) => (
-          <button key={move.op} type="button" onClick={() => onStep(index)} className={`${chalkButton} text-xl sm:text-2xl ${TILT[index % TILT.length]}`}>
+          <button key={move.op} type="button" onClick={() => onStep(index)} className={`${chalkButton} text-[1.05em] ${TILT[index % TILT.length]}`}>
             {move.op}
           </button>
         ))}
@@ -134,11 +172,11 @@ function CorrectPhase({ lesson, onContinue }: Pick<ChalkboardProps, "lesson" | "
 
   return (
     <>
-      <p className="chalk animate-pop text-6xl text-chalk-right">✓</p>
-      <p className="chalk mt-2 text-4xl">{lastLine}</p>
-      <p className="chalk mt-4 text-xl text-chalk-ink/80">{lesson.clean ? "Clean. That one counts." : "Right — and now you know why."}</p>
-      <div className="mt-auto pt-6">
-        <button type="button" onClick={onContinue} className={`${chalkPrimary} w-full`}>
+      <p className="chalk animate-pop text-[3em] leading-none text-chalk-right">✓</p>
+      <p className="chalk mt-[0.3em] text-[1.9em]">{lastLine}</p>
+      <p className="chalk mt-[0.6em] text-[1.05em] text-chalk-ink/80">{lesson.clean ? "Clean. That one counts." : "Right — and now you know why."}</p>
+      <div className="mt-auto pt-[1em]">
+        <button type="button" onClick={onContinue} className={`${chalkPrimary} w-full text-[1.3em]`}>
           Next →
         </button>
       </div>
@@ -162,26 +200,26 @@ function WhyPhase({ lesson, onWhy }: Pick<ChalkboardProps, "lesson" | "onWhy">) 
     <>
       {isSteps ? (
         // Show what the wrong move actually did to the equation: the +1 didn't disappear, it doubled.
-        <ol className="chalk mb-3 space-y-1">
+        <ol className="chalk mb-[0.5em] space-y-[0.1em]">
           {lesson.lines.map((line, index) => {
             const isLast = index === lesson.lines.length - 1;
 
             return (
-              <li key={`${line}-${index}`} className={`text-3xl leading-tight sm:text-4xl ${isLast ? "animate-pop text-chalk-wrong" : "text-chalk-ink/60"}`}>
+              <li key={`${line}-${index}`} className={`text-[1.4em] leading-tight ${isLast ? "animate-pop text-chalk-wrong" : "text-chalk-ink/60"}`}>
                 {isLast ? `${wrong.chosen} → ${line}` : line}
               </li>
             );
           })}
         </ol>
       ) : null}
-      <p className="chalk text-2xl text-chalk-wrong sm:text-3xl">Not yet — and I&apos;m not telling you the answer.</p>
-      <p className="chalk mt-3 text-4xl leading-tight sm:text-5xl">
+      <p className="chalk text-[1.05em] text-chalk-wrong">Not yet — and I&apos;m not telling you the answer.</p>
+      <p className="chalk mt-[0.35em] text-[1.7em] leading-tight">
         Why did you pick <span className="underline decoration-wavy decoration-chalk-wrong/70">{wrong.chosen}</span>?
       </p>
 
       {writing ? (
         <form
-          className="mt-auto flex flex-col gap-3 pt-6"
+          className="mt-auto flex flex-col gap-[0.6em] pt-[1em]"
           onSubmit={(event) => {
             event.preventDefault();
 
@@ -196,30 +234,30 @@ function WhyPhase({ lesson, onWhy }: Pick<ChalkboardProps, "lesson" | "onWhy">) 
             onChange={(event) => setText(event.target.value)}
             rows={3}
             placeholder="Tell me how you were thinking…"
-            className="chalk chalk-line pointer-events-auto w-full resize-none rounded-sm border-2 bg-transparent px-3 py-2 text-xl outline-none placeholder:text-chalk-ink/40"
+            className="chalk chalk-line pointer-events-auto w-full resize-none rounded-sm border-2 bg-transparent px-[0.6em] py-[0.4em] text-[1.1em] outline-none placeholder:text-chalk-ink/40"
           />
-          <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setWriting(false)} className={`${chalkButton} text-xl`}>
+          <div className="grid grid-cols-2 gap-[0.6em]">
+            <button type="button" onClick={() => setWriting(false)} className={`${chalkButton} text-[1.05em]`}>
               Back
             </button>
-            <button type="submit" disabled={text.trim().length < 2} className={`${chalkPrimary} text-xl`}>
+            <button type="submit" disabled={text.trim().length < 2} className={`${chalkPrimary} text-[1.05em]`}>
               That&apos;s why
             </button>
           </div>
         </form>
       ) : (
-        <div className="mt-auto grid gap-3 pt-6">
+        <div className="mt-auto grid gap-[0.5em] pt-[1em] pb-[3px]">
           {options.map((option, index) => (
             <button
               key={option.id}
               type="button"
               onClick={() => onWhy({ misconceptionId: option.id })}
-              className={`${chalkButton} text-left text-xl sm:text-2xl ${TILT[index % TILT.length]}`}
+              className={`${chalkButton} text-left text-[1.05em] ${TILT[index % TILT.length]}`}
             >
               “{option.label}”
             </button>
           ))}
-          <button type="button" onClick={() => setWriting(true)} className={`${chalkButton} text-xl text-chalk-ink/80`}>
+          <button type="button" onClick={() => setWriting(true)} className={`${chalkButton} text-[0.95em] text-chalk-ink/80`}>
             ✎ Write it in my own words
           </button>
         </div>
@@ -228,32 +266,28 @@ function WhyPhase({ lesson, onWhy }: Pick<ChalkboardProps, "lesson" | "onWhy">) 
   );
 }
 
-function ExplainPhase({
-  lesson,
-  explanationStyle,
-  onExplainNext,
-}: Pick<ChalkboardProps, "lesson" | "explanationStyle" | "onExplainNext">) {
+function ExplainPhase({ lesson, explanationStyle, onExplainNext }: Pick<ChalkboardProps, "lesson" | "explanationStyle" | "onExplainNext">) {
   const explanation: Explanation = lesson.question.explanation;
   const shown = lesson.explainIndex + 1;
   const isLast = shown >= explanation.steps.length;
 
   return (
     <>
-      <p className="chalk text-base text-chalk-ink/70">
+      <p className="chalk text-[0.85em] text-chalk-ink/70">
         {explanationStyle === "visual" ? "Let me draw it." : "Step by step."} · {shown}/{explanation.steps.length}
       </p>
 
       {explanationStyle === "visual" ? (
-        <div className="mt-3">
+        <div className="mt-[0.6em]">
           <VisualExplanation visual={explanation.visual} upTo={shown} />
-          <p key={shown} className="chalk animate-pop mt-4 text-2xl leading-snug sm:text-3xl">
+          <p key={shown} className="chalk animate-pop mt-[0.8em] text-[1.25em] leading-snug">
             {explanation.steps[lesson.explainIndex]}
           </p>
         </div>
       ) : (
-        <ol className="chalk mt-3 space-y-3">
+        <ol className="chalk mt-[0.6em] space-y-[0.6em]">
           {explanation.steps.slice(0, shown).map((step, index) => (
-            <li key={step} className={`flex gap-3 text-2xl leading-snug sm:text-3xl ${index === lesson.explainIndex ? "animate-pop" : "text-chalk-ink/70"}`}>
+            <li key={step} className={`flex gap-[0.6em] text-[1.25em] leading-snug ${index === lesson.explainIndex ? "animate-pop" : "text-chalk-ink/70"}`}>
               <span className="text-chalk-accent">{index + 1}.</span>
               <span>{step}</span>
             </li>
@@ -261,8 +295,8 @@ function ExplainPhase({
         </ol>
       )}
 
-      <div className="mt-auto pt-6">
-        <button type="button" onClick={onExplainNext} className={`${chalkPrimary} w-full`}>
+      <div className="mt-auto pt-[1em]">
+        <button type="button" onClick={onExplainNext} className={`${chalkPrimary} w-full text-[1.3em]`}>
           {isLast ? "Got it" : "Next step →"}
         </button>
       </div>
@@ -272,17 +306,18 @@ function ExplainPhase({
 
 function FeedbackPhase() {
   return (
-    <>
-      <p className="chalk text-4xl leading-tight sm:text-5xl">How was that explanation?</p>
-      <p className="chalk mt-3 text-xl text-chalk-ink/70">Be honest — I change how I teach based on this.</p>
-    </>
+    <div className="flex flex-1 flex-col justify-center">
+      <p className="chalk text-[1.9em] leading-tight">How was that explanation?</p>
+      <p className="chalk mt-[0.6em] text-[1.05em] text-chalk-ink/70">Be honest — I change how I teach based on this.</p>
+      <p className="chalk mt-auto pt-[1em] text-[0.85em] text-chalk-ink/50">↓ pick one below</p>
+    </div>
   );
 }
 
 function ThinkingPhase() {
   return (
-    <div className="chalk flex flex-1 flex-col items-center justify-center gap-3 text-2xl text-chalk-ink/80">
-      <span className="animate-think size-4 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.9)]" aria-hidden />
+    <div className="chalk flex flex-1 flex-col items-center justify-center gap-[0.6em] text-[1.25em] text-chalk-ink/80">
+      <span className="animate-think size-[0.9em] rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.9)]" aria-hidden />
       {TUTOR_NAME} is thinking…
     </div>
   );
@@ -299,14 +334,14 @@ function DecisionPhase({ lesson, onContinue }: Pick<ChalkboardProps, "lesson" | 
 
   return (
     <>
-      <p className="chalk text-base text-chalk-ink/70">{TUTOR_NAME} decided</p>
-      <p className="chalk animate-pop mt-2 text-3xl leading-tight sm:text-4xl">{decision.message}</p>
-      <div className="chalk-line mt-4 rounded-sm border-2 border-dashed border-chalk-accent/60 p-3">
-        <p className="chalk text-sm tracking-[0.14em] text-chalk-accent uppercase">Why</p>
-        <p className="chalk mt-1 text-xl leading-snug sm:text-2xl">{decision.why}</p>
+      <p className="chalk text-[0.85em] text-chalk-ink/70">{TUTOR_NAME} decided</p>
+      <p className="chalk animate-pop mt-[0.3em] text-[1.6em] leading-tight">{decision.message}</p>
+      <div className="chalk-line mt-[0.8em] rounded-sm border-2 border-dashed border-chalk-accent/60 p-[0.6em]">
+        <p className="chalk text-[0.75em] tracking-[0.14em] text-chalk-accent uppercase">Why</p>
+        <p className="chalk mt-[0.2em] text-[1.1em] leading-snug">{decision.why}</p>
       </div>
-      <div className="mt-auto pt-6">
-        <button type="button" onClick={onContinue} className={`${chalkPrimary} w-full`}>
+      <div className="mt-auto pt-[1em]">
+        <button type="button" onClick={onContinue} className={`${chalkPrimary} w-full text-[1.3em]`}>
           {leaves ? "Stand up →" : "Continue →"}
         </button>
       </div>
@@ -322,29 +357,33 @@ function questionLabel(question: Question) {
 
 /**
  * The whole lesson lives on this board — Bully's math class, minus the timer.
- * Question and options in chalk; the tutor's notes pinned beside it.
+ * The board fills the screen; text shrinks to fit rather than scroll.
  */
 export function Chalkboard(props: ChalkboardProps) {
   const { lesson, progress, notes, onFeedback, onStand, onOpenNotebook } = props;
   const recentNotes = notes.slice(0, 3);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useFitScale(bodyRef, [lesson.phase, lesson.question.id, lesson.stepIndex, lesson.explainIndex, lesson.lines.length, lesson.decision]);
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col bg-black/45 backdrop-blur-[2px]">
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 sm:px-6">
-        <section className="chalk-board flex min-h-0 flex-1 flex-col rounded-md border-[10px] border-chalk-frame p-4 max-h-[68dvh] sm:max-h-none sm:p-6">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-2 pt-[max(env(safe-area-inset-top),0.5rem)] pb-1 sm:px-6 sm:pt-4 sm:pb-3">
+        <section className="chalk-board flex min-h-0 flex-1 flex-col rounded-md border-[8px] border-chalk-frame p-3 sm:border-[10px] sm:p-6">
           <header className="flex items-start justify-between gap-3">
             <div className="chalk leading-tight">
-              <p className="text-lg text-chalk-ink/80">
+              <p className="text-sm text-chalk-ink/80 sm:text-lg">
                 {MISSION_TITLE} · {POD_LABELS[lesson.pod]}
               </p>
-              <p className="text-base text-chalk-ink/60">
+              <p className="text-xs text-chalk-ink/60 sm:text-base">
                 Prof. {TUTOR_NAME} · {questionLabel(lesson.question)}
               </p>
             </div>
             <PodDots progress={progress} className="mt-1" />
           </header>
 
-          <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {/* Body: sized in em; the font-size is set imperatively by useFitScale. */}
+          <div ref={bodyRef} className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden sm:mt-4">
             {lesson.phase === "question" ? <QuestionPhase {...props} /> : null}
             {lesson.phase === "correct" ? <CorrectPhase {...props} /> : null}
             {lesson.phase === "why" ? <WhyPhase key={lesson.question.id + lesson.stepIndex} {...props} /> : null}
@@ -355,59 +394,60 @@ export function Chalkboard(props: ChalkboardProps) {
           </div>
         </section>
 
-        {/* Pinned notes: the tutor's notebook, as paper on the wall. */}
-        <button
-          type="button"
-          onClick={onOpenNotebook}
-          className="mt-auto flex items-center gap-2 overflow-x-auto rounded-md px-1 pt-3 pb-1 text-left"
-          aria-label={`Open ${TUTOR_NAME}'s notebook`}
-        >
-          <span className="font-display shrink-0 text-[0.65rem] font-semibold tracking-[0.18em] text-slate-300 uppercase">📌 Notes</span>
-          {recentNotes.length === 0 ? (
-            <span className="text-xs text-slate-400">nothing pinned yet</span>
-          ) : (
-            recentNotes.map((note, index) => (
-              <span
-                key={note.id}
-                className={`paper-note relative shrink-0 max-w-[14rem] truncate rounded-sm px-3 pt-2.5 pb-1.5 text-xs ${index === 0 ? "animate-pop" : ""} ${TILT[index]}`}
-              >
-                {note.text}
-              </span>
-            ))
-          )}
-          {notes.length > 3 ? <span className="shrink-0 text-xs text-slate-300">+{notes.length - 3}</span> : null}
-        </button>
-
-        <footer className="mt-2 flex items-center gap-2 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
-          {lesson.phase === "feedback" ? (
-            <div className="grid flex-1 grid-cols-4 gap-2">
-              {FEEDBACK.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => onFeedback(item.value)}
-                  className="glass font-display animate-rise flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[0.7rem] font-semibold text-white transition hover:bg-white/10 active:translate-y-px sm:text-xs"
+        {/* Pinned notes on the left, Stand up on the right: one thin row. */}
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenNotebook}
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto rounded-md px-1 py-1 text-left"
+            aria-label={`Open ${TUTOR_NAME}'s notebook`}
+          >
+            <span className="font-display shrink-0 text-[0.62rem] font-semibold tracking-[0.18em] text-slate-300 uppercase">📌 Notes</span>
+            {recentNotes.length === 0 ? (
+              <span className="text-xs text-slate-400">nothing pinned yet</span>
+            ) : (
+              recentNotes.map((note, index) => (
+                <span
+                  key={note.id}
+                  className={`paper-note relative max-w-[11rem] shrink-0 truncate rounded-sm px-2.5 pt-2 pb-1 text-[0.7rem] ${index === 0 ? "animate-pop" : ""} ${TILT[index]}`}
                 >
-                  <span className="text-base leading-none" aria-hidden>
-                    {item.emoji}
-                  </span>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex-1" />
-          )}
+                  {note.text}
+                </span>
+              ))
+            )}
+            {notes.length > 3 ? <span className="shrink-0 text-xs text-slate-300">+{notes.length - 3}</span> : null}
+          </button>
+
           {lesson.phase !== "feedback" ? (
             <button
               type="button"
               onClick={onStand}
-              className="glass font-display h-12 shrink-0 rounded-full px-5 text-sm font-semibold text-white transition hover:bg-white/10 active:translate-y-px"
+              className="glass font-display h-9 shrink-0 rounded-full px-3.5 text-xs font-semibold text-white transition hover:bg-white/10 active:translate-y-px"
             >
               Stand up
             </button>
           ) : null}
-        </footer>
+        </div>
+
+        {lesson.phase === "feedback" ? (
+          <div className="mt-2 grid grid-cols-4 gap-2 pb-[max(env(safe-area-inset-bottom),0.25rem)]">
+            {FEEDBACK.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => onFeedback(item.value)}
+                className="glass font-display animate-rise flex h-14 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[0.7rem] font-semibold text-white transition hover:bg-white/10 active:translate-y-px sm:text-xs"
+              >
+                <span className="text-base leading-none" aria-hidden>
+                  {item.emoji}
+                </span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="pb-[env(safe-area-inset-bottom)]" />
+        )}
       </div>
     </div>
   );
