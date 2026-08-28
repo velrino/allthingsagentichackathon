@@ -25,11 +25,20 @@ import type {
 } from "@/backend/api/api.interface";
 import { Main } from "@/components/layout/main";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
-import { ActivityBuilder, type ActivityBuilderForm } from "../components/activity-builder";
+import {
+  ActivityBuilder,
+  type ActivityBuilderForm,
+} from "../components/activity-builder";
 import { AgentInterventionChart } from "../components/analytics/agent-intervention-chart";
 import { AnalyticsCard } from "../components/analytics/analytics-card";
 import {
@@ -43,7 +52,11 @@ import { DashboardShell } from "../components/dashboard-shell";
 import { MetricCard } from "../components/metric-card";
 import { RecentPlayersTable } from "../components/recent-players-table";
 import { StudentsTable } from "../components/students-table";
-import { rememberSelectedClass, resolveSelectedClassId, upsertTeacherClass } from "../utils/teacher-class-state";
+import {
+  rememberSelectedClass,
+  resolveSelectedClassId,
+  upsertTeacherClass,
+} from "../utils/teacher-class-state";
 
 type DashboardTab = "overview" | "activity" | "students" | "notebook";
 
@@ -65,11 +78,13 @@ export function DashboardPage() {
   const router = useRouter();
   const auth = useTeacherAuth();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
-  const [overview, setOverview] = useState<IApiDashboardOverviewResponse | null>(null);
+  const [overview, setOverview] =
+    useState<IApiDashboardOverviewResponse | null>(null);
   const [teacherClasses, setTeacherClasses] = useState<IApiTeacherClass[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [activityBuilderOpen, setActivityBuilderOpen] = useState(false);
-  const [previewActivity, setPreviewActivity] = useState<IApiTeacherClassActivity | null>(null);
+  const [previewActivity, setPreviewActivity] =
+    useState<IApiTeacherClassActivity | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -116,11 +131,17 @@ export function DashboardPage() {
         }
 
         setTeacherClasses(response.teacher_classes);
-        setSelectedClassId((current) => resolveSelectedClassId(current, response.teacher_classes));
+        setSelectedClassId((current) =>
+          resolveSelectedClassId(current, response.teacher_classes),
+        );
       })
       .catch((caughtError: unknown) => {
         if (!cancelled) {
-          setError(caughtError instanceof Error ? caughtError.message : "Could not load classes.");
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load classes.",
+          );
         }
       })
       .finally(() => {
@@ -164,13 +185,19 @@ export function DashboardPage() {
         setOverview(response);
         const teacherClass = response.teacher_class;
         if (teacherClass) {
-          setTeacherClasses((current) => upsertTeacherClass(current, teacherClass));
+          setTeacherClasses((current) =>
+            upsertTeacherClass(current, teacherClass),
+          );
         }
         rememberSelectedClass(response.class_id);
       })
       .catch((caughtError: unknown) => {
         if (!cancelled) {
-          setError(caughtError instanceof Error ? caughtError.message : "Could not load dashboard.");
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load dashboard.",
+          );
         }
       })
       .finally(() => {
@@ -202,7 +229,9 @@ export function DashboardPage() {
       refreshing = true;
       try {
         const token = await user.getIdToken();
-        const response = await API.dashboard.overview(token, { class_id: classId });
+        const response = await API.dashboard.overview(token, {
+          class_id: classId,
+        });
         if (cancelled) {
           return;
         }
@@ -210,7 +239,9 @@ export function DashboardPage() {
         setOverview(response);
         const teacherClass = response.teacher_class;
         if (teacherClass) {
-          setTeacherClasses((current) => upsertTeacherClass(current, teacherClass));
+          setTeacherClasses((current) =>
+            upsertTeacherClass(current, teacherClass),
+          );
         }
       } catch {
         // Keep the last successful dashboard snapshot during transient refresh failures.
@@ -235,21 +266,42 @@ export function DashboardPage() {
   }, [auth.status, auth.user, selectedClassId]);
 
   const selectedClass = useMemo(() => {
-    if (overview?.teacher_class && overview.teacher_class.class_id === selectedClassId) {
+    if (
+      overview?.teacher_class &&
+      overview.teacher_class.class_id === selectedClassId
+    ) {
       return overview.teacher_class;
     }
 
-    return teacherClasses.find((teacherClass) => teacherClass.class_id === selectedClassId) ?? null;
+    return (
+      teacherClasses.find(
+        (teacherClass) => teacherClass.class_id === selectedClassId,
+      ) ?? null
+    );
   }, [overview?.teacher_class, selectedClassId, teacherClasses]);
 
   const metrics = overview?.metrics;
   const activeActivity = overview?.active_activity ?? null;
   const suggestions = overview?.suggestions ?? [];
-  const students = useMemo(() => overview?.students ?? [], [overview?.students]);
-  const classCode = previewActivity?.class_code ?? activeActivity?.class_code ?? selectedClass?.class_code ?? overview?.class_code ?? "";
+  const students = useMemo(
+    () => overview?.students ?? [],
+    [overview?.students],
+  );
+  const classCode =
+    previewActivity?.class_code ??
+    activeActivity?.class_code ??
+    selectedClass?.class_code ??
+    overview?.class_code ??
+    "";
   const hasSelectedClass = Boolean(selectedClassId);
-  const learningSignalDataset = useMemo(() => buildLearningSignalDataset(students), [students]);
-  const misconceptionDataset = useMemo(() => buildMisconceptionDataset(students), [students]);
+  const learningSignalDataset = useMemo(
+    () => buildLearningSignalDataset(students),
+    [students],
+  );
+  const misconceptionDataset = useMemo(
+    () => buildMisconceptionDataset(students),
+    [students],
+  );
 
   async function loadOverview(token: string, classId: string) {
     const response = await API.dashboard.overview(token, {
@@ -274,21 +326,29 @@ export function DashboardPage() {
     setError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassActivities.preview(token, value.class_id, {
-        class_name: value.class_name,
-        activity_name: value.activity_name,
-        subject: value.subject,
-        grade_level: value.grade_level,
-        learning_goal: value.learning_goal,
-        teacher_prompt: value.teacher_prompt,
-        attachments: value.attachments,
-      });
+      const response = await API.teacherClassActivities.preview(
+        token,
+        value.class_id,
+        {
+          class_name: value.class_name,
+          activity_name: value.activity_name,
+          subject: value.subject,
+          grade_level: value.grade_level,
+          learning_goal: value.learning_goal,
+          teacher_prompt: value.teacher_prompt,
+          attachments: value.attachments,
+        },
+      );
       setPreviewActivity(response.activity);
       setSelectedClassId(response.activity.class_id);
       setActivityBuilderOpen(true);
       setActiveDashboardTab("activity");
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Could not process class activity.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not process class activity.",
+      );
     } finally {
       setProcessing(false);
     }
@@ -303,12 +363,20 @@ export function DashboardPage() {
     setError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassActivities.approve(token, activity.class_id, activity.id);
+      const response = await API.teacherClassActivities.approve(
+        token,
+        activity.class_id,
+        activity.id,
+      );
       setPreviewActivity(response.activity);
       await loadOverview(token, response.activity.class_id);
       setActiveDashboardTab("overview");
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Could not publish class activity.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not publish class activity.",
+      );
     } finally {
       setApproving(false);
     }
@@ -334,17 +402,27 @@ export function DashboardPage() {
 
     const nextHash = hashByTab[value];
     if (typeof window !== "undefined" && window.location.hash !== nextHash) {
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}${nextHash}`,
+      );
       window.dispatchEvent(new Event("hashchange"));
     }
   }
 
-  if (auth.status === "checking" || auth.status === "signed_out" || !auth.user) {
+  if (
+    auth.status === "checking" ||
+    auth.status === "signed_out" ||
+    !auth.user
+  ) {
     return (
       <main className="grid min-h-svh place-items-center bg-slate-950 px-4 text-white">
         <div className="text-center">
           <p className="text-xs font-bold uppercase text-cyan-300">ClassGame</p>
-          <p className="mt-3 text-lg font-semibold">Checking teacher session...</p>
+          <p className="mt-3 text-lg font-semibold">
+            Checking teacher session...
+          </p>
         </div>
       </main>
     );
@@ -353,7 +431,10 @@ export function DashboardPage() {
   return (
     <DashboardShell user={auth.user} onSignOut={handleSignOut}>
       <Main id="main-content" className="space-y-4">
-        <div id="overview" className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div
+          id="overview"
+          className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+        >
           <div>
             <h1 className="text-2xl font-bold">Dashboard</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -376,7 +457,11 @@ export function DashboardPage() {
                 Classes
               </Link>
             </Button>
-            <Button type="button" disabled={!hasSelectedClass} onClick={handleOpenActivityBuilder}>
+            <Button
+              type="button"
+              disabled={!hasSelectedClass}
+              onClick={handleOpenActivityBuilder}
+            >
               <ClipboardList className="size-4" aria-hidden />
               {hasSelectedClass ? "Build activity" : "Create class first"}
             </Button>
@@ -389,7 +474,12 @@ export function DashboardPage() {
           </p>
         ) : null}
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveDashboardTab(toDashboardTab(value))}>
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) =>
+            setActiveDashboardTab(toDashboardTab(value))
+          }
+        >
           <div className="overflow-x-auto pb-1">
             <TabsList className="min-w-max">
               <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -427,9 +517,9 @@ export function DashboardPage() {
               />
             </section>
 
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <AnalyticsCard
-                className="col-span-1 lg:col-span-4"
+                contentClassName="ps-2 sm:ps-4"
                 title="Agent intervention outcomes"
                 description="The share of students progressing independently, with Emily's guidance, or with teacher support."
                 source="demo"
@@ -437,7 +527,7 @@ export function DashboardPage() {
                 <AgentInterventionChart data={demoInterventionOutcomes} />
               </AnalyticsCard>
 
-              <Card className="col-span-1 lg:col-span-3">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Emily notebook</CardTitle>
                   <CardDescription>
@@ -447,7 +537,10 @@ export function DashboardPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <RecentStudentSignals students={students} suggestions={suggestions} />
+                  <RecentStudentSignals
+                    students={students}
+                    suggestions={suggestions}
+                  />
                 </CardContent>
               </Card>
             </section>
@@ -477,15 +570,20 @@ export function DashboardPage() {
                   <div>
                     <CardTitle>Recent players</CardTitle>
                     <CardDescription className="mt-2">
-                      Live game presence for the 10 most recently active students in this class.
+                      Live game presence for the 10 most recently active
+                      students in this class.
                     </CardDescription>
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground">Newest first</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Newest first
+                  </span>
                 </div>
               </CardHeader>
-              <CardContent className="px-4 py-5 sm:px-6">
+              <CardContent className="p-0">
                 <RecentPlayersTable
-                  fallbackSubject={activeActivity?.subject ?? selectedClass?.subject}
+                  fallbackSubject={
+                    activeActivity?.subject ?? selectedClass?.subject
+                  }
                   students={students}
                 />
               </CardContent>
@@ -513,7 +611,11 @@ export function DashboardPage() {
           </TabsContent>
 
           <TabsContent id="notebook" value="notebook" className="mt-2">
-            <NotebookPanel activeActivity={activeActivity} students={students} suggestions={suggestions} />
+            <NotebookPanel
+              activeActivity={activeActivity}
+              students={students}
+              suggestions={suggestions}
+            />
           </TabsContent>
         </Tabs>
 
@@ -561,12 +663,16 @@ function ActiveActivityCard({
       <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase text-cyan-700">Current class plan</p>
-            <CardTitle className="mt-2 text-2xl">{activeActivity?.title ?? "Set today's class activity"}</CardTitle>
+            <p className="text-xs font-bold uppercase text-cyan-700">
+              Current class plan
+            </p>
+            <CardTitle className="mt-2 text-2xl">
+              {activeActivity?.title ?? "Set today's class activity"}
+            </CardTitle>
             <CardDescription className="mt-2 max-w-2xl leading-6">
               {teacherClass
-                ? activeActivity?.summary ??
-                  "Tell Emily what students should study or reinforce. She will ask for the right context, generate a preview, and keep the class activity grounded in your goal."
+                ? (activeActivity?.summary ??
+                  "Tell Emily what students should study or reinforce. She will ask for the right context, generate a preview, and keep the class activity grounded in your goal.")
                 : "Create a class first. Each class gets its own code, assignments, students, and notebook."}
             </CardDescription>
           </div>
@@ -582,17 +688,42 @@ function ActiveActivityCard({
 
       <CardContent className="grid gap-4 px-4 py-5 sm:px-6">
         <div className="flex flex-wrap gap-2">
-          <StatusBadge value={activeActivity?.status ?? teacherClass?.status ?? "draft"} />
+          <StatusBadge
+            value={activeActivity?.status ?? teacherClass?.status ?? "draft"}
+          />
           {generatedByAi ? <BadgeTone tone="emerald">Gemini</BadgeTone> : null}
-          {generatedByMock ? <BadgeTone tone="amber">Fallback</BadgeTone> : null}
-          <BadgeTone tone="cyan">{activeActivity?.subject ?? teacherClass?.subject ?? "No subject yet"}</BadgeTone>
+          {generatedByMock ? (
+            <BadgeTone tone="amber">Fallback</BadgeTone>
+          ) : null}
+          <BadgeTone tone="cyan">
+            {activeActivity?.subject ??
+              teacherClass?.subject ??
+              "No subject yet"}
+          </BadgeTone>
         </div>
 
         {activeActivity ? (
           <div className="grid gap-4 md:grid-cols-3">
-            <InfoPanel label="Class" value={activeActivity.class_name || teacherClass?.class_name || classCode} />
-            <InfoPanel label="Grade" value={activeActivity.grade_level || teacherClass?.grade_level || "Not set"} />
-            <InfoPanel label="Duration" value={`${activeActivity.suggested_duration_minutes} minutes`} />
+            <InfoPanel
+              label="Class"
+              value={
+                activeActivity.class_name ||
+                teacherClass?.class_name ||
+                classCode
+              }
+            />
+            <InfoPanel
+              label="Grade"
+              value={
+                activeActivity.grade_level ||
+                teacherClass?.grade_level ||
+                "Not set"
+              }
+            />
+            <InfoPanel
+              label="Duration"
+              value={`${activeActivity.suggested_duration_minutes} minutes`}
+            />
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
@@ -607,9 +738,14 @@ function ActiveActivityCard({
             <h3 className="text-sm font-semibold">Learning flow</h3>
             <div className="grid gap-2">
               {activeActivity.stages.map((stage) => (
-                <div key={stage.id} className="rounded-md border border-border bg-muted/40 p-3">
+                <div
+                  key={stage.id}
+                  className="rounded-md border border-border bg-muted/40 p-3"
+                >
                   <p className="font-semibold">{stage.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{stage.goal}</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {stage.goal}
+                  </p>
                 </div>
               ))}
             </div>
@@ -634,7 +770,9 @@ function ActivityBuilderLauncherCard({
       <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase text-cyan-700">Activity Builder</p>
+            <p className="text-xs font-bold uppercase text-cyan-700">
+              Activity Builder
+            </p>
             <CardTitle className="mt-2">Open Emily Activity Builder</CardTitle>
             <CardDescription className="mt-2 max-w-2xl leading-6">
               {teacherClass
@@ -679,7 +817,8 @@ function RecentStudentSignals({
   const visibleStudents = [...students].sort(compareStudentSignals).slice(0, 5);
 
   if (visibleStudents.length === 0) {
-    const visibleSuggestions = suggestions.length > 0 ? suggestions.slice(0, 3) : starterSuggestions();
+    const visibleSuggestions =
+      suggestions.length > 0 ? suggestions.slice(0, 3) : starterSuggestions();
 
     return (
       <div className="space-y-6">
@@ -689,8 +828,12 @@ function RecentStudentSignals({
               AI
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-sm leading-none font-medium">{suggestion.title}</p>
-              <p className="line-clamp-2 text-sm text-muted-foreground">{suggestion.reason}</p>
+              <p className="text-sm leading-none font-medium">
+                {suggestion.title}
+              </p>
+              <p className="line-clamp-2 text-sm text-muted-foreground">
+                {suggestion.reason}
+              </p>
             </div>
           </div>
         ))}
@@ -707,8 +850,12 @@ function RecentStudentSignals({
           </div>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
             <div className="min-w-0 space-y-1">
-              <p className="truncate text-sm leading-none font-medium">{student.student_name}</p>
-              <p className="truncate text-sm text-muted-foreground">{student.improvement_areas[0] ?? "No notes yet"}</p>
+              <p className="truncate text-sm leading-none font-medium">
+                {student.student_name}
+              </p>
+              <p className="truncate text-sm text-muted-foreground">
+                {student.improvement_areas[0] ?? "No notes yet"}
+              </p>
             </div>
             <div className="font-medium">{student.progress.percentage}%</div>
           </div>
@@ -718,26 +865,39 @@ function RecentStudentSignals({
   );
 }
 
-function StudentsTableSection({ students }: { readonly students: IApiDashboardStudent[] }) {
+function StudentsTableSection({
+  students,
+}: {
+  readonly students: IApiDashboardStudent[];
+}) {
   return (
     <section className="flex flex-1 flex-col gap-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Students</h2>
-        <p className="text-sm text-muted-foreground">{students.length} in this class</p>
+        <p className="text-sm text-muted-foreground">
+          {students.length} in this class
+        </p>
       </div>
       <StudentsTable students={students} />
     </section>
   );
 }
 
-function compareStudentSignals(left: IApiDashboardStudent, right: IApiDashboardStudent) {
+function compareStudentSignals(
+  left: IApiDashboardStudent,
+  right: IApiDashboardStudent,
+) {
   const leftNeedsAttention = left.progress.status === "needs_attention" ? 1 : 0;
-  const rightNeedsAttention = right.progress.status === "needs_attention" ? 1 : 0;
+  const rightNeedsAttention =
+    right.progress.status === "needs_attention" ? 1 : 0;
   if (leftNeedsAttention !== rightNeedsAttention) {
     return rightNeedsAttention - leftNeedsAttention;
   }
 
-  return new Date(right.last_activity_at).getTime() - new Date(left.last_activity_at).getTime();
+  return (
+    new Date(right.last_activity_at).getTime() -
+    new Date(left.last_activity_at).getTime()
+  );
 }
 
 function studentInitials(value: string) {
@@ -757,8 +917,10 @@ function starterSuggestions(): IApiSuggestion[] {
     {
       id: "starter",
       title: "Start with a teacher prompt",
-      reason: "Emily needs the class goal, grade level, and the point students found confusing.",
-      activity: "Create a short diagnostic activity before students enter the game.",
+      reason:
+        "Emily needs the class goal, grade level, and the point students found confusing.",
+      activity:
+        "Create a short diagnostic activity before students enter the game.",
       questions: [],
       focus_skills: ["Teacher context"],
     },
@@ -774,8 +936,12 @@ function NotebookPanel({
   readonly students: IApiDashboardStudent[];
   readonly suggestions: IApiSuggestion[];
 }) {
-  const attentionStudents = students.filter((student) => student.progress.status === "needs_attention");
-  const completedStudents = students.filter((student) => student.progress.status === "completed");
+  const attentionStudents = students.filter(
+    (student) => student.progress.status === "needs_attention",
+  );
+  const completedStudents = students.filter(
+    (student) => student.progress.status === "completed",
+  );
 
   return (
     <section className="grid gap-4 lg:grid-cols-3">
@@ -788,8 +954,8 @@ function NotebookPanel({
             <div>
               <CardTitle>Class notebook</CardTitle>
               <CardDescription className="mt-2 leading-6">
-                Emily captures how students solve problems, where they hesitate, and what should change in the next
-                activity.
+                Emily captures how students solve problems, where they hesitate,
+                and what should change in the next activity.
               </CardDescription>
             </div>
           </div>
@@ -799,7 +965,9 @@ function NotebookPanel({
           <NotebookRow
             icon={BookOpenCheck}
             title="Current focus"
-            value={activeActivity?.learning_goal ?? "No active learning goal yet."}
+            value={
+              activeActivity?.learning_goal ?? "No active learning goal yet."
+            }
           />
           <NotebookRow
             icon={CheckCircle2}
@@ -815,7 +983,9 @@ function NotebookPanel({
             title="Needs follow-up"
             value={
               attentionStudents.length > 0
-                ? attentionStudents.map((student) => student.student_name).join(", ")
+                ? attentionStudents
+                    .map((student) => student.student_name)
+                    .join(", ")
                 : "No students marked as needing attention yet."
             }
           />
@@ -825,18 +995,28 @@ function NotebookPanel({
       <Card className="gap-0 py-0">
         <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
           <CardTitle>Next lesson notes</CardTitle>
-          <CardDescription className="mt-2 leading-6">A short planning queue for the teacher.</CardDescription>
+          <CardDescription className="mt-2 leading-6">
+            A short planning queue for the teacher.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 px-4 py-5 sm:px-6">
-          {(suggestions.length > 0 ? suggestions.slice(0, 3) : []).map((suggestion) => (
-            <div key={suggestion.id} className="rounded-md border border-border p-3">
-              <p className="text-sm font-semibold">{suggestion.title}</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{suggestion.activity}</p>
-            </div>
-          ))}
+          {(suggestions.length > 0 ? suggestions.slice(0, 3) : []).map(
+            (suggestion) => (
+              <div
+                key={suggestion.id}
+                className="rounded-md border border-border p-3"
+              >
+                <p className="text-sm font-semibold">{suggestion.title}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {suggestion.activity}
+                </p>
+              </div>
+            ),
+          )}
           {suggestions.length === 0 ? (
             <p className="text-sm leading-6 text-muted-foreground">
-              Publish an activity and collect student attempts to unlock better lesson notes.
+              Publish an activity and collect student attempts to unlock better
+              lesson notes.
             </p>
           ) : null}
         </CardContent>
@@ -865,7 +1045,13 @@ function NotebookRow({
   );
 }
 
-function InfoPanel({ label, value }: { readonly label: string; readonly value: string }) {
+function InfoPanel({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}) {
   return (
     <div className="rounded-md border border-border bg-muted/40 p-3">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -877,14 +1063,22 @@ function InfoPanel({ label, value }: { readonly label: string; readonly value: s
 function ClassCodeBadge({ value }: { readonly value: string }) {
   return (
     <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-      <span className="block text-xs font-bold uppercase text-emerald-700">Class code</span>
-      <span className="mt-1 block font-mono text-lg font-black text-emerald-900">{value}</span>
+      <span className="block text-xs font-bold uppercase text-emerald-700">
+        Class code
+      </span>
+      <span className="mt-1 block font-mono text-lg font-black text-emerald-900">
+        {value}
+      </span>
     </div>
   );
 }
 
 function StatusBadge({ value }: { readonly value: string }) {
-  return <BadgeTone tone={value === "published" ? "emerald" : "slate"}>{statusLabel(value)}</BadgeTone>;
+  return (
+    <BadgeTone tone={value === "published" ? "emerald" : "slate"}>
+      {statusLabel(value)}
+    </BadgeTone>
+  );
 }
 
 function BadgeTone({
@@ -902,7 +1096,9 @@ function BadgeTone({
   };
 
   return (
-    <span className={`w-fit rounded-md px-2.5 py-1 text-xs font-bold uppercase ${classNameByTone[tone]}`}>
+    <span
+      className={`w-fit rounded-md px-2.5 py-1 text-xs font-bold uppercase ${classNameByTone[tone]}`}
+    >
       {children}
     </span>
   );

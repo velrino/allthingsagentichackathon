@@ -1,7 +1,14 @@
 "use client";
 
 import type { IApiDashboardStudent } from "@/backend/api/api.interface";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type RecentPlayersTableProps = {
   readonly fallbackSubject?: string;
@@ -9,13 +16,20 @@ type RecentPlayersTableProps = {
   readonly students: IApiDashboardStudent[];
 };
 
-export function RecentPlayersTable({ fallbackSubject = "Not set", limit = 10, students }: RecentPlayersTableProps) {
+export function RecentPlayersTable({
+  fallbackSubject = "Not set",
+  limit = 10,
+  students,
+}: RecentPlayersTableProps) {
   const recentStudents = [...students]
-    .sort((left, right) => timestamp(right.last_activity_at) - timestamp(left.last_activity_at))
+    .sort(
+      (left, right) =>
+        timestamp(right.last_activity_at) - timestamp(left.last_activity_at),
+    )
     .slice(0, limit);
 
   return (
-    <div className="overflow-hidden rounded-md border border-border">
+    <div className="overflow-hidden border border-border">
       <Table className="min-w-[720px]">
         <TableHeader className="bg-muted/40">
           <TableRow>
@@ -35,7 +49,9 @@ export function RecentPlayersTable({ fallbackSubject = "Not set", limit = 10, st
                     <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold">
                       {studentInitials(student.student_name)}
                     </span>
-                    <span className="max-w-52 truncate font-medium">{student.student_name}</span>
+                    <span className="max-w-52 truncate font-medium">
+                      {student.student_name}
+                    </span>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -46,18 +62,27 @@ export function RecentPlayersTable({ fallbackSubject = "Not set", limit = 10, st
                 </TableCell>
                 <TableCell>
                   <div>
-                    <p className="font-medium">{student.session?.stage_name || "Entered the game"}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{sessionStatusLabel(student.session?.status ?? "")}</p>
+                    <p className="font-medium">
+                      {student.session?.stage_name || "Entered the game"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {sessionStatusLabel(student.session?.status ?? "")}
+                    </p>
                   </div>
                 </TableCell>
                 <TableCell className="pe-4 text-right text-muted-foreground">
-                  {student.session?.is_online ? "Now" : formatDateTime(student.last_activity_at)}
+                  {student.session?.is_online
+                    ? "Now"
+                    : formatDateTime(student.last_activity_at)}
                 </TableCell>
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={5} className="h-28 text-center text-muted-foreground">
+              <TableCell
+                colSpan={5}
+                className="h-28 text-center text-muted-foreground"
+              >
                 Recent players will appear when students enter the game.
               </TableCell>
             </TableRow>
@@ -77,7 +102,13 @@ function PresenceBadge({ online }: { readonly online: boolean }) {
           : "inline-flex items-center gap-2 rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground"
       }
     >
-      <span className={online ? "size-2 rounded-full bg-emerald-500" : "size-2 rounded-full bg-slate-400"} />
+      <span
+        className={
+          online
+            ? "size-2 rounded-full bg-emerald-500"
+            : "size-2 rounded-full bg-slate-400"
+        }
+      />
       {online ? "Online" : "Offline"}
     </span>
   );

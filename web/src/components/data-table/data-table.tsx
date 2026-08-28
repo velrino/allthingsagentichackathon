@@ -85,7 +85,7 @@ export function DataTable<TData>({
       <div role="toolbar">
         <DataTableToolbar table={table} searchPlaceholder={searchPlaceholder} />
       </div>
-      <div className="overflow-hidden rounded-md border bg-card">
+      <div className="overflow-hidden rounded-md border border-border bg-card">
         <Table className={minWidthClassName}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
