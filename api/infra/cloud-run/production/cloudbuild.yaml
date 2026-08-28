@@ -1,0 +1,75 @@
+substitutions:
+  _REGION: us-east1
+  _REPOSITORY: classgame
+  _SERVICE_NAME: classgame-api
+  _APP_ENV: production
+  _IMAGE_TAG: production
+  _FIREBASE_PROJECT_ID: allthingsagentichackatho-ee359
+  _FIREBASE_SECRET_NAME: allthingsagentichackathon-api-firebase-credentials-json
+  _REDIS_SECRET_NAME: unshatter-api-redis-url
+  _REDIS_CA_CERT_SECRET_NAME: unshatter-api-redis-ca-cert-pem
+  _AUTH_GOOGLE_WEB_CLIENT_ID: 245584783597-t05j7fj2iucesiad4jpu4mlh72kgcs12.apps.googleusercontent.com
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - infra/cloud-run/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:${_IMAGE_TAG}
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:${_IMAGE_TAG}
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --port
+      - "8080"
+      - --memory
+      - 512Mi
+      - --cpu
+      - "1"
+      - --no-cpu-throttling
+      - --timeout
+      - 300s
+      - --concurrency
+      - "200"
+      - --min-instances
+      - "0"
+      - --max-instances
+      - "3"
+      - --update-env-vars
+      - APP_ENV=${_APP_ENV},FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},AUTH_GOOGLE_WEB_CLIENT_ID=${_AUTH_GOOGLE_WEB_CLIENT_ID},AUTH_TEACHER_PROVIDERS=google,AUTH_STUDENT_PROVIDERS=anonymous
+      - --update-secrets
+      - FIREBASE_CREDENTIALS_JSON=${_FIREBASE_SECRET_NAME}:latest,REDIS_URL=${_REDIS_SECRET_NAME}:latest,REDIS_CA_CERT_PEM=${_REDIS_CA_CERT_SECRET_NAME}:latest
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_NAME}:${_IMAGE_TAG}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
