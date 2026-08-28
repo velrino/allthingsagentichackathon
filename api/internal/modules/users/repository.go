@@ -34,6 +34,7 @@ func (repository *Repository) UpsertStudent(
 		createdAt := now
 		firstSeenAt := now
 		loginCount := int64(1)
+		currentGame := StudentGameSession{}
 
 		snapshot, err := tx.Get(ref)
 		switch {
@@ -50,6 +51,7 @@ func (repository *Repository) UpsertStudent(
 				firstSeenAt = existing.Activity.FirstSeenAt
 			}
 			loginCount = existing.Activity.LoginCount + 1
+			currentGame = existing.Activity.CurrentGame
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read user: %w", err)
 		}
@@ -60,6 +62,7 @@ func (repository *Repository) UpsertStudent(
 			CreatedAt:   createdAt,
 			FirstSeenAt: firstSeenAt,
 			LoginCount:  loginCount,
+			CurrentGame: currentGame,
 		})
 
 		if err := tx.Set(ref, user.firestoreMap(), firestore.MergeAll); err != nil {
@@ -75,12 +78,64 @@ func (repository *Repository) UpsertStudent(
 	return user, nil
 }
 
+func (repository *Repository) UpdateStudentPresence(
+	ctx context.Context,
+	input UpdateStudentPresenceInput,
+) (UserDocument, error) {
+	ref := repository.client.Collection(usersCollectionName).Doc(input.Identity.ProviderUserID)
+	var user UserDocument
+
+	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		snapshot, err := tx.Get(ref)
+		if status.Code(err) == codes.NotFound {
+			return ErrStudentNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read student user: %w", err)
+		}
+		if err := snapshot.DataTo(&user); err != nil {
+			return fmt.Errorf("decode student user: %w", err)
+		}
+
+		startedAt := input.Timestamp
+		if user.Activity.CurrentGame.ActivityID == input.ActivityID && !user.Activity.CurrentGame.StartedAt.IsZero() {
+			startedAt = user.Activity.CurrentGame.StartedAt
+		}
+
+		user.Activity.LastSeenAt = input.Timestamp
+		user.Activity.CurrentGame = StudentGameSession{
+			ActivityID:      input.ActivityID,
+			Subject:         input.Subject,
+			StageID:         input.StageID,
+			StageName:       input.StageName,
+			Status:          input.Status,
+			StartedAt:       startedAt,
+			LastHeartbeatAt: input.Timestamp,
+		}
+		user.UpdatedAt = input.Timestamp
+
+		return tx.Set(ref, map[string]any{
+			"activity": map[string]any{
+				"last_seen_at": user.Activity.LastSeenAt,
+				"current_game": user.Activity.CurrentGame.firestoreMap(),
+			},
+			"updated_at": user.UpdatedAt,
+		}, firestore.MergeAll)
+	})
+	if err != nil {
+		return UserDocument{}, fmt.Errorf("update student presence: %w", err)
+	}
+
+	return user, nil
+}
+
 type buildStudentUserDocumentInput struct {
 	ID          string
 	Input       UpsertStudentInput
 	CreatedAt   time.Time
 	FirstSeenAt time.Time
 	LoginCount  int64
+	CurrentGame StudentGameSession
 }
 
 func buildStudentUserDocument(input buildStudentUserDocumentInput) UserDocument {
@@ -111,13 +166,14 @@ func buildStudentUserDocument(input buildStudentUserDocumentInput) UserDocument 
 			PhotoURL:      identity.PhotoURL,
 		},
 		Student: StudentProfile{
-			TurmaID:     input.Input.TurmaID,
+			ClassID:     input.Input.ClassID,
 			StudentName: input.Input.StudentName,
 		},
 		Activity: UserActivity{
 			FirstSeenAt: input.FirstSeenAt,
 			LastSeenAt:  now,
 			LoginCount:  input.LoginCount,
+			CurrentGame: input.CurrentGame,
 		},
 		Roles:     []UserRole{UserRoleStudent},
 		IsGuest:   true,
@@ -151,18 +207,31 @@ func (user UserDocument) firestoreMap() map[string]any {
 			"photo_url":      user.Profile.PhotoURL,
 		},
 		"student": map[string]any{
-			"turma_id":     user.Student.TurmaID,
+			"class_id":     user.Student.ClassID,
 			"student_name": user.Student.StudentName,
 		},
 		"activity": map[string]any{
 			"first_seen_at": user.Activity.FirstSeenAt,
 			"last_seen_at":  user.Activity.LastSeenAt,
 			"login_count":   user.Activity.LoginCount,
+			"current_game":  user.Activity.CurrentGame.firestoreMap(),
 		},
 		"roles":      user.Roles,
 		"is_guest":   user.IsGuest,
 		"deleted_at": user.DeletedAt,
 		"created_at": user.CreatedAt,
 		"updated_at": user.UpdatedAt,
+	}
+}
+
+func (session StudentGameSession) firestoreMap() map[string]any {
+	return map[string]any{
+		"activity_id":       session.ActivityID,
+		"subject":           session.Subject,
+		"stage_id":          session.StageID,
+		"stage_name":        session.StageName,
+		"status":            session.Status,
+		"started_at":        session.StartedAt,
+		"last_heartbeat_at": session.LastHeartbeatAt,
 	}
 }

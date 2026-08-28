@@ -52,19 +52,40 @@ type UserProfile struct {
 }
 
 type StudentProfile struct {
-	TurmaID     string `firestore:"turma_id" json:"turma_id"`
+	ClassID     string `firestore:"class_id" json:"class_id"`
 	StudentName string `firestore:"student_name" json:"student_name"`
 }
 
 type UserActivity struct {
-	FirstSeenAt time.Time `firestore:"first_seen_at" json:"first_seen_at"`
-	LastSeenAt  time.Time `firestore:"last_seen_at" json:"last_seen_at"`
-	LoginCount  int64     `firestore:"login_count" json:"login_count"`
+	FirstSeenAt time.Time          `firestore:"first_seen_at" json:"first_seen_at"`
+	LastSeenAt  time.Time          `firestore:"last_seen_at" json:"last_seen_at"`
+	LoginCount  int64              `firestore:"login_count" json:"login_count"`
+	CurrentGame StudentGameSession `firestore:"current_game" json:"current_game"`
+}
+
+type StudentGameSession struct {
+	ActivityID      string    `firestore:"activity_id" json:"activity_id"`
+	Subject         string    `firestore:"subject" json:"subject"`
+	StageID         string    `firestore:"stage_id" json:"stage_id"`
+	StageName       string    `firestore:"stage_name" json:"stage_name"`
+	Status          string    `firestore:"status" json:"status"`
+	StartedAt       time.Time `firestore:"started_at" json:"started_at"`
+	LastHeartbeatAt time.Time `firestore:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 type UpsertStudentInput struct {
 	Identity    sharedfirebase.Identity
-	TurmaID     string
+	ClassID     string
 	StudentName string
 	Timestamp   time.Time
+}
+
+type UpdateStudentPresenceInput struct {
+	Identity   sharedfirebase.Identity
+	ActivityID string
+	Subject    string
+	StageID    string
+	StageName  string
+	Status     string
+	Timestamp  time.Time
 }

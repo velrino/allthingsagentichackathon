@@ -30,14 +30,25 @@ type UserProfileResponse struct {
 }
 
 type StudentProfileResponse struct {
-	TurmaID     string `json:"turma_id"`
+	ClassID     string `json:"class_id"`
 	StudentName string `json:"student_name"`
 }
 
 type UserActivityResponse struct {
-	FirstSeenAt string `json:"first_seen_at"`
-	LastSeenAt  string `json:"last_seen_at"`
-	LoginCount  int64  `json:"login_count"`
+	FirstSeenAt string                     `json:"first_seen_at"`
+	LastSeenAt  string                     `json:"last_seen_at"`
+	LoginCount  int64                      `json:"login_count"`
+	CurrentGame StudentGameSessionResponse `json:"current_game"`
+}
+
+type StudentGameSessionResponse struct {
+	ActivityID      string `json:"activity_id"`
+	Subject         string `json:"subject"`
+	StageID         string `json:"stage_id"`
+	StageName       string `json:"stage_name"`
+	Status          string `json:"status"`
+	StartedAt       string `json:"started_at"`
+	LastHeartbeatAt string `json:"last_heartbeat_at"`
 }
 
 func ToResponse(user UserDocument) UserResponse {
@@ -56,13 +67,22 @@ func ToResponse(user UserDocument) UserResponse {
 			PhotoURL:      user.Profile.PhotoURL,
 		},
 		Student: StudentProfileResponse{
-			TurmaID:     user.Student.TurmaID,
+			ClassID:     user.Student.ClassID,
 			StudentName: user.Student.StudentName,
 		},
 		Activity: UserActivityResponse{
 			FirstSeenAt: formatTime(user.Activity.FirstSeenAt),
 			LastSeenAt:  formatTime(user.Activity.LastSeenAt),
 			LoginCount:  user.Activity.LoginCount,
+			CurrentGame: StudentGameSessionResponse{
+				ActivityID:      user.Activity.CurrentGame.ActivityID,
+				Subject:         user.Activity.CurrentGame.Subject,
+				StageID:         user.Activity.CurrentGame.StageID,
+				StageName:       user.Activity.CurrentGame.StageName,
+				Status:          user.Activity.CurrentGame.Status,
+				StartedAt:       formatTime(user.Activity.CurrentGame.StartedAt),
+				LastHeartbeatAt: formatTime(user.Activity.CurrentGame.LastHeartbeatAt),
+			},
 		},
 		Roles:     user.Roles,
 		IsGuest:   user.IsGuest,
