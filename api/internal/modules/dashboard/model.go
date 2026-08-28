@@ -1,0 +1,137 @@
+package dashboard
+
+import (
+	"time"
+
+	"classgame-api/internal/modules/orchestrator"
+	teacherclass "classgame-api/internal/modules/teacher-class"
+	teacherclassactivity "classgame-api/internal/modules/teacher-class-activity"
+	sharedfirebase "classgame-api/internal/shared/google/firebase"
+)
+
+const (
+	teachersCollectionName = "teachers"
+	usersCollectionName    = "users"
+)
+
+type TeacherIdentity struct {
+	Provider       sharedfirebase.IdentityProvider
+	ProviderUserID string
+	AuthMethod     sharedfirebase.AuthMethod
+	Email          string
+	EmailVerified  bool
+	DisplayName    string
+	PhotoURL       string
+	ProviderIDs    []string
+	SignInProvider string
+}
+
+type TeacherSummary struct {
+	ProviderUserID string `firestore:"provider_user_id" json:"provider_user_id"`
+	DisplayName    string `firestore:"display_name" json:"display_name"`
+	Email          string `firestore:"email" json:"email"`
+	PhotoURL       string `firestore:"photo_url" json:"photo_url"`
+}
+
+type TeacherDocument struct {
+	ID        string          `firestore:"id" json:"id"`
+	Identity  TeacherIdentity `firestore:"identity" json:"identity"`
+	Profile   TeacherSummary  `firestore:"profile" json:"profile"`
+	Roles     []string        `firestore:"roles" json:"roles"`
+	Activity  TeacherActivity `firestore:"activity" json:"activity"`
+	CreatedAt time.Time       `firestore:"created_at" json:"created_at"`
+	UpdatedAt time.Time       `firestore:"updated_at" json:"updated_at"`
+}
+
+type TeacherActivity struct {
+	FirstSeenAt time.Time `firestore:"first_seen_at" json:"first_seen_at"`
+	LastSeenAt  time.Time `firestore:"last_seen_at" json:"last_seen_at"`
+	LoginCount  int64     `firestore:"login_count" json:"login_count"`
+}
+
+type StudentDashboardItem struct {
+	ID               string
+	StudentName      string
+	ClassID          string
+	Progress         StudentProgress
+	Strengths        []string
+	ImprovementAreas []string
+	LastActivityAt   time.Time
+	NotebookNotes    int64
+	Session          StudentGameSession
+}
+
+type StudentGameSession struct {
+	ActivityID      string
+	Subject         string
+	StageID         string
+	StageName       string
+	Status          string
+	IsOnline        bool
+	StartedAt       time.Time
+	LastHeartbeatAt time.Time
+}
+
+type StudentProgress struct {
+	CompletedQuestions int
+	TotalQuestions     int
+	Percentage         int
+	Status             string
+}
+
+type DashboardMetrics struct {
+	TotalStudents     int
+	ActiveStudents    int
+	CompletedStudents int
+	AverageProgress   int
+	NeedsAttention    int
+	NotebookNotes     int64
+}
+
+type DashboardOverview struct {
+	ClassID         string
+	ClassCode       string
+	TeacherClass    *teacherclass.TeacherClassDocument
+	ActiveActivity  *teacherclassactivity.ActivityDocument
+	Metrics         DashboardMetrics
+	Students        []StudentDashboardItem
+	Suggestions     []orchestrator.ActivitySuggestion
+	GeneratedByAI   bool
+	GeneratedByMock bool
+	Teacher         TeacherSummary
+}
+
+type studentUserDocument struct {
+	ID       string             `firestore:"id"`
+	Profile  studentUserProfile `firestore:"profile"`
+	Student  studentProfile     `firestore:"student"`
+	Activity studentActivity    `firestore:"activity"`
+	Roles    []string           `firestore:"roles"`
+}
+
+type studentUserProfile struct {
+	DisplayName string `firestore:"display_name"`
+	PhotoURL    string `firestore:"photo_url"`
+}
+
+type studentProfile struct {
+	ClassID     string `firestore:"class_id"`
+	StudentName string `firestore:"student_name"`
+}
+
+type studentActivity struct {
+	FirstSeenAt time.Time          `firestore:"first_seen_at"`
+	LastSeenAt  time.Time          `firestore:"last_seen_at"`
+	LoginCount  int64              `firestore:"login_count"`
+	CurrentGame studentGameSession `firestore:"current_game"`
+}
+
+type studentGameSession struct {
+	ActivityID      string    `firestore:"activity_id"`
+	Subject         string    `firestore:"subject"`
+	StageID         string    `firestore:"stage_id"`
+	StageName       string    `firestore:"stage_name"`
+	Status          string    `firestore:"status"`
+	StartedAt       time.Time `firestore:"started_at"`
+	LastHeartbeatAt time.Time `firestore:"last_heartbeat_at"`
+}

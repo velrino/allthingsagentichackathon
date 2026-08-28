@@ -37,6 +37,21 @@ func (reader *envReader) getInt(key string, fallback int) int {
 	return parsedValue
 }
 
+func (reader *envReader) getBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsedValue, err := strconv.ParseBool(value)
+	if err != nil {
+		reader.addError(key, "must be a boolean")
+		return fallback
+	}
+
+	return parsedValue
+}
+
 func (reader *envReader) addError(key string, message string) {
 	if reader.errors == nil {
 		reader.errors = validation.Errors{}

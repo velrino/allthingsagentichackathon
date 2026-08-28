@@ -43,6 +43,35 @@ func (config Config) Validate() error {
 		"AUTH_STUDENT_PROVIDERS": validation.Validate(config.AuthStudentProviders,
 			validation.Required,
 		),
+		"GENAI_BACKEND": validation.Validate(config.GenAIBackend,
+			validation.By(validateGenAIBackend(config.GenAIEnabled)),
+		),
+		"GENAI_MODEL": validation.Validate(config.GenAIModel,
+			validation.By(validateRequiredWhenEnabled(config.GenAIEnabled)),
+		),
+		"GENAI_API_KEY": validation.Validate(config.GenAIAPIKey,
+			validation.By(validateGenAIAPIKey(config.GenAIEnabled, config.GenAIBackend)),
+		),
+		"GENAI_PROJECT_ID": validation.Validate(config.GenAIProjectID,
+			validation.By(validateGenAIProject(config.GenAIEnabled, config.GenAIBackend)),
+		),
+		"GENAI_LOCATION": validation.Validate(config.GenAILocation,
+			validation.By(validateGenAIProject(config.GenAIEnabled, config.GenAIBackend)),
+		),
+		"GENAI_CREDENTIALS_FILE": validation.Validate(config.GenAICredentialsFile,
+			validation.By(validateGenAICredentials(config.GenAICredentialsJSON)),
+		),
+		"GENAI_CREDENTIALS_JSON": validation.Validate(config.GenAICredentialsJSON,
+			validation.By(validateGenAICredentials(config.GenAICredentialsFile)),
+		),
+		"GENAI_REQUEST_TIMEOUT_SECONDS": validation.Validate(config.GenAIRequestTimeoutSeconds,
+			validation.Required,
+			validation.Min(1),
+		),
+		"GENAI_MAX_OUTPUT_TOKENS": validation.Validate(config.GenAIMaxOutputTokens,
+			validation.Required,
+			validation.Min(256),
+		),
 		"REDIS_URL": validation.Validate(config.RedisURL,
 			validation.Required,
 			validation.By(validateRedisURL),
@@ -88,6 +117,92 @@ func validateFirebaseCredentials(otherValue string) validation.RuleFunc {
 		}
 		if credentialsValue != "" && otherValue != "" {
 			return fmt.Errorf("must configure either FIREBASE_CREDENTIALS_FILE or FIREBASE_CREDENTIALS_JSON, not both")
+		}
+
+		return nil
+	}
+}
+
+func validateGenAIBackend(enabled bool) validation.RuleFunc {
+	return func(value any) error {
+		if !enabled {
+			return nil
+		}
+
+		backend, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("must be a string")
+		}
+		if backend != "vertex" && backend != "gemini_api" {
+			return fmt.Errorf("must be vertex or gemini_api")
+		}
+
+		return nil
+	}
+}
+
+func validateRequiredWhenEnabled(enabled bool) validation.RuleFunc {
+	return func(value any) error {
+		if !enabled {
+			return nil
+		}
+
+		text, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("must be a string")
+		}
+		if strings.TrimSpace(text) == "" {
+			return fmt.Errorf("is required when GenAI is enabled")
+		}
+
+		return nil
+	}
+}
+
+func validateGenAIAPIKey(enabled bool, backend string) validation.RuleFunc {
+	return func(value any) error {
+		if !enabled || backend != "gemini_api" {
+			return nil
+		}
+
+		apiKey, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("must be a string")
+		}
+		if strings.TrimSpace(apiKey) == "" {
+			return fmt.Errorf("is required when GENAI_BACKEND=gemini_api")
+		}
+
+		return nil
+	}
+}
+
+func validateGenAIProject(enabled bool, backend string) validation.RuleFunc {
+	return func(value any) error {
+		if !enabled || backend != "vertex" {
+			return nil
+		}
+
+		text, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("must be a string")
+		}
+		if strings.TrimSpace(text) == "" {
+			return fmt.Errorf("is required when GENAI_BACKEND=vertex")
+		}
+
+		return nil
+	}
+}
+
+func validateGenAICredentials(otherValue string) validation.RuleFunc {
+	return func(value any) error {
+		credentialsValue, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("must be a string")
+		}
+		if strings.TrimSpace(credentialsValue) != "" && strings.TrimSpace(otherValue) != "" {
+			return fmt.Errorf("must configure either GENAI_CREDENTIALS_FILE or GENAI_CREDENTIALS_JSON, not both")
 		}
 
 		return nil

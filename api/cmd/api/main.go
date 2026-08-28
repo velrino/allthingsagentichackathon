@@ -15,10 +15,15 @@ import (
 
 	"classgame-api/internal/app"
 	"classgame-api/internal/config"
+	"classgame-api/internal/modules/dashboard"
 	healthcheck "classgame-api/internal/modules/health-check"
+	"classgame-api/internal/modules/orchestrator"
+	teacherclass "classgame-api/internal/modules/teacher-class"
+	teacherclassactivity "classgame-api/internal/modules/teacher-class-activity"
 	"classgame-api/internal/modules/users"
 	sharedgoogle "classgame-api/internal/shared/google"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
+	sharedgenai "classgame-api/internal/shared/google/genai"
 	sharedredis "classgame-api/internal/shared/redis"
 )
 
@@ -75,10 +80,49 @@ func run() error {
 
 	usersRepository := users.NewRepository(firebaseConnection.FirestoreClient())
 	usersService := users.NewService(usersRepository)
+	genAIClient, err := sharedgenai.Connect(context.Background(), sharedgenai.Options{
+		Enabled:         cfg.GenAIEnabled,
+		Backend:         cfg.GenAIBackend,
+		Model:           cfg.GenAIModel,
+		APIKey:          cfg.GenAIAPIKey,
+		ProjectID:       cfg.GenAIProjectID,
+		Location:        cfg.GenAILocation,
+		CredentialsFile: cfg.GenAICredentialsFile,
+		CredentialsJSON: cfg.GenAICredentialsJSON,
+		RequestTimeout:  time.Duration(cfg.GenAIRequestTimeoutSeconds) * time.Second,
+		MaxOutputTokens: int32(cfg.GenAIMaxOutputTokens),
+	})
+	if err != nil {
+		return fmt.Errorf("initialize genai: %w", err)
+	}
+
+	orchestratorService := orchestrator.NewService(genAIClient)
+	teacherClassRepository := teacherclass.NewRepository(firebaseConnection.FirestoreClient())
+	teacherClassService := teacherclass.NewService(teacherClassRepository)
+	activityRepository := teacherclassactivity.NewRepository(firebaseConnection.FirestoreClient())
+	activityService := teacherclassactivity.NewService(
+		activityRepository,
+		teacherClassService,
+		orchestratorService,
+	)
+	dashboardRepository := dashboard.NewRepository(firebaseConnection.FirestoreClient())
+	dashboardService := dashboard.NewService(dashboardRepository, teacherClassService, activityService)
 	authenticator := sharedfirebase.NewFirebaseAuthenticator(firebaseConnection.AuthClient())
 
 	server := app.New(app.Options{
 		Config: cfg,
+		Dashboard: dashboard.HandlerOptions{
+			Authenticator:    authenticator,
+			DashboardService: dashboardService,
+		},
+		TeacherClass: teacherclass.HandlerOptions{
+			Authenticator:       authenticator,
+			TeacherClassService: teacherClassService,
+		},
+		TeacherClassActivity: teacherclassactivity.HandlerOptions{
+			Authenticator:   authenticator,
+			ActivityService: activityService,
+		},
 		HealthChecks: []healthcheck.Check{
 			{
 				Name:    healthcheck.HealthCheckServiceFirebase,
@@ -107,6 +151,9 @@ func run() error {
 		"app_env", cfg.AppEnv,
 		"firebase_enabled", firebaseConnection.IsEnabled(),
 		"firebase_project_id", firebaseConnection.ProjectID(),
+		"genai_enabled", genAIClient.IsEnabled(),
+		"genai_backend", cfg.GenAIBackend,
+		"genai_model", cfg.GenAIModel,
 		"redis_enabled", redisConnection.IsEnabled(),
 		"last_deploy", startedAt.Format(time.RFC3339Nano),
 	)
