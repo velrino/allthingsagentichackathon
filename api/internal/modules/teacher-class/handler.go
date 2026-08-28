@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -205,12 +206,13 @@ func (handler *Handler) serviceError(ctx *echo.Context, err error) error {
 }
 
 func (request UpsertTeacherClassRequest) Validate() error {
+	if strings.TrimSpace(request.ClassID) != "" {
+		if err := validateClassID(request.ClassID); err != nil {
+			return err
+		}
+	}
+
 	return validation.ValidateStruct(&request,
-		validation.Field(&request.ClassID,
-			validation.Required,
-			validation.Length(2, 40),
-			validation.Match(classIDPattern),
-		),
 		validation.Field(&request.ClassName,
 			validation.Length(0, 120),
 		),

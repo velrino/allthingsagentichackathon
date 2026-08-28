@@ -28,7 +28,7 @@ curl http://localhost:4004/
 - `POST /users/student-session` verifies an anonymous Firebase ID token and upserts `users/{firebase_uid}` in Firestore.
 - `POST /users/student-presence` verifies the same anonymous token and updates the student's current game heartbeat.
 - `GET /dashboard/overview` verifies a Google Firebase ID token and returns teacher dashboard data for one `class_id`.
-- `POST /teacher-classes` verifies a Google Firebase ID token and creates or updates `teacher_classes/{class_id}`.
+- `POST /teacher-classes` verifies a Google Firebase ID token and creates or updates a class. New classes receive a unique, six-character sharing code from the API.
 - `GET /teacher-classes/:class_id` returns one teacher-owned class.
 - `GET /teacher-classes/:class_id/activities` lists the latest activities for that class.
 - `POST /teacher-classes/:class_id/activities/preview` creates a preview activity through the orchestrator and stores it in Firestore.

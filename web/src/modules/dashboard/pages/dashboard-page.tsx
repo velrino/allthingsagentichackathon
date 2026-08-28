@@ -77,7 +77,7 @@ const tabByHash: Record<string, DashboardTab> = {
   "#notebook": "notebook",
 };
 
-export function DashboardPage() {
+export function DashboardPage({ initialClassId }: { readonly initialClassId?: string } = {}) {
   const router = useRouter();
   const auth = useTeacherAuth();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
@@ -138,7 +138,7 @@ export function DashboardPage() {
 
         setTeacherClasses(response.teacher_classes);
         setSelectedClassId((current) =>
-          resolveSelectedClassId(current, response.teacher_classes),
+          resolveSelectedClassId(initialClassId ?? current, response.teacher_classes),
         );
       })
       .catch((caughtError: unknown) => {
@@ -159,7 +159,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [auth.status, auth.user]);
+  }, [auth.status, auth.user, initialClassId]);
 
   useEffect(() => {
     if (auth.status !== "signed_in" || !auth.user) {
@@ -500,7 +500,11 @@ export function DashboardPage() {
   }
 
   return (
-    <DashboardShell user={auth.user} onSignOut={handleSignOut}>
+    <DashboardShell
+      teacherClasses={teacherClasses}
+      user={auth.user}
+      onSignOut={handleSignOut}
+    >
       <Main id="main-content" className="space-y-4">
         <div
           id="overview"

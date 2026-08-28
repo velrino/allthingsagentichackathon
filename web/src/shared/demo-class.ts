@@ -1,1 +1,1 @@
-export const demoClassCode = "ALG-2026-A";
+export const demoClassCode = "7K3M9P";

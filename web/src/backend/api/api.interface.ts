@@ -93,7 +93,7 @@ export interface IApiCreateTeacherClassActivityRequest {
 }
 
 export interface IApiUpsertTeacherClassRequest {
-  class_id: string;
+  class_id?: string;
   class_name: string;
   subject: string;
   grade_level: string;

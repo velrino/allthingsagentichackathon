@@ -4,8 +4,9 @@ import type { User } from "firebase/auth";
 import { ChevronsUpDown, LogOut, SearchIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import type { IApiTeacherClass } from "@/backend/api/api.interface";
 import { SkipToMain } from "@/components/skip-to-main";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -31,14 +32,16 @@ import { getCookie } from "@/lib/cookies";
 import { cn } from "@/lib/utils";
 
 import { dashboardSidebarData, dashboardTopNav, type DashboardNavItem } from "../data/sidebar-data";
+import { rememberSelectedClass } from "../utils/teacher-class-state";
 
 type DashboardShellProps = {
   readonly children: ReactNode;
+  readonly teacherClasses?: IApiTeacherClass[];
   readonly user: User;
   readonly onSignOut: () => void;
 };
 
-export function DashboardShell({ children, onSignOut, user }: DashboardShellProps) {
+export function DashboardShell({ children, onSignOut, teacherClasses = [], user }: DashboardShellProps) {
   const [activeHash, setActiveHash] = useState("#overview");
   const pathname = usePathname();
 
@@ -59,7 +62,13 @@ export function DashboardShell({ children, onSignOut, user }: DashboardShellProp
     <main className="dashboard-theme min-h-svh bg-sidebar text-foreground">
       <SidebarProvider defaultOpen={readSidebarDefaultOpen()}>
         <SkipToMain />
-        <DashboardAppSidebar activeHash={activeHash} pathname={pathname} user={user} onSignOut={onSignOut} />
+        <DashboardAppSidebar
+          activeHash={activeHash}
+          pathname={pathname}
+          teacherClasses={teacherClasses}
+          user={user}
+          onSignOut={onSignOut}
+        />
         <SidebarInset className="@container/content">
           <DashboardHeader activeHash={activeHash} pathname={pathname} user={user} />
           {children}
@@ -73,14 +82,35 @@ function DashboardAppSidebar({
   activeHash,
   onSignOut,
   pathname,
+  teacherClasses,
   user,
 }: {
   readonly activeHash: string;
   readonly onSignOut: () => void;
   readonly pathname: string;
+  readonly teacherClasses: IApiTeacherClass[];
   readonly user: User;
 }) {
   const TeamLogo = dashboardSidebarData.team.logo;
+  const navGroups = useMemo(
+    () =>
+      dashboardSidebarData.navGroups.map((group) => ({
+        ...group,
+        items: group.items.map((item) =>
+          item.title === "Classes"
+            ? {
+                ...item,
+                items: teacherClasses.map((teacherClass) => ({
+                  classId: teacherClass.class_id,
+                  title: teacherClass.class_name.trim() || teacherClass.class_code,
+                  url: `/dashboard/class/${encodeURIComponent(teacherClass.class_id)}`,
+                })),
+              }
+            : item,
+        ),
+      })),
+    [teacherClasses],
+  );
 
   return (
     <Sidebar collapsible="icon" variant="inset">
@@ -102,7 +132,7 @@ function DashboardAppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        {dashboardSidebarData.navGroups.map((group) => (
+        {navGroups.map((group) => (
           <SidebarGroup key={group.title}>
             <SidebarGroupLabel>{titleCase(group.title)}</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -140,13 +170,19 @@ function DashboardSidebarItem({
 }) {
   const { setOpenMobile } = useSidebar();
   const Icon = item.icon;
+  const hasActiveChild = item.items?.some((subItem) =>
+    isActiveDashboardRoute(subItem.url, pathname, activeHash),
+  );
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
         aria-disabled={item.disabled}
-        isActive={isActiveDashboardRoute(item.url, pathname, activeHash)}
+        isActive={
+          isActiveDashboardRoute(item.url, pathname, activeHash) ||
+          hasActiveChild
+        }
         tooltip={item.title}
       >
         <a
@@ -165,6 +201,29 @@ function DashboardSidebarItem({
           {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
         </a>
       </SidebarMenuButton>
+      {item.items?.length ? (
+        <ul className="mx-3 flex min-w-0 flex-col gap-1 border-l border-sidebar-border px-2 py-1 group-data-[collapsible=icon]:hidden">
+          {item.items.map((subItem) => (
+            <li key={subItem.classId} className="min-w-0">
+              <a
+                href={subItem.url}
+                className={cn(
+                  "block truncate rounded-md px-2 py-1.5 text-xs text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  isActiveDashboardRoute(subItem.url, pathname, activeHash) &&
+                    "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+                )}
+                title={subItem.title}
+                onClick={() => {
+                  rememberSelectedClass(subItem.classId);
+                  setOpenMobile(false);
+                }}
+              >
+                {subItem.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </SidebarMenuItem>
   );
 }

@@ -2,14 +2,26 @@ package teacherclass
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
-var ErrTeacherRequiresGoogleAuth = errors.New("teacher classes require google auth")
+const (
+	classCodeAlphabet       = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+	classCodeLength         = 6
+	classCodeCreateAttempts = 12
+)
+
+var (
+	ErrTeacherRequiresGoogleAuth = errors.New("teacher classes require google auth")
+	ErrClassCodeGenerationFailed = errors.New("could not generate a unique teacher class code")
+)
 
 type Service struct {
 	repository *Repository
@@ -71,6 +83,10 @@ func (service *Service) Upsert(
 	input.GradeLevel = normalizeText(input.GradeLevel)
 	input.Timestamp = time.Now()
 
+	if input.ClassID == "" {
+		return service.createWithGeneratedCode(ctx, input)
+	}
+
 	if input.ClassName == "" {
 		input.ClassName = input.ClassID
 	}
@@ -82,6 +98,33 @@ func (service *Service) Upsert(
 	}
 
 	return service.repository.Upsert(ctx, input)
+}
+
+func (service *Service) createWithGeneratedCode(
+	ctx context.Context,
+	input UpsertTeacherClassInput,
+) (TeacherClassDocument, error) {
+	useGeneratedName := input.ClassName == ""
+
+	for attempt := 0; attempt < classCodeCreateAttempts; attempt++ {
+		classCode, err := generateClassCode()
+		if err != nil {
+			return TeacherClassDocument{}, fmt.Errorf("generate teacher class code: %w", err)
+		}
+
+		input.ClassID = classCode
+		if useGeneratedName {
+			input.ClassName = classCode
+		}
+
+		teacherClass, err := service.repository.Create(ctx, input)
+		if errors.Is(err, ErrClassCodeUnavailable) {
+			continue
+		}
+		return teacherClass, err
+	}
+
+	return TeacherClassDocument{}, ErrClassCodeGenerationFailed
 }
 
 func (service *Service) SetActiveActivity(
@@ -132,4 +175,19 @@ func normalizeClassID(value string) string {
 
 func normalizeText(value string) string {
 	return strings.Join(strings.Fields(value), " ")
+}
+
+func generateClassCode() (string, error) {
+	code := make([]byte, classCodeLength)
+	alphabetLength := big.NewInt(int64(len(classCodeAlphabet)))
+
+	for index := range code {
+		characterIndex, err := rand.Int(rand.Reader, alphabetLength)
+		if err != nil {
+			return "", err
+		}
+		code[index] = classCodeAlphabet[characterIndex.Int64()]
+	}
+
+	return string(code), nil
 }

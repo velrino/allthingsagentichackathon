@@ -16,6 +16,13 @@ export type DashboardNavItem = {
   icon: LucideIcon;
   badge?: string;
   disabled?: boolean;
+  items?: DashboardNavSubItem[];
+};
+
+export type DashboardNavSubItem = {
+  title: string;
+  url: string;
+  classId: string;
 };
 
 export type DashboardNavGroup = {

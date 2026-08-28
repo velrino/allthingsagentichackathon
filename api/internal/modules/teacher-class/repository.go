@@ -15,6 +15,7 @@ import (
 
 var (
 	ErrClassOwnedByAnotherTeacher = errors.New("teacher class belongs to another teacher")
+	ErrClassCodeUnavailable       = errors.New("teacher class code is unavailable")
 	ErrClassNotFound              = errors.New("teacher class not found")
 )
 
@@ -119,26 +120,37 @@ func (repository *Repository) Upsert(
 			return fmt.Errorf("read teacher class: %w", err)
 		}
 
-		teacherClass = TeacherClassDocument{
-			ID:               ref.ID,
-			ClassID:          input.ClassID,
-			ClassCode:        input.ClassID,
-			ClassName:        input.ClassName,
-			Subject:          input.Subject,
-			GradeLevel:       input.GradeLevel,
-			TeacherID:        input.Teacher.ProviderUserID,
-			Teacher:          input.Teacher,
-			ActiveActivityID: activeActivityID,
-			ActivityCount:    activityCount,
-			Status:           "active",
-			CreatedAt:        createdAt,
-			UpdatedAt:        input.Timestamp,
-		}
+		teacherClass = newTeacherClassDocument(input, createdAt, activeActivityID, activityCount)
 
 		return tx.Set(ref, teacherClass.firestoreMap(), firestore.MergeAll)
 	})
 	if err != nil {
 		return TeacherClassDocument{}, fmt.Errorf("upsert teacher class: %w", err)
+	}
+
+	return teacherClass, nil
+}
+
+func (repository *Repository) Create(
+	ctx context.Context,
+	input UpsertTeacherClassInput,
+) (TeacherClassDocument, error) {
+	ref := repository.client.Collection(CollectionName).Doc(input.ClassID)
+	teacherClass := newTeacherClassDocument(input, input.Timestamp, "", 0)
+
+	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		_, err := tx.Get(ref)
+		switch {
+		case err == nil:
+			return ErrClassCodeUnavailable
+		case status.Code(err) != codes.NotFound:
+			return fmt.Errorf("check teacher class code: %w", err)
+		}
+
+		return tx.Create(ref, teacherClass.firestoreMap())
+	})
+	if err != nil {
+		return TeacherClassDocument{}, fmt.Errorf("create teacher class: %w", err)
 	}
 
 	return teacherClass, nil
@@ -202,6 +214,29 @@ func (teacherClass TeacherClassDocument) firestoreMap() map[string]any {
 		"status":             teacherClass.Status,
 		"created_at":         teacherClass.CreatedAt,
 		"updated_at":         teacherClass.UpdatedAt,
+	}
+}
+
+func newTeacherClassDocument(
+	input UpsertTeacherClassInput,
+	createdAt time.Time,
+	activeActivityID string,
+	activityCount int64,
+) TeacherClassDocument {
+	return TeacherClassDocument{
+		ID:               input.ClassID,
+		ClassID:          input.ClassID,
+		ClassCode:        input.ClassID,
+		ClassName:        input.ClassName,
+		Subject:          input.Subject,
+		GradeLevel:       input.GradeLevel,
+		TeacherID:        input.Teacher.ProviderUserID,
+		Teacher:          input.Teacher,
+		ActiveActivityID: activeActivityID,
+		ActivityCount:    activityCount,
+		Status:           "active",
+		CreatedAt:        createdAt,
+		UpdatedAt:        input.Timestamp,
 	}
 }
 
