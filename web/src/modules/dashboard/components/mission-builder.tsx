@@ -45,6 +45,7 @@ type MissionBuilderProps = {
   readonly open: boolean;
   readonly previewMission: IApiTeacherClassMission | null;
   readonly processing: boolean;
+  readonly requestError?: string | null;
   readonly teacherClass: IApiTeacherClass | null;
   readonly onApprove: (mission: IApiTeacherClassMission) => Promise<void>;
   readonly onOpenChange: (open: boolean) => void;
@@ -61,6 +62,7 @@ export function MissionBuilder({
   open,
   previewMission,
   processing,
+  requestError,
   teacherClass,
 }: MissionBuilderProps) {
   const [form, setForm] = useState<MissionBuilderDraft>(() =>
@@ -319,6 +321,15 @@ export function MissionBuilder({
             {uploadError ? (
               <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
                 {uploadError}
+              </p>
+            ) : null}
+
+            {requestError ? (
+              <p
+                role="alert"
+                className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700"
+              >
+                {requestError}
               </p>
             ) : null}
 

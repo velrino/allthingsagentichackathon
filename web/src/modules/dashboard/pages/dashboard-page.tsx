@@ -549,6 +549,7 @@ export function DashboardPage({
 
     setPreviewMission(null);
     setDraftPrompt(null);
+    setError(null);
     setDraftVersion((current) => current + 1);
     setActiveDashboardTab("mission");
     setMissionBuilderOpen(true);
@@ -557,6 +558,7 @@ export function DashboardPage({
   function handleEditMission(mission: IApiTeacherClassMission) {
     setPreviewMission(mission);
     setDraftPrompt(null);
+    setError(null);
     setDraftVersion((current) => current + 1);
     setMissionBuilderOpen(true);
     setActiveDashboardTab("mission");
@@ -616,6 +618,7 @@ export function DashboardPage({
     }
 
     setPreviewMission(null);
+    setError(null);
     setDraftPrompt(
       buildNextMissionPrompt(
         growthPatterns.data,
@@ -917,9 +920,15 @@ export function DashboardPage({
             open={missionBuilderOpen}
             previewMission={previewMission}
             processing={processing}
+            requestError={error}
             teacherClass={selectedClass}
             onApprove={handleApproveMission}
-            onOpenChange={setMissionBuilderOpen}
+            onOpenChange={(open) => {
+              setMissionBuilderOpen(open);
+              if (!open) {
+                setError(null);
+              }
+            }}
             onProcess={handleProcessMission}
           />
         ) : null}

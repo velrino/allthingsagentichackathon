@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	sharedcontentpolicy "classgame-api/internal/shared/contentpolicy"
 	sharedgenai "classgame-api/internal/shared/google/genai"
 	shareduploadcare "classgame-api/internal/shared/uploadcare"
 )
@@ -1149,10 +1150,19 @@ func normalizeEducationGuardrail(input BuildMissionInput, guardrail EducationGua
 }
 
 func missionSafetyBlockReason(input BuildMissionInput, guardrail EducationGuardrail) (bool, string) {
-	if containsBlockedNonEducationalIntent(input) {
-		return true, "The request asks for content outside the allowed classroom learning scope."
+	requestText := strings.Join([]string{
+		input.MissionName,
+		input.Subject,
+		input.GradeLevel,
+		input.LearningGoal,
+		input.TeacherPrompt,
+		attachmentFileNames(input.Attachments),
+	}, " ")
+	decision := sharedcontentpolicy.ReviewEducationalText(requestText)
+	if !decision.Allowed {
+		return true, decision.Message
 	}
-	if !hasEducationalContext(input) {
+	if !sharedcontentpolicy.HasEducationalContext(requestText) {
 		return true, "The request does not provide enough classroom learning context."
 	}
 	if !guardrail.Allowed {
@@ -1164,85 +1174,6 @@ func missionSafetyBlockReason(input BuildMissionInput, guardrail EducationGuardr
 	}
 
 	return false, ""
-}
-
-func containsBlockedNonEducationalIntent(input BuildMissionInput) bool {
-	text := strings.ToLower(strings.Join([]string{
-		input.MissionName,
-		input.Subject,
-		input.GradeLevel,
-		input.LearningGoal,
-		input.TeacherPrompt,
-		attachmentFileNames(input.Attachments),
-	}, " "))
-	blockedPhrases := []string{
-		"bypass policy",
-		"credential theft",
-		"ddos",
-		"exploit",
-		"generate malware",
-		"ignore previous instructions",
-		"ignore system instructions",
-		"make a bomb",
-		"malware",
-		"phishing",
-		"porn",
-		"ransomware",
-		"self-harm",
-		"steal passwords",
-		"suicide",
-	}
-	for _, phrase := range blockedPhrases {
-		if strings.Contains(text, phrase) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasEducationalContext(input BuildMissionInput) bool {
-	text := strings.ToLower(strings.Join([]string{
-		input.MissionName,
-		input.Subject,
-		input.GradeLevel,
-		input.LearningGoal,
-		input.TeacherPrompt,
-		attachmentFileNames(input.Attachments),
-	}, " "))
-	educationSignals := []string{
-		"algebra",
-		"angle",
-		"class",
-		"classroom",
-		"education",
-		"english",
-		"equation",
-		"fraction",
-		"geometry",
-		"grade",
-		"grammar",
-		"history",
-		"language arts",
-		"learn",
-		"lesson",
-		"math",
-		"mathematics",
-		"reading",
-		"science",
-		"student",
-		"teacher",
-		"tense",
-		"worksheet",
-		"writing",
-	}
-	for _, signal := range educationSignals {
-		if strings.Contains(text, signal) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func attachmentFileNames(attachments []AttachmentInput) string {

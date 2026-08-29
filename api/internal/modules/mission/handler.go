@@ -17,6 +17,7 @@ import (
 
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	sharedcontentpolicy "classgame-api/internal/shared/contentpolicy"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
 	shareduploadcare "classgame-api/internal/shared/uploadcare"
@@ -475,6 +476,26 @@ func (request CreateMissionRequest) Validate() error {
 		return err
 	}
 
+	for _, field := range []struct {
+		label string
+		value string
+	}{
+		{label: "Mission name", value: request.MissionName},
+		{label: "Learning goal", value: request.LearningGoal},
+		{label: "Teacher prompt", value: request.TeacherPrompt},
+	} {
+		if err := validateEducationalField(field.label, field.value); err != nil {
+			return err
+		}
+	}
+	if !sharedcontentpolicy.HasEducationalContext(
+		request.MissionName,
+		request.LearningGoal,
+		request.TeacherPrompt,
+	) {
+		return errors.New("mission name, learning goal, and teacher prompt must focus on grade-appropriate education")
+	}
+
 	if request.AudienceType == AudienceSelected && len(request.TargetStudentIDs) == 0 {
 		return errors.New("target_student_ids is required when audience_type is selected")
 	}
@@ -486,6 +507,15 @@ func (request CreateMissionRequest) Validate() error {
 	}
 
 	return nil
+}
+
+func validateEducationalField(label string, value string) error {
+	decision := sharedcontentpolicy.ReviewEducationalText(value)
+	if decision.Allowed {
+		return nil
+	}
+
+	return fmt.Errorf("%s was rejected: %s", label, decision.Message)
 }
 
 func validateOptionalMissionID(value any) error {
