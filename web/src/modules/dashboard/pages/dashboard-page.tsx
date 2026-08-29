@@ -82,7 +82,9 @@ const tabByHash: Record<string, DashboardTab> = {
   "#notebook": "notebook",
 };
 
-export function DashboardPage({ initialClassId }: { readonly initialClassId?: string } = {}) {
+export function DashboardPage({
+  initialClassId,
+}: { readonly initialClassId?: string } = {}) {
   const router = useRouter();
   const auth = useTeacherAuth();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
@@ -99,7 +101,9 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
+  const [deletingMissionId, setDeletingMissionId] = useState<string | null>(
+    null,
+  );
   const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
   const [draftVersion, setDraftVersion] = useState(0);
   const [shareCodeLabel, setShareCodeLabel] = useState("Share code");
@@ -142,7 +146,10 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
 
         setTeacherClasses(response.teacher_classes);
         setSelectedClassId((current) =>
-          resolveSelectedClassId(initialClassId ?? current, response.teacher_classes),
+          resolveSelectedClassId(
+            initialClassId ?? current,
+            response.teacher_classes,
+          ),
         );
       })
       .catch((caughtError: unknown) => {
@@ -289,8 +296,8 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
         setOverview(response);
         setSelectedStudent((current) =>
           current
-            ? response.students.find((student) => student.id === current.id) ??
-              null
+            ? (response.students.find((student) => student.id === current.id) ??
+              null)
             : null,
         );
         const teacherClass = response.teacher_class;
@@ -412,7 +419,9 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
   );
   const patternSource = growthPatterns.source;
   const summaryStudentCount =
-    students.length > 0 ? students.length : demoStudentCount(growthPatterns.data, strengthPatterns.data);
+    students.length > 0
+      ? students.length
+      : demoStudentCount(growthPatterns.data, strengthPatterns.data);
   const classSummary = useMemo(
     () =>
       buildClassSummary(
@@ -469,9 +478,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
       );
       setPreviewMission(response.mission);
       setDraftVersion((current) => current + 1);
-      setMissions((current) =>
-        upsertClassMission(current, response.mission),
-      );
+      setMissions((current) => upsertClassMission(current, response.mission));
       setSelectedClassId(response.mission.class_id);
       setMissionBuilderOpen(true);
       setActiveDashboardTab("mission");
@@ -504,9 +511,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
         },
       );
       setPreviewMission(response.mission);
-      setMissions((current) =>
-        upsertClassMission(current, response.mission),
-      );
+      setMissions((current) => upsertClassMission(current, response.mission));
       await loadOverview(token, response.mission.class_id);
       setMissionBuilderOpen(false);
       setActiveDashboardTab("mission");
@@ -551,7 +556,8 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
       return;
     }
 
-    const missionLabel = mission.mission_name || mission.title || "this mission";
+    const missionLabel =
+      mission.mission_name || mission.title || "this mission";
     const isLive = activeMission?.id === mission.id;
     const confirmed = window.confirm(
       isLive
@@ -566,8 +572,14 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     setError(null);
     try {
       const token = await auth.user.getIdToken();
-      await API.teacherClassMissions.remove(token, mission.class_id, mission.id);
-      setMissions((current) => current.filter((item) => item.id !== mission.id));
+      await API.teacherClassMissions.remove(
+        token,
+        mission.class_id,
+        mission.id,
+      );
+      setMissions((current) =>
+        current.filter((item) => item.id !== mission.id),
+      );
 
       if (previewMission?.id === mission.id) {
         setPreviewMission(null);
@@ -666,7 +678,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
           <div className="flex flex-wrap items-center gap-2">
             {classCode ? <ClassCodeBadge value={classCode} compact /> : null}
             <Button variant="outline" asChild>
-              <Link href="/home">
+              <Link href="/home" target="_blank" rel="noopener noreferrer">
                 <Gamepad2 className="size-4" aria-hidden />
                 Open game
               </Link>
@@ -733,7 +745,9 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
             >
               <MissionFunnel
                 steps={funnel.data}
-                totalStudents={students.length > 0 ? students.length : summaryStudentCount}
+                totalStudents={
+                  students.length > 0 ? students.length : summaryStudentCount
+                }
               />
             </AnalyticsCard>
 
@@ -781,7 +795,13 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
                 eyebrow="Next lesson"
                 title="Plan the follow-up"
                 detail="Emily's suggestions for reteaching, the whole class, and the students who are ahead."
-                source={activeMission ? (overview?.generated_by_ai ? "live" : "estimated") : undefined}
+                source={
+                  activeMission
+                    ? overview?.generated_by_ai
+                      ? "live"
+                      : "estimated"
+                    : undefined
+                }
               />
             </div>
             <NextLessonPlan
@@ -1084,7 +1104,8 @@ function StudentsTableSection({
               students with recorded learning paths
             </p>
             <p className="mt-2 text-xs font-medium text-muted-foreground">
-              {classLearning.completed_attempts}/{classLearning.total_attempts} attempts completed
+              {classLearning.completed_attempts}/{classLearning.total_attempts}{" "}
+              attempts completed
             </p>
             {classLearning.abandoned_attempts > 0 ? (
               <p className="mt-1 text-xs font-semibold text-amber-700">
@@ -1115,7 +1136,8 @@ function StudentsTableSection({
         </div>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Click a student to inspect attempts, learning flow, evidence and persistent memory.
+        Click a student to inspect attempts, learning flow, evidence and
+        persistent memory.
       </p>
       <StudentsTable students={students} onStudentClick={onStudentClick} />
     </section>
