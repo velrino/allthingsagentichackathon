@@ -47,9 +47,9 @@ func (repository *Repository) Get(
 	return student, true, nil
 }
 
-func (repository *Repository) UpsertActivitySummary(
+func (repository *Repository) UpsertMissionSummary(
 	ctx context.Context,
-	input UpsertStudentActivitySummaryInput,
+	input UpsertStudentMissionSummaryInput,
 ) (ClassStudentDocument, error) {
 	input = normalizeInput(input)
 	ref := repository.documentRef(input.ClassID, input.StudentID)
@@ -57,7 +57,7 @@ func (repository *Repository) UpsertActivitySummary(
 	var student ClassStudentDocument
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		createdAt := input.Timestamp
-		activitySummaries := map[string]StudentActivitySummary{}
+		missionSummaries := map[string]StudentMissionSummary{}
 		notebookNotes := []StudentNotebookNote{}
 
 		snapshot, err := tx.Get(ref)
@@ -69,38 +69,38 @@ func (repository *Repository) UpsertActivitySummary(
 			if !student.CreatedAt.IsZero() {
 				createdAt = student.CreatedAt
 			}
-			activitySummaries = student.ActivitySummaries
+			missionSummaries = student.MissionSummaries
 			notebookNotes = student.NotebookNotes
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read class student: %w", err)
 		}
 
-		if activitySummaries == nil {
-			activitySummaries = map[string]StudentActivitySummary{}
+		if missionSummaries == nil {
+			missionSummaries = map[string]StudentMissionSummary{}
 		}
-		if input.ActivitySummary.ActivityID != "" {
-			activitySummaries[input.ActivitySummary.ActivityID] = input.ActivitySummary
+		if input.MissionSummary.MissionID != "" {
+			missionSummaries[input.MissionSummary.MissionID] = input.MissionSummary
 		}
 		notebookNotes = append(notebookNotes, input.NotebookNotes...)
 
 		student = ClassStudentDocument{
-			ID:                ref.ID,
-			ClassID:           input.ClassID,
-			StudentID:         input.StudentID,
-			StudentName:       input.StudentName,
-			CurrentActivityID: input.CurrentActivityID,
-			ThinkingSummary:   input.ThinkingSummary,
-			ActivitySummaries: activitySummaries,
-			NotebookNotes:     notebookNotes,
-			FeedbackSummary:   input.FeedbackSummary,
-			CreatedAt:         createdAt,
-			UpdatedAt:         input.Timestamp,
+			ID:               ref.ID,
+			ClassID:          input.ClassID,
+			StudentID:        input.StudentID,
+			StudentName:      input.StudentName,
+			CurrentMissionID: input.CurrentMissionID,
+			ThinkingSummary:  input.ThinkingSummary,
+			MissionSummaries: missionSummaries,
+			NotebookNotes:    notebookNotes,
+			FeedbackSummary:  input.FeedbackSummary,
+			CreatedAt:        createdAt,
+			UpdatedAt:        input.Timestamp,
 		}
 
 		return tx.Set(ref, student.firestoreMap(), firestore.MergeAll)
 	})
 	if err != nil {
-		return ClassStudentDocument{}, fmt.Errorf("upsert student activity summary: %w", err)
+		return ClassStudentDocument{}, fmt.Errorf("upsert student mission summary: %w", err)
 	}
 
 	return student, nil
@@ -115,11 +115,11 @@ func (repository *Repository) documentRef(classID string, studentID string) *fir
 
 func (student ClassStudentDocument) firestoreMap() map[string]any {
 	return map[string]any{
-		"id":                  student.ID,
-		"class_id":            student.ClassID,
-		"student_id":          student.StudentID,
-		"student_name":        student.StudentName,
-		"current_activity_id": student.CurrentActivityID,
+		"id":                 student.ID,
+		"class_id":           student.ClassID,
+		"student_id":         student.StudentID,
+		"student_name":       student.StudentName,
+		"current_mission_id": student.CurrentMissionID,
 		"thinking_summary": map[string]any{
 			"preferred_explanation_style": student.ThinkingSummary.PreferredExplanationStyle,
 			"reasoning_patterns":          student.ThinkingSummary.ReasoningPatterns,
@@ -127,8 +127,8 @@ func (student ClassStudentDocument) firestoreMap() map[string]any {
 			"improvement_areas":           student.ThinkingSummary.ImprovementAreas,
 			"last_updated_at":             student.ThinkingSummary.LastUpdatedAt,
 		},
-		"activity_summaries": student.ActivitySummaries,
-		"notebook_notes":     student.NotebookNotes,
+		"mission_summaries": student.MissionSummaries,
+		"notebook_notes":    student.NotebookNotes,
 		"feedback_summary": map[string]any{
 			"helpful_count":   student.FeedbackSummary.HelpfulCount,
 			"confusing_count": student.FeedbackSummary.ConfusingCount,
@@ -140,16 +140,16 @@ func (student ClassStudentDocument) firestoreMap() map[string]any {
 	}
 }
 
-func normalizeInput(input UpsertStudentActivitySummaryInput) UpsertStudentActivitySummaryInput {
+func normalizeInput(input UpsertStudentMissionSummaryInput) UpsertStudentMissionSummaryInput {
 	if input.Timestamp.IsZero() {
 		input.Timestamp = time.Now()
 	}
 	input.ClassID = normalizeCode(input.ClassID)
 	input.StudentID = strings.TrimSpace(input.StudentID)
 	input.StudentName = normalizeText(input.StudentName)
-	input.CurrentActivityID = strings.TrimSpace(input.CurrentActivityID)
-	input.ActivitySummary.ActivityID = strings.TrimSpace(input.ActivitySummary.ActivityID)
-	input.ActivitySummary.UpdatedAt = nonZeroTime(input.ActivitySummary.UpdatedAt, input.Timestamp)
+	input.CurrentMissionID = strings.TrimSpace(input.CurrentMissionID)
+	input.MissionSummary.MissionID = strings.TrimSpace(input.MissionSummary.MissionID)
+	input.MissionSummary.UpdatedAt = nonZeroTime(input.MissionSummary.UpdatedAt, input.Timestamp)
 	input.ThinkingSummary.LastUpdatedAt = nonZeroTime(input.ThinkingSummary.LastUpdatedAt, input.Timestamp)
 
 	return input

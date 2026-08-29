@@ -37,8 +37,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type ClassroomCardItem = {
-  readonly activeActivityId: string;
-  readonly activityCount: number;
+  readonly activeMissionId: string;
+  readonly missionCount: number;
   readonly classCode: string;
   readonly classId: string;
   readonly createdAt: string;
@@ -504,9 +504,9 @@ function ClassroomCard({
               </p>
             </div>
             <div className="text-end">
-              <p className="text-base font-bold">{classroom.activityCount}</p>
+              <p className="text-base font-bold">{classroom.missionCount}</p>
               <p className="text-[10px] opacity-65">
-                {classroom.activityCount === 1 ? "activity" : "activities"}
+                {classroom.missionCount === 1 ? "mission" : "missions"}
               </p>
             </div>
           </div>
@@ -615,8 +615,8 @@ function buildClassroomCards(
   total: number,
 ): ClassroomCardItem[] {
   const realClassrooms = teacherClasses.slice(0, total).map((teacherClass) => ({
-    activeActivityId: teacherClass.active_activity_id,
-    activityCount: teacherClass.activity_count,
+    activeMissionId: teacherClass.active_mission_id,
+    missionCount: teacherClass.mission_count,
     classCode: teacherClass.class_code,
     classId: teacherClass.class_id,
     createdAt: teacherClass.created_at,
@@ -629,12 +629,12 @@ function buildClassroomCards(
   const previewCount = Math.max(0, total - realClassrooms.length);
   const previewClassrooms = Array.from({ length: previewCount }, (_, index) => {
     const subject = previewSubjects[index % previewSubjects.length];
-    const activityCount = (index * 3) % 8;
+    const missionCount = (index * 3) % 8;
 
     return {
-      activeActivityId: index % 3 === 0 ? `preview-activity-${index + 1}` : "",
-      activityCount:
-        index % 3 === 0 ? Math.max(activityCount, 1) : activityCount,
+      activeMissionId: index % 3 === 0 ? `preview-mission-${index + 1}` : "",
+      missionCount:
+        index % 3 === 0 ? Math.max(missionCount, 1) : missionCount,
       classCode: createPreviewCode(index),
       classId: `preview-class-${index + 1}`,
       createdAt: createPreviewDate(index, 1),
@@ -693,14 +693,14 @@ function getDefaultColorIndex(subject: string) {
 }
 
 function getMissionStatus(classroom: ClassroomCardItem) {
-  if (classroom.activeActivityId) {
+  if (classroom.activeMissionId) {
     return {
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
       label: "Ready to play",
     };
   }
 
-  if (classroom.activityCount > 0) {
+  if (classroom.missionCount > 0) {
     return {
       className: "border-amber-200 bg-amber-50 text-amber-700",
       label: "Needs publishing",
@@ -709,7 +709,7 @@ function getMissionStatus(classroom: ClassroomCardItem) {
 
   return {
     className: "border-slate-200 bg-slate-50 text-slate-600",
-    label: "Needs activity",
+    label: "Needs mission",
   };
 }
 

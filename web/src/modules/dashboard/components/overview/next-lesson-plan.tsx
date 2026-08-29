@@ -8,7 +8,7 @@ import type { PlannedSuggestion, SuggestionTier } from "../analytics/analytics-d
 type NextLessonPlanProps = {
   readonly canBuild: boolean;
   readonly suggestions: PlannedSuggestion[];
-  readonly onBuildNextActivity: () => void;
+  readonly onBuildNextMission: () => void;
 };
 
 const tierMeta: Record<SuggestionTier, { readonly detail: string; readonly icon: LucideIcon; readonly iconClassName: string; readonly label: string }> = {
@@ -32,7 +32,7 @@ const tierMeta: Record<SuggestionTier, { readonly detail: string; readonly icon:
   },
 };
 
-export function NextLessonPlan({ canBuild, onBuildNextActivity, suggestions }: NextLessonPlanProps) {
+export function NextLessonPlan({ canBuild, onBuildNextMission, suggestions }: NextLessonPlanProps) {
   return (
     <div className="space-y-4">
       {suggestions.length > 0 ? (
@@ -85,7 +85,7 @@ export function NextLessonPlan({ canBuild, onBuildNextActivity, suggestions }: N
         </div>
       ) : (
         <p className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
-          Publish an activity and Emily will suggest what to reteach, what to do with the whole class, and how to stretch
+          Publish a mission and Emily will suggest what to reteach, what to do with the whole class, and how to stretch
           the students who are ahead.
         </p>
       )}
@@ -94,13 +94,13 @@ export function NextLessonPlan({ canBuild, onBuildNextActivity, suggestions }: N
         <div>
           <p className="text-sm font-semibold">Turn these patterns into tomorrow&apos;s mission</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Opens the Activity Builder with the class patterns already written into the teacher prompt. You can edit before
+            Opens the Mission Builder with the class patterns already written into the teacher prompt. You can edit before
             Emily processes it.
           </p>
         </div>
-        <Button type="button" disabled={!canBuild} onClick={onBuildNextActivity} className="shrink-0">
+        <Button type="button" disabled={!canBuild} onClick={onBuildNextMission} className="shrink-0">
           <BookOpenCheck className="size-4" aria-hidden />
-          Build tomorrow&apos;s activity
+          Build tomorrow&apos;s mission
         </Button>
       </div>
     </div>

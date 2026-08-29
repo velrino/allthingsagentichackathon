@@ -6,7 +6,6 @@ import { Chalkboard } from "../components/chalkboard";
 import { GameCanvas } from "../components/game-canvas";
 import { GameHud } from "../components/game-hud";
 import { TutorNotebook } from "../components/tutor-notebook";
-import { MISSION_ID, MISSION_SUBJECT } from "../content/algebra-mission";
 import { useGameSession } from "../state/use-game-session";
 import { StudentSessionGate } from "../student-session/student-session-gate";
 import { useStudentPresence } from "../student-session/use-student-presence";
@@ -28,8 +27,6 @@ export function GamePage() {
         : "exploring";
 
   useStudentPresence({
-    activity_id: MISSION_ID,
-    subject: MISSION_SUBJECT,
     stage_id: session.tutorPod,
     stage_name: POD_LABELS[session.tutorPod],
     status: presenceStatus,

@@ -53,6 +53,8 @@ type UserProfile struct {
 
 type StudentProfile struct {
 	ClassID     string `firestore:"class_id" json:"class_id"`
+	MissionID   string `firestore:"mission_id" json:"mission_id"`
+	MissionCode string `firestore:"mission_code" json:"mission_code"`
 	StudentName string `firestore:"student_name" json:"student_name"`
 }
 
@@ -64,7 +66,7 @@ type UserActivity struct {
 }
 
 type StudentGameSession struct {
-	ActivityID      string    `firestore:"activity_id" json:"activity_id"`
+	MissionID       string    `firestore:"mission_id" json:"mission_id"`
 	Subject         string    `firestore:"subject" json:"subject"`
 	StageID         string    `firestore:"stage_id" json:"stage_id"`
 	StageName       string    `firestore:"stage_name" json:"stage_name"`
@@ -74,18 +76,21 @@ type StudentGameSession struct {
 }
 
 type UpsertStudentInput struct {
-	Identity    sharedfirebase.Identity
-	ClassID     string
-	StudentName string
-	Timestamp   time.Time
+	Identity       sharedfirebase.Identity
+	ClassID        string
+	MissionID      string
+	MissionCode    string
+	MissionSubject string
+	StudentName    string
+	Timestamp      time.Time
 }
 
 type UpdateStudentPresenceInput struct {
-	Identity   sharedfirebase.Identity
-	ActivityID string
-	Subject    string
-	StageID    string
-	StageName  string
-	Status     string
-	Timestamp  time.Time
+	Identity  sharedfirebase.Identity
+	MissionID string
+	Subject   string
+	StageID   string
+	StageName string
+	Status    string
+	Timestamp time.Time
 }

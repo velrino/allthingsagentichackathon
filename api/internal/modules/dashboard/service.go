@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
-	teacherclassactivity "classgame-api/internal/modules/teacher-class-activity"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -22,12 +22,12 @@ type TeacherClassReader interface {
 	Get(context.Context, sharedfirebase.Identity, string) (teacherclass.TeacherClassDocument, bool, error)
 }
 
-type ActivityReader interface {
-	GetActive(context.Context, sharedfirebase.Identity, string) (teacherclassactivity.ActivityDocument, bool, error)
+type MissionReader interface {
+	GetActive(context.Context, sharedfirebase.Identity, string) (mission.MissionDocument, bool, error)
 }
 
 type Service struct {
-	activityReader     ActivityReader
+	missionReader      MissionReader
 	repository         *Repository
 	teacherClassReader TeacherClassReader
 }
@@ -35,10 +35,10 @@ type Service struct {
 func NewService(
 	repository *Repository,
 	teacherClassReader TeacherClassReader,
-	activityReader ActivityReader,
+	missionReader MissionReader,
 ) *Service {
 	return &Service{
-		activityReader:     activityReader,
+		missionReader:      missionReader,
 		repository:         repository,
 		teacherClassReader: teacherClassReader,
 	}
@@ -84,14 +84,14 @@ func (service *Service) GetOverview(
 		teacherClass = &foundClass
 	}
 
-	var activeActivity *teacherclassactivity.ActivityDocument
-	if service.activityReader != nil {
-		activity, exists, err := service.activityReader.GetActive(ctx, identity, normalizedClassID)
+	var activeMission *mission.MissionDocument
+	if service.missionReader != nil {
+		missionDocument, exists, err := service.missionReader.GetActive(ctx, identity, normalizedClassID)
 		if err != nil {
 			return DashboardOverview{}, err
 		}
 		if exists {
-			activeActivity = &activity
+			activeMission = &missionDocument
 		}
 	}
 
@@ -99,15 +99,15 @@ func (service *Service) GetOverview(
 	if err != nil {
 		return DashboardOverview{}, err
 	}
-	students := buildStudentDashboardItems(studentDocuments, activeActivity, time.Now())
+	students := buildStudentDashboardItems(studentDocuments, activeMission, time.Now())
 
 	suggestions := starterSuggestions()
 	generatedByAI := false
 	generatedByMock := true
-	if activeActivity != nil {
-		suggestions = activeActivity.Suggestions
-		generatedByAI = activeActivity.Orchestration.GeneratedByAI
-		generatedByMock = activeActivity.Orchestration.GeneratedByMock
+	if activeMission != nil {
+		suggestions = activeMission.Suggestions
+		generatedByAI = activeMission.Orchestration.GeneratedByAI
+		generatedByMock = activeMission.Orchestration.GeneratedByMock
 	}
 
 	classCode := normalizedClassID
@@ -119,7 +119,7 @@ func (service *Service) GetOverview(
 		ClassID:         normalizedClassID,
 		ClassCode:       classCode,
 		TeacherClass:    teacherClass,
-		ActiveActivity:  activeActivity,
+		ActiveMission:   activeMission,
 		Metrics:         buildMetrics(students),
 		Students:        students,
 		Suggestions:     suggestions,
@@ -149,14 +149,14 @@ func (service *Service) teacher(ctx context.Context, identity sharedfirebase.Ide
 
 func buildStudentDashboardItems(
 	students []studentUserDocument,
-	activeActivity *teacherclassactivity.ActivityDocument,
+	activeMission *mission.MissionDocument,
 	now time.Time,
 ) []StudentDashboardItem {
 	items := make([]StudentDashboardItem, 0, len(students))
 
 	for _, student := range students {
 		progress := buildMockProgress(student)
-		session := buildStudentGameSession(student.Activity.CurrentGame, activeActivity, now)
+		session := buildStudentGameSession(student.Activity.CurrentGame, activeMission, now)
 		lastActivityAt := student.Activity.LastSeenAt
 		if session.LastHeartbeatAt.After(lastActivityAt) {
 			lastActivityAt = session.LastHeartbeatAt
@@ -166,8 +166,8 @@ func buildStudentDashboardItems(
 			StudentName:      resolveStudentName(student),
 			ClassID:          student.Student.ClassID,
 			Progress:         progress,
-			Strengths:        buildStrengths(activeActivity),
-			ImprovementAreas: buildImprovementAreas(activeActivity, progress),
+			Strengths:        buildStrengths(activeMission),
+			ImprovementAreas: buildImprovementAreas(activeMission, progress),
 			LastActivityAt:   lastActivityAt,
 			NotebookNotes:    int64(math.Max(1, float64(student.Activity.LoginCount))),
 			Session:          session,
@@ -183,17 +183,17 @@ func buildStudentDashboardItems(
 
 func buildStudentGameSession(
 	current studentGameSession,
-	activeActivity *teacherclassactivity.ActivityDocument,
+	activeMission *mission.MissionDocument,
 	now time.Time,
 ) StudentGameSession {
-	activityID := current.ActivityID
+	missionID := current.MissionID
 	subject := current.Subject
-	if activeActivity != nil {
-		if activityID == "" {
-			activityID = activeActivity.ID
+	if activeMission != nil {
+		if missionID == "" {
+			missionID = activeMission.ID
 		}
 		if subject == "" {
-			subject = activeActivity.Subject
+			subject = activeMission.Subject
 		}
 	}
 
@@ -202,7 +202,7 @@ func buildStudentGameSession(
 		now.Sub(current.LastHeartbeatAt) <= studentOnlineWindow
 
 	return StudentGameSession{
-		ActivityID:      activityID,
+		MissionID:       missionID,
 		Subject:         subject,
 		StageID:         current.StageID,
 		StageName:       current.StageName,
@@ -273,30 +273,30 @@ func buildMockProgress(student studentUserDocument) StudentProgress {
 	}
 }
 
-func buildStrengths(activeActivity *teacherclassactivity.ActivityDocument) []string {
-	if activeActivity != nil && len(activeActivity.PositiveSignals) > 0 {
-		return limitSignals(activeActivity.PositiveSignals, 2)
+func buildStrengths(activeMission *mission.MissionDocument) []string {
+	if activeMission != nil && len(activeMission.PositiveSignals) > 0 {
+		return limitSignals(activeMission.PositiveSignals, 2)
 	}
 
 	return []string{"Keeps trying after feedback", "Responds to Emily's prompts"}
 }
 
 func buildImprovementAreas(
-	activeActivity *teacherclassactivity.ActivityDocument,
+	activeMission *mission.MissionDocument,
 	progress StudentProgress,
 ) []string {
 	if progress.Status == "needs_attention" {
 		return []string{"Needs a shorter review loop", "Ask why before showing the answer"}
 	}
-	if activeActivity != nil && len(activeActivity.ImprovementSignals) > 0 {
-		return limitSignals(activeActivity.ImprovementSignals, 2)
+	if activeMission != nil && len(activeMission.ImprovementSignals) > 0 {
+		return limitSignals(activeMission.ImprovementSignals, 2)
 	}
 
 	return []string{"Explain the reasoning in their own words"}
 }
 
-func starterSuggestions() []orchestrator.ActivitySuggestion {
-	return []orchestrator.ActivitySuggestion{
+func starterSuggestions() []orchestrator.MissionSuggestion {
+	return []orchestrator.MissionSuggestion{
 		{
 			ID:       "starter-diagnostic",
 			Title:    "Start with a short diagnostic",

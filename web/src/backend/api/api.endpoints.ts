@@ -1,13 +1,13 @@
 import {
   IApiRequestMethod,
-  type IApiCreateTeacherClassActivityRequest,
+  type IApiCreateTeacherClassMissionRequest,
   type IApiDashboardOverviewRequest,
   type IApiDashboardOverviewResponse,
   type IApiStudentSession,
   type IApiStudentPresence,
   type IApiStudentSessionResponse,
-  type IApiTeacherClassActivitiesResponse,
-  type IApiTeacherClassActivityResponse,
+  type IApiTeacherClassMissionsResponse,
+  type IApiTeacherClassMissionResponse,
   type IApiTeacherClassesResponse,
   type IApiTeacherClassResponse,
   type IApiUpsertTeacherClassRequest,
@@ -105,71 +105,71 @@ export const API = {
       return (await res.json()) as IApiTeacherClassResponse;
     },
   },
-  teacherClassActivities: {
+  teacherClassMissions: {
     async preview(
       access_token: string,
       class_id: string,
-      data: IApiCreateTeacherClassActivityRequest,
-    ): Promise<IApiTeacherClassActivityResponse> {
+      data: IApiCreateTeacherClassMissionRequest,
+    ): Promise<IApiTeacherClassMissionResponse> {
       const res = await ApiResources.request({
         access_token,
         data,
         method: IApiRequestMethod.POST,
-        path: `/teacher-classes/${encodeURIComponent(class_id)}/activities/preview`,
+        path: `/teacher-classes/${encodeURIComponent(class_id)}/missions/preview`,
       });
 
       if (!res.ok) {
         throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_PREVIEW_FAILED");
       }
 
-      return (await res.json()) as IApiTeacherClassActivityResponse;
+      return (await res.json()) as IApiTeacherClassMissionResponse;
     },
 
     async create(
       access_token: string,
       class_id: string,
-      data: IApiCreateTeacherClassActivityRequest,
-    ): Promise<IApiTeacherClassActivityResponse> {
+      data: IApiCreateTeacherClassMissionRequest,
+    ): Promise<IApiTeacherClassMissionResponse> {
       const res = await ApiResources.request({
         access_token,
         data,
         method: IApiRequestMethod.POST,
-        path: `/teacher-classes/${encodeURIComponent(class_id)}/activities`,
+        path: `/teacher-classes/${encodeURIComponent(class_id)}/missions`,
       });
 
       if (!res.ok) {
         throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_CREATE_FAILED");
       }
 
-      return (await res.json()) as IApiTeacherClassActivityResponse;
+      return (await res.json()) as IApiTeacherClassMissionResponse;
     },
 
-    async approve(access_token: string, class_id: string, activity_id: string): Promise<IApiTeacherClassActivityResponse> {
+    async approve(access_token: string, class_id: string, mission_id: string): Promise<IApiTeacherClassMissionResponse> {
       const res = await ApiResources.request({
         access_token,
         method: IApiRequestMethod.POST,
-        path: `/teacher-classes/${encodeURIComponent(class_id)}/activities/${encodeURIComponent(activity_id)}/approve`,
+        path: `/teacher-classes/${encodeURIComponent(class_id)}/missions/${encodeURIComponent(mission_id)}/approve`,
       });
 
       if (!res.ok) {
         throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_APPROVE_FAILED");
       }
 
-      return (await res.json()) as IApiTeacherClassActivityResponse;
+      return (await res.json()) as IApiTeacherClassMissionResponse;
     },
 
-    async list(access_token: string, class_id: string): Promise<IApiTeacherClassActivitiesResponse> {
+    async list(access_token: string, class_id: string): Promise<IApiTeacherClassMissionsResponse> {
       const res = await ApiResources.request({
         access_token,
         method: IApiRequestMethod.GET,
-        path: `/teacher-classes/${encodeURIComponent(class_id)}/activities`,
+        path: `/teacher-classes/${encodeURIComponent(class_id)}/missions`,
       });
 
       if (!res.ok) {
         throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_LIST_FAILED");
       }
 
-      return (await res.json()) as IApiTeacherClassActivitiesResponse;
+      return (await res.json()) as IApiTeacherClassMissionsResponse;
     },
   },
 };

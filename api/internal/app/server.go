@@ -10,19 +10,19 @@ import (
 	"classgame-api/internal/config"
 	"classgame-api/internal/modules/dashboard"
 	healthcheck "classgame-api/internal/modules/health-check"
+	mission "classgame-api/internal/modules/mission"
 	teacherclass "classgame-api/internal/modules/teacher-class"
-	teacherclassactivity "classgame-api/internal/modules/teacher-class-activity"
 	"classgame-api/internal/modules/users"
 )
 
 type Options struct {
-	Config               config.Config
-	Dashboard            dashboard.HandlerOptions
-	HealthChecks         []healthcheck.Check
-	StartedAt            time.Time
-	TeacherClass         teacherclass.HandlerOptions
-	TeacherClassActivity teacherclassactivity.HandlerOptions
-	Users                users.HandlerOptions
+	Config       config.Config
+	Dashboard    dashboard.HandlerOptions
+	HealthChecks []healthcheck.Check
+	StartedAt    time.Time
+	TeacherClass teacherclass.HandlerOptions
+	Mission      mission.HandlerOptions
+	Users        users.HandlerOptions
 }
 
 func New(options Options) *echo.Echo {
@@ -56,7 +56,7 @@ func New(options Options) *echo.Echo {
 	users.RegisterRoutes(server, options.Users)
 	dashboard.RegisterRoutes(server, options.Dashboard)
 	teacherclass.RegisterRoutes(server, options.TeacherClass)
-	teacherclassactivity.RegisterRoutes(server, options.TeacherClassActivity)
+	mission.RegisterRoutes(server, options.Mission)
 
 	return server
 }

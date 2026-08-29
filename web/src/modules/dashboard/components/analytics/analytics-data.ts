@@ -1,7 +1,7 @@
 import type {
   IApiDashboardStudent,
   IApiSuggestion,
-  IApiTeacherClassActivity,
+  IApiTeacherClassMission,
 } from "@/backend/api/api.interface";
 import { POD_LABELS, POD_ORDER, type PodId } from "@/modules/game/types/game";
 
@@ -175,7 +175,7 @@ export function buildClassGlance(students: IApiDashboardStudent[]): ClassGlance 
 
 export function buildMissionFunnel(
   students: IApiDashboardStudent[],
-  activeActivity: IApiTeacherClassActivity | null,
+  activeMission: IApiTeacherClassMission | null,
 ): AnalyticsDataset<FunnelStep[]> {
   if (students.length === 0) {
     return { data: demoFunnel, source: "demo" };
@@ -204,16 +204,16 @@ export function buildMissionFunnel(
       current.students.push(ref);
     } else {
       byStage.set(stageId, {
-        label: session.stage_name || stageLabelFromActivity(stageId, activeActivity) || "In the classroom",
+        label: session.stage_name || stageLabelFromMission(stageId, activeMission) || "In the classroom",
         students: [ref],
       });
     }
   }
 
   // The game always reports the mission pods, so those columns are shown even when empty.
-  // Stage ids from the published activity or unknown ids only appear when a student is there.
-  const activityStageIds = activeActivity?.stages.map((stage) => stage.id) ?? [];
-  const orderedIds = unique([...POD_ORDER, ...activityStageIds, ...byStage.keys()]);
+  // Stage ids from the published mission or unknown ids only appear when a student is there.
+  const missionStageIds = activeMission?.stages.map((stage) => stage.id) ?? [];
+  const orderedIds = unique([...POD_ORDER, ...missionStageIds, ...byStage.keys()]);
 
   const stageSteps: FunnelStep[] = orderedIds
     .filter((stageId) => byStage.has(stageId) || isPodId(stageId))
@@ -296,15 +296,15 @@ export function planSuggestions(suggestions: IApiSuggestion[]): PlannedSuggestio
   }));
 }
 
-export function buildNextActivityPrompt(
+export function buildNextMissionPrompt(
   growth: PatternGroup[],
   strengths: PatternGroup[],
-  activeActivity: IApiTeacherClassActivity | null,
+  activeMission: IApiTeacherClassMission | null,
 ): string {
   const lines: string[] = [];
 
-  if (activeActivity) {
-    lines.push(`Follow-up to "${activeActivity.title}" (${activeActivity.learning_goal}).`);
+  if (activeMission) {
+    lines.push(`Follow-up to "${activeMission.title}" (${activeMission.learning_goal}).`);
   }
 
   const growthLines = growth.slice(0, 3).map((group) => {
@@ -397,8 +397,8 @@ function readTier(suggestion: IApiSuggestion): SuggestionTier | null {
   return null;
 }
 
-function stageLabelFromActivity(stageId: string, activeActivity: IApiTeacherClassActivity | null) {
-  return activeActivity?.stages.find((stage) => stage.id === stageId)?.title ?? "";
+function stageLabelFromMission(stageId: string, activeMission: IApiTeacherClassMission | null) {
+  return activeMission?.stages.find((stage) => stage.id === stageId)?.title ?? "";
 }
 
 function isPodId(value: string): value is PodId {

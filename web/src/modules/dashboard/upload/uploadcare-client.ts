@@ -1,4 +1,4 @@
-import type { IApiActivityAttachment } from "@/backend/api/api.interface";
+import type { IApiMissionAttachment } from "@/backend/api/api.interface";
 
 const UPLOADCARE_UPLOAD_URL = "https://upload.uploadcare.com/base/";
 const UPLOADCARE_CDN_URL = "https://ucarecdn.com";
@@ -6,7 +6,7 @@ const DEFAULT_UPLOADCARE_PUBLIC_KEY = "5c2474782ec064c09ef1";
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 
-export async function uploadActivityFiles(files: FileList | File[]): Promise<IApiActivityAttachment[]> {
+export async function uploadMissionFiles(files: FileList | File[]): Promise<IApiMissionAttachment[]> {
   const fileList = Array.from(files);
   const publicKey = getUploadcarePublicKey();
 
@@ -20,10 +20,10 @@ export async function uploadActivityFiles(files: FileList | File[]): Promise<IAp
     throw new Error("Uploadcare public key is not configured.");
   }
 
-  return Promise.all(fileList.map((file) => uploadActivityFile(publicKey, file)));
+  return Promise.all(fileList.map((file) => uploadMissionFile(publicKey, file)));
 }
 
-async function uploadActivityFile(publicKey: string, file: File): Promise<IApiActivityAttachment> {
+async function uploadMissionFile(publicKey: string, file: File): Promise<IApiMissionAttachment> {
   if (file.size > MAX_FILE_SIZE_BYTES) {
     throw new Error(`${file.name} is larger than 20 MB.`);
   }

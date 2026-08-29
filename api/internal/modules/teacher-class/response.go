@@ -3,19 +3,19 @@ package teacherclass
 import "time"
 
 type TeacherClassResponse struct {
-	ID               string          `json:"id"`
-	ClassID          string          `json:"class_id"`
-	ClassCode        string          `json:"class_code"`
-	ClassName        string          `json:"class_name"`
-	Subject          string          `json:"subject"`
-	GradeLevel       string          `json:"grade_level"`
-	TeacherID        string          `json:"teacher_id"`
-	Teacher          TeacherResponse `json:"teacher"`
-	ActiveActivityID string          `json:"active_activity_id"`
-	ActivityCount    int64           `json:"activity_count"`
-	Status           string          `json:"status"`
-	CreatedAt        string          `json:"created_at"`
-	UpdatedAt        string          `json:"updated_at"`
+	ID              string          `json:"id"`
+	ClassID         string          `json:"class_id"`
+	ClassCode       string          `json:"class_code"`
+	ClassName       string          `json:"class_name"`
+	Subject         string          `json:"subject"`
+	GradeLevel      string          `json:"grade_level"`
+	TeacherID       string          `json:"teacher_id"`
+	Teacher         TeacherResponse `json:"teacher"`
+	ActiveMissionID string          `json:"active_mission_id"`
+	MissionCount    int64           `json:"mission_count"`
+	Status          string          `json:"status"`
+	CreatedAt       string          `json:"created_at"`
+	UpdatedAt       string          `json:"updated_at"`
 }
 
 type TeacherResponse struct {
@@ -27,19 +27,19 @@ type TeacherResponse struct {
 
 func ToResponse(teacherClass TeacherClassDocument) TeacherClassResponse {
 	return TeacherClassResponse{
-		ID:               teacherClass.ID,
-		ClassID:          teacherClass.ClassID,
-		ClassCode:        teacherClass.ClassCode,
-		ClassName:        teacherClass.ClassName,
-		Subject:          teacherClass.Subject,
-		GradeLevel:       teacherClass.GradeLevel,
-		TeacherID:        teacherClass.TeacherID,
-		Teacher:          toTeacherResponse(teacherClass.Teacher),
-		ActiveActivityID: teacherClass.ActiveActivityID,
-		ActivityCount:    teacherClass.ActivityCount,
-		Status:           teacherClass.Status,
-		CreatedAt:        formatTime(teacherClass.CreatedAt),
-		UpdatedAt:        formatTime(teacherClass.UpdatedAt),
+		ID:              teacherClass.ID,
+		ClassID:         teacherClass.ClassID,
+		ClassCode:       teacherClass.ClassCode,
+		ClassName:       teacherClass.ClassName,
+		Subject:         teacherClass.Subject,
+		GradeLevel:      teacherClass.GradeLevel,
+		TeacherID:       teacherClass.TeacherID,
+		Teacher:         toTeacherResponse(teacherClass.Teacher),
+		ActiveMissionID: teacherClass.ActiveMissionID,
+		MissionCount:    teacherClass.MissionCount,
+		Status:          teacherClass.Status,
+		CreatedAt:       formatTime(teacherClass.CreatedAt),
+		UpdatedAt:       formatTime(teacherClass.UpdatedAt),
 	}
 }
 

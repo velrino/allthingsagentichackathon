@@ -16,19 +16,19 @@ type TeacherSummary struct {
 }
 
 type TeacherClassDocument struct {
-	ID               string         `firestore:"id" json:"id"`
-	ClassID          string         `firestore:"class_id" json:"class_id"`
-	ClassCode        string         `firestore:"class_code" json:"class_code"`
-	ClassName        string         `firestore:"class_name" json:"class_name"`
-	Subject          string         `firestore:"subject" json:"subject"`
-	GradeLevel       string         `firestore:"grade_level" json:"grade_level"`
-	TeacherID        string         `firestore:"teacher_id" json:"teacher_id"`
-	Teacher          TeacherSummary `firestore:"teacher" json:"teacher"`
-	ActiveActivityID string         `firestore:"active_activity_id" json:"active_activity_id"`
-	ActivityCount    int64          `firestore:"activity_count" json:"activity_count"`
-	Status           string         `firestore:"status" json:"status"`
-	CreatedAt        time.Time      `firestore:"created_at" json:"created_at"`
-	UpdatedAt        time.Time      `firestore:"updated_at" json:"updated_at"`
+	ID              string         `firestore:"id" json:"id"`
+	ClassID         string         `firestore:"class_id" json:"class_id"`
+	ClassCode       string         `firestore:"class_code" json:"class_code"`
+	ClassName       string         `firestore:"class_name" json:"class_name"`
+	Subject         string         `firestore:"subject" json:"subject"`
+	GradeLevel      string         `firestore:"grade_level" json:"grade_level"`
+	TeacherID       string         `firestore:"teacher_id" json:"teacher_id"`
+	Teacher         TeacherSummary `firestore:"teacher" json:"teacher"`
+	ActiveMissionID string         `firestore:"active_mission_id" json:"active_mission_id"`
+	MissionCount    int64          `firestore:"mission_count" json:"mission_count"`
+	Status          string         `firestore:"status" json:"status"`
+	CreatedAt       time.Time      `firestore:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `firestore:"updated_at" json:"updated_at"`
 }
 
 type UpsertTeacherClassInput struct {

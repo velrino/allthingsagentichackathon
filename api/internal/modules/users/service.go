@@ -6,44 +6,67 @@ import (
 	"strings"
 	"time"
 
+	mission "classgame-api/internal/modules/mission"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
 var ErrStudentRequiresAnonymousAuth = errors.New("student session requires anonymous auth")
 var ErrStudentNotFound = errors.New("student user not found")
+var ErrMissionCodeNotFound = errors.New("published mission code not found")
 
-type Service struct {
-	repository *Repository
+type MissionReader interface {
+	GetByCode(context.Context, string) (mission.MissionDocument, bool, error)
 }
 
-func NewService(repository *Repository) *Service {
+type Service struct {
+	missionReader MissionReader
+	repository    *Repository
+}
+
+func NewService(repository *Repository, missionReader MissionReader) *Service {
 	return &Service{
-		repository: repository,
+		missionReader: missionReader,
+		repository:    repository,
 	}
 }
 
 func (service *Service) UpsertStudent(
 	ctx context.Context,
 	identity sharedfirebase.Identity,
-	classID string,
+	missionCode string,
 	studentName string,
 ) (UserDocument, error) {
 	if identity.AuthMethod != sharedfirebase.AuthMethodAnonymous {
 		return UserDocument{}, ErrStudentRequiresAnonymousAuth
 	}
 
+	if service.missionReader == nil {
+		return UserDocument{}, errors.New("student mission reader is not configured")
+	}
+
+	missionDocument, exists, err := service.missionReader.GetByCode(ctx, normalizeMissionCode(missionCode))
+	if err != nil {
+		return UserDocument{}, err
+	}
+	if !exists || missionDocument.Status != mission.StatusPublished {
+		return UserDocument{}, ErrMissionCodeNotFound
+	}
+
 	return service.repository.UpsertStudent(ctx, UpsertStudentInput{
-		Identity:    identity,
-		ClassID:     normalizeClassID(classID),
-		StudentName: normalizeStudentName(studentName),
-		Timestamp:   time.Now(),
+		Identity:       identity,
+		ClassID:        missionDocument.ClassID,
+		MissionID:      missionDocument.ID,
+		MissionCode:    missionDocument.MissionCode,
+		MissionSubject: missionDocument.Subject,
+		StudentName:    normalizeStudentName(studentName),
+		Timestamp:      time.Now(),
 	})
 }
 
 func (service *Service) UpdateStudentPresence(
 	ctx context.Context,
 	identity sharedfirebase.Identity,
-	activityID string,
+	missionID string,
 	subject string,
 	stageID string,
 	stageName string,
@@ -54,17 +77,17 @@ func (service *Service) UpdateStudentPresence(
 	}
 
 	return service.repository.UpdateStudentPresence(ctx, UpdateStudentPresenceInput{
-		Identity:   identity,
-		ActivityID: normalizeText(activityID),
-		Subject:    normalizeText(subject),
-		StageID:    normalizeText(stageID),
-		StageName:  normalizeText(stageName),
-		Status:     normalizeText(status),
-		Timestamp:  time.Now(),
+		Identity:  identity,
+		MissionID: normalizeText(missionID),
+		Subject:   normalizeText(subject),
+		StageID:   normalizeText(stageID),
+		StageName: normalizeText(stageName),
+		Status:    normalizeText(status),
+		Timestamp: time.Now(),
 	})
 }
 
-func normalizeClassID(value string) string {
+func normalizeMissionCode(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
 }
 

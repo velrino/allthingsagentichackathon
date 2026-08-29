@@ -60,8 +60,8 @@ export const dashboardSidebarData: DashboardSidebarData = {
           icon: BookOpenCheck,
         },
         {
-          title: "Activity Builder",
-          url: "/dashboard#activity-builder",
+          title: "Missions",
+          url: "/dashboard#mission-builder",
           icon: ClipboardList,
         },
         {
@@ -116,8 +116,8 @@ export const dashboardTopNav = [
     disabled: false,
   },
   {
-    title: "Build Activity",
-    href: "/dashboard#activity-builder",
+    title: "Missions",
+    href: "/dashboard#mission-builder",
     isActive: false,
     disabled: false,
   },

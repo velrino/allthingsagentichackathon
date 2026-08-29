@@ -98,8 +98,8 @@ func (repository *Repository) Upsert(
 	var teacherClass TeacherClassDocument
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		createdAt := input.Timestamp
-		activityCount := int64(0)
-		activeActivityID := ""
+		missionCount := int64(0)
+		activeMissionID := ""
 
 		snapshot, err := tx.Get(ref)
 		switch {
@@ -114,13 +114,13 @@ func (repository *Repository) Upsert(
 			if !existing.CreatedAt.IsZero() {
 				createdAt = existing.CreatedAt
 			}
-			activityCount = existing.ActivityCount
-			activeActivityID = existing.ActiveActivityID
+			missionCount = existing.MissionCount
+			activeMissionID = existing.ActiveMissionID
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read teacher class: %w", err)
 		}
 
-		teacherClass = newTeacherClassDocument(input, createdAt, activeActivityID, activityCount)
+		teacherClass = newTeacherClassDocument(input, createdAt, activeMissionID, missionCount)
 
 		return tx.Set(ref, teacherClass.firestoreMap(), firestore.MergeAll)
 	})
@@ -156,11 +156,11 @@ func (repository *Repository) Create(
 	return teacherClass, nil
 }
 
-func (repository *Repository) SetActiveActivity(
+func (repository *Repository) SetActiveMission(
 	ctx context.Context,
 	classID string,
 	teacherID string,
-	activityID string,
+	missionID string,
 	timestamp time.Time,
 ) error {
 	ref := repository.client.Collection(CollectionName).Doc(classID)
@@ -183,17 +183,17 @@ func (repository *Repository) SetActiveActivity(
 		}
 
 		update := map[string]any{
-			"active_activity_id": activityID,
-			"updated_at":         timestamp,
+			"active_mission_id": missionID,
+			"updated_at":        timestamp,
 		}
-		if teacherClass.ActiveActivityID != activityID {
-			update["activity_count"] = firestore.Increment(1)
+		if teacherClass.ActiveMissionID != missionID {
+			update["mission_count"] = firestore.Increment(1)
 		}
 
 		return tx.Set(ref, update, firestore.MergeAll)
 	})
 	if err != nil {
-		return fmt.Errorf("set active activity: %w", err)
+		return fmt.Errorf("set active mission: %w", err)
 	}
 
 	return nil
@@ -201,42 +201,42 @@ func (repository *Repository) SetActiveActivity(
 
 func (teacherClass TeacherClassDocument) firestoreMap() map[string]any {
 	return map[string]any{
-		"id":                 teacherClass.ID,
-		"class_id":           teacherClass.ClassID,
-		"class_code":         teacherClass.ClassCode,
-		"class_name":         teacherClass.ClassName,
-		"subject":            teacherClass.Subject,
-		"grade_level":        teacherClass.GradeLevel,
-		"teacher_id":         teacherClass.TeacherID,
-		"teacher":            teacherClass.Teacher.firestoreMap(),
-		"active_activity_id": teacherClass.ActiveActivityID,
-		"activity_count":     teacherClass.ActivityCount,
-		"status":             teacherClass.Status,
-		"created_at":         teacherClass.CreatedAt,
-		"updated_at":         teacherClass.UpdatedAt,
+		"id":                teacherClass.ID,
+		"class_id":          teacherClass.ClassID,
+		"class_code":        teacherClass.ClassCode,
+		"class_name":        teacherClass.ClassName,
+		"subject":           teacherClass.Subject,
+		"grade_level":       teacherClass.GradeLevel,
+		"teacher_id":        teacherClass.TeacherID,
+		"teacher":           teacherClass.Teacher.firestoreMap(),
+		"active_mission_id": teacherClass.ActiveMissionID,
+		"mission_count":     teacherClass.MissionCount,
+		"status":            teacherClass.Status,
+		"created_at":        teacherClass.CreatedAt,
+		"updated_at":        teacherClass.UpdatedAt,
 	}
 }
 
 func newTeacherClassDocument(
 	input UpsertTeacherClassInput,
 	createdAt time.Time,
-	activeActivityID string,
-	activityCount int64,
+	activeMissionID string,
+	missionCount int64,
 ) TeacherClassDocument {
 	return TeacherClassDocument{
-		ID:               input.ClassID,
-		ClassID:          input.ClassID,
-		ClassCode:        input.ClassID,
-		ClassName:        input.ClassName,
-		Subject:          input.Subject,
-		GradeLevel:       input.GradeLevel,
-		TeacherID:        input.Teacher.ProviderUserID,
-		Teacher:          input.Teacher,
-		ActiveActivityID: activeActivityID,
-		ActivityCount:    activityCount,
-		Status:           "active",
-		CreatedAt:        createdAt,
-		UpdatedAt:        input.Timestamp,
+		ID:              input.ClassID,
+		ClassID:         input.ClassID,
+		ClassCode:       input.ClassID,
+		ClassName:       input.ClassName,
+		Subject:         input.Subject,
+		GradeLevel:      input.GradeLevel,
+		TeacherID:       input.Teacher.ProviderUserID,
+		Teacher:         input.Teacher,
+		ActiveMissionID: activeMissionID,
+		MissionCount:    missionCount,
+		Status:          "active",
+		CreatedAt:       createdAt,
+		UpdatedAt:       input.Timestamp,
 	}
 }
 

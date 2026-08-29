@@ -3,16 +3,16 @@ package dashboard
 import (
 	"time"
 
+	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
-	teacherclassactivity "classgame-api/internal/modules/teacher-class-activity"
 )
 
 type OverviewResponse struct {
 	ClassID         string                     `json:"class_id"`
 	ClassCode       string                     `json:"class_code"`
 	TeacherClass    *TeacherClassResponse      `json:"teacher_class"`
-	ActiveActivity  *ActivityResponse          `json:"active_activity"`
+	ActiveMission   *MissionResponse           `json:"active_mission"`
 	Metrics         DashboardMetricsResponse   `json:"metrics"`
 	Students        []StudentDashboardResponse `json:"students"`
 	Suggestions     []SuggestionResponse       `json:"suggestions"`
@@ -22,27 +22,27 @@ type OverviewResponse struct {
 }
 
 type TeacherClassResponse struct {
-	ID               string          `json:"id"`
-	ClassID          string          `json:"class_id"`
-	ClassCode        string          `json:"class_code"`
-	ClassName        string          `json:"class_name"`
-	Subject          string          `json:"subject"`
-	GradeLevel       string          `json:"grade_level"`
-	TeacherID        string          `json:"teacher_id"`
-	Teacher          TeacherResponse `json:"teacher"`
-	ActiveActivityID string          `json:"active_activity_id"`
-	ActivityCount    int64           `json:"activity_count"`
-	Status           string          `json:"status"`
-	CreatedAt        string          `json:"created_at"`
-	UpdatedAt        string          `json:"updated_at"`
+	ID              string          `json:"id"`
+	ClassID         string          `json:"class_id"`
+	ClassCode       string          `json:"class_code"`
+	ClassName       string          `json:"class_name"`
+	Subject         string          `json:"subject"`
+	GradeLevel      string          `json:"grade_level"`
+	TeacherID       string          `json:"teacher_id"`
+	Teacher         TeacherResponse `json:"teacher"`
+	ActiveMissionID string          `json:"active_mission_id"`
+	MissionCount    int64           `json:"mission_count"`
+	Status          string          `json:"status"`
+	CreatedAt       string          `json:"created_at"`
+	UpdatedAt       string          `json:"updated_at"`
 }
 
-type ActivityResponse struct {
+type MissionResponse struct {
 	ID                       string                `json:"id"`
 	ClassID                  string                `json:"class_id"`
 	ClassCode                string                `json:"class_code"`
 	ClassName                string                `json:"class_name"`
-	ActivityName             string                `json:"activity_name"`
+	MissionName              string                `json:"mission_name"`
 	Title                    string                `json:"title"`
 	Summary                  string                `json:"summary"`
 	Subject                  string                `json:"subject"`
@@ -134,7 +134,7 @@ type StudentDashboardResponse struct {
 }
 
 type StudentGameSessionResponse struct {
-	ActivityID      string `json:"activity_id"`
+	MissionID       string `json:"mission_id"`
 	Subject         string `json:"subject"`
 	StageID         string `json:"stage_id"`
 	StageName       string `json:"stage_name"`
@@ -163,7 +163,7 @@ func ToOverviewResponse(overview DashboardOverview) OverviewResponse {
 		ClassID:         overview.ClassID,
 		ClassCode:       overview.ClassCode,
 		TeacherClass:    toTeacherClassResponse(overview.TeacherClass),
-		ActiveActivity:  toActivityResponse(overview.ActiveActivity),
+		ActiveMission:   toMissionResponse(overview.ActiveMission),
 		Metrics:         toMetricsResponse(overview.Metrics),
 		Students:        toStudentResponses(overview.Students),
 		Suggestions:     toSuggestionResponses(overview.Suggestions),
@@ -179,64 +179,64 @@ func toTeacherClassResponse(teacherClass *teacherclass.TeacherClassDocument) *Te
 	}
 
 	return &TeacherClassResponse{
-		ID:               teacherClass.ID,
-		ClassID:          teacherClass.ClassID,
-		ClassCode:        teacherClass.ClassCode,
-		ClassName:        teacherClass.ClassName,
-		Subject:          teacherClass.Subject,
-		GradeLevel:       teacherClass.GradeLevel,
-		TeacherID:        teacherClass.TeacherID,
-		Teacher:          toClassTeacherResponse(teacherClass.Teacher),
-		ActiveActivityID: teacherClass.ActiveActivityID,
-		ActivityCount:    teacherClass.ActivityCount,
-		Status:           teacherClass.Status,
-		CreatedAt:        formatTime(teacherClass.CreatedAt),
-		UpdatedAt:        formatTime(teacherClass.UpdatedAt),
+		ID:              teacherClass.ID,
+		ClassID:         teacherClass.ClassID,
+		ClassCode:       teacherClass.ClassCode,
+		ClassName:       teacherClass.ClassName,
+		Subject:         teacherClass.Subject,
+		GradeLevel:      teacherClass.GradeLevel,
+		TeacherID:       teacherClass.TeacherID,
+		Teacher:         toClassTeacherResponse(teacherClass.Teacher),
+		ActiveMissionID: teacherClass.ActiveMissionID,
+		MissionCount:    teacherClass.MissionCount,
+		Status:          teacherClass.Status,
+		CreatedAt:       formatTime(teacherClass.CreatedAt),
+		UpdatedAt:       formatTime(teacherClass.UpdatedAt),
 	}
 }
 
-func toActivityResponse(activity *teacherclassactivity.ActivityDocument) *ActivityResponse {
-	if activity == nil {
+func toMissionResponse(mission *mission.MissionDocument) *MissionResponse {
+	if mission == nil {
 		return nil
 	}
 
-	return &ActivityResponse{
-		ID:                       activity.ID,
-		ClassID:                  activity.ClassID,
-		ClassCode:                activity.ClassCode,
-		ClassName:                activity.ClassName,
-		ActivityName:             activity.ActivityName,
-		Title:                    activity.Title,
-		Summary:                  activity.Summary,
-		Subject:                  activity.Subject,
-		GradeLevel:               activity.GradeLevel,
-		LearningGoal:             activity.LearningGoal,
-		TeacherPrompt:            activity.TeacherPrompt,
-		Attachments:              toAttachmentResponses(activity.Attachments),
-		PreviewQuestions:         toPreviewQuestions(activity.PreviewQuestions),
-		SuggestedDurationMinutes: activity.SuggestedDurationMinutes,
-		Stages:                   toStageResponses(activity.Stages),
-		Suggestions:              toSuggestionResponses(activity.Suggestions),
-		PositiveSignals:          activity.PositiveSignals,
-		ImprovementSignals:       activity.ImprovementSignals,
+	return &MissionResponse{
+		ID:                       mission.ID,
+		ClassID:                  mission.ClassID,
+		ClassCode:                mission.ClassCode,
+		ClassName:                mission.ClassName,
+		MissionName:              mission.MissionName,
+		Title:                    mission.Title,
+		Summary:                  mission.Summary,
+		Subject:                  mission.Subject,
+		GradeLevel:               mission.GradeLevel,
+		LearningGoal:             mission.LearningGoal,
+		TeacherPrompt:            mission.TeacherPrompt,
+		Attachments:              toAttachmentResponses(mission.Attachments),
+		PreviewQuestions:         toPreviewQuestions(mission.PreviewQuestions),
+		SuggestedDurationMinutes: mission.SuggestedDurationMinutes,
+		Stages:                   toStageResponses(mission.Stages),
+		Suggestions:              toSuggestionResponses(mission.Suggestions),
+		PositiveSignals:          mission.PositiveSignals,
+		ImprovementSignals:       mission.ImprovementSignals,
 		Orchestration: OrchestrationResponse{
-			Provider:             activity.Orchestration.Provider,
-			Model:                activity.Orchestration.Model,
-			ModelVersion:         activity.Orchestration.ModelVersion,
-			GeneratedByAI:        activity.Orchestration.GeneratedByAI,
-			GeneratedByMock:      activity.Orchestration.GeneratedByMock,
-			FallbackReason:       activity.Orchestration.FallbackReason,
-			PromptTokenCount:     activity.Orchestration.PromptTokenCount,
-			CandidatesTokenCount: activity.Orchestration.CandidatesTokenCount,
-			ThoughtsTokenCount:   activity.Orchestration.ThoughtsTokenCount,
-			TotalTokenCount:      activity.Orchestration.TotalTokenCount,
+			Provider:             mission.Orchestration.Provider,
+			Model:                mission.Orchestration.Model,
+			ModelVersion:         mission.Orchestration.ModelVersion,
+			GeneratedByAI:        mission.Orchestration.GeneratedByAI,
+			GeneratedByMock:      mission.Orchestration.GeneratedByMock,
+			FallbackReason:       mission.Orchestration.FallbackReason,
+			PromptTokenCount:     mission.Orchestration.PromptTokenCount,
+			CandidatesTokenCount: mission.Orchestration.CandidatesTokenCount,
+			ThoughtsTokenCount:   mission.Orchestration.ThoughtsTokenCount,
+			TotalTokenCount:      mission.Orchestration.TotalTokenCount,
 		},
-		Status:      activity.Status,
-		CreatedBy:   toClassTeacherResponse(activity.CreatedBy),
-		UpdatedBy:   toClassTeacherResponse(activity.UpdatedBy),
-		PublishedAt: formatTime(activity.PublishedAt),
-		CreatedAt:   formatTime(activity.CreatedAt),
-		UpdatedAt:   formatTime(activity.UpdatedAt),
+		Status:      mission.Status,
+		CreatedBy:   toClassTeacherResponse(mission.CreatedBy),
+		UpdatedBy:   toClassTeacherResponse(mission.UpdatedBy),
+		PublishedAt: formatTime(mission.PublishedAt),
+		CreatedAt:   formatTime(mission.CreatedAt),
+		UpdatedAt:   formatTime(mission.UpdatedAt),
 	}
 }
 
@@ -270,7 +270,7 @@ func toStudentResponses(students []StudentDashboardItem) []StudentDashboardRespo
 			LastActivityAt:   formatTime(student.LastActivityAt),
 			NotebookNotes:    student.NotebookNotes,
 			Session: StudentGameSessionResponse{
-				ActivityID:      student.Session.ActivityID,
+				MissionID:       student.Session.MissionID,
 				Subject:         student.Session.Subject,
 				StageID:         student.Session.StageID,
 				StageName:       student.Session.StageName,
@@ -285,7 +285,7 @@ func toStudentResponses(students []StudentDashboardItem) []StudentDashboardRespo
 	return responses
 }
 
-func toStageResponses(stages []orchestrator.ActivityStage) []StageResponse {
+func toStageResponses(stages []orchestrator.MissionStage) []StageResponse {
 	responses := make([]StageResponse, 0, len(stages))
 
 	for _, stage := range stages {
@@ -301,7 +301,7 @@ func toStageResponses(stages []orchestrator.ActivityStage) []StageResponse {
 	return responses
 }
 
-func toAttachmentResponses(attachments []teacherclassactivity.ActivityAttachment) []AttachmentResponse {
+func toAttachmentResponses(attachments []mission.MissionAttachment) []AttachmentResponse {
 	responses := make([]AttachmentResponse, 0, len(attachments))
 
 	for _, attachment := range attachments {
@@ -334,7 +334,7 @@ func toPreviewQuestions(questions []orchestrator.PreviewQuestion) []PreviewQuest
 	return responses
 }
 
-func toSuggestionResponses(suggestions []orchestrator.ActivitySuggestion) []SuggestionResponse {
+func toSuggestionResponses(suggestions []orchestrator.MissionSuggestion) []SuggestionResponse {
 	responses := make([]SuggestionResponse, 0, len(suggestions))
 
 	for _, suggestion := range suggestions {

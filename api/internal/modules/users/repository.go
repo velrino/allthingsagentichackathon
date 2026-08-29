@@ -56,6 +56,21 @@ func (repository *Repository) UpsertStudent(
 			return fmt.Errorf("read user: %w", err)
 		}
 
+		if currentGame.MissionID == input.MissionID {
+			currentGame.LastHeartbeatAt = now
+			if currentGame.Status == "" {
+				currentGame.Status = "exploring"
+			}
+		} else {
+			currentGame = StudentGameSession{
+				MissionID:       input.MissionID,
+				Subject:         input.MissionSubject,
+				Status:          "exploring",
+				StartedAt:       now,
+				LastHeartbeatAt: now,
+			}
+		}
+
 		user = buildStudentUserDocument(buildStudentUserDocumentInput{
 			ID:          ref.ID,
 			Input:       input,
@@ -98,13 +113,13 @@ func (repository *Repository) UpdateStudentPresence(
 		}
 
 		startedAt := input.Timestamp
-		if user.Activity.CurrentGame.ActivityID == input.ActivityID && !user.Activity.CurrentGame.StartedAt.IsZero() {
+		if user.Activity.CurrentGame.MissionID == input.MissionID && !user.Activity.CurrentGame.StartedAt.IsZero() {
 			startedAt = user.Activity.CurrentGame.StartedAt
 		}
 
 		user.Activity.LastSeenAt = input.Timestamp
 		user.Activity.CurrentGame = StudentGameSession{
-			ActivityID:      input.ActivityID,
+			MissionID:       input.MissionID,
 			Subject:         input.Subject,
 			StageID:         input.StageID,
 			StageName:       input.StageName,
@@ -167,6 +182,8 @@ func buildStudentUserDocument(input buildStudentUserDocumentInput) UserDocument 
 		},
 		Student: StudentProfile{
 			ClassID:     input.Input.ClassID,
+			MissionID:   input.Input.MissionID,
+			MissionCode: input.Input.MissionCode,
 			StudentName: input.Input.StudentName,
 		},
 		Activity: UserActivity{
@@ -208,6 +225,8 @@ func (user UserDocument) firestoreMap() map[string]any {
 		},
 		"student": map[string]any{
 			"class_id":     user.Student.ClassID,
+			"mission_id":   user.Student.MissionID,
+			"mission_code": user.Student.MissionCode,
 			"student_name": user.Student.StudentName,
 		},
 		"activity": map[string]any{
@@ -226,7 +245,7 @@ func (user UserDocument) firestoreMap() map[string]any {
 
 func (session StudentGameSession) firestoreMap() map[string]any {
 	return map[string]any{
-		"activity_id":       session.ActivityID,
+		"mission_id":        session.MissionID,
 		"subject":           session.Subject,
 		"stage_id":          session.StageID,
 		"stage_name":        session.StageName,

@@ -3,9 +3,9 @@ package dashboard
 import (
 	"time"
 
+	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
-	teacherclassactivity "classgame-api/internal/modules/teacher-class-activity"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -62,7 +62,7 @@ type StudentDashboardItem struct {
 }
 
 type StudentGameSession struct {
-	ActivityID      string
+	MissionID       string
 	Subject         string
 	StageID         string
 	StageName       string
@@ -92,10 +92,10 @@ type DashboardOverview struct {
 	ClassID         string
 	ClassCode       string
 	TeacherClass    *teacherclass.TeacherClassDocument
-	ActiveActivity  *teacherclassactivity.ActivityDocument
+	ActiveMission   *mission.MissionDocument
 	Metrics         DashboardMetrics
 	Students        []StudentDashboardItem
-	Suggestions     []orchestrator.ActivitySuggestion
+	Suggestions     []orchestrator.MissionSuggestion
 	GeneratedByAI   bool
 	GeneratedByMock bool
 	Teacher         TeacherSummary
@@ -127,7 +127,7 @@ type studentActivity struct {
 }
 
 type studentGameSession struct {
-	ActivityID      string    `firestore:"activity_id"`
+	MissionID       string    `firestore:"mission_id"`
 	Subject         string    `firestore:"subject"`
 	StageID         string    `firestore:"stage_id"`
 	StageName       string    `firestore:"stage_name"`

@@ -2,10 +2,8 @@
 
 import { useId, useState } from "react";
 
-import { demoClassCode } from "@/shared/demo-class";
-
 export type StudentSessionFormValue = {
-  readonly classId: string;
+  readonly missionCode: string;
   readonly studentName: string;
 };
 
@@ -16,19 +14,19 @@ type StudentSessionModalProps = {
 };
 
 export function StudentSessionModal({ error, loading, onSubmit }: StudentSessionModalProps) {
-  const classIdInputId = useId();
+  const missionCodeInputId = useId();
   const studentNameInputId = useId();
-  const [classId, setClassId] = useState(demoClassCode);
+  const [missionCode, setMissionCode] = useState("");
   const [studentName, setStudentName] = useState("");
-  const canSubmit = classId.trim().length >= 2 && studentName.trim().length >= 2 && !loading;
+  const canSubmit = missionCode.trim().length === 6 && studentName.trim().length >= 2 && !loading;
 
   return (
     <div className="pointer-events-auto fixed inset-0 z-50 grid place-items-center bg-slate-950/72 px-4 py-[max(env(safe-area-inset-top),1rem)] backdrop-blur-md">
       <section className="glass w-full max-w-sm rounded-2xl p-5 text-white shadow-2xl shadow-black/40">
         <div className="text-center">
           <p className="font-display text-[0.68rem] font-semibold tracking-[0.22em] text-cyan-200 uppercase">ClassGame</p>
-          <h1 className="font-display mt-2 text-2xl font-bold tracking-tight">Enter the class</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-300">Emily will save your progress for your teacher&apos;s class notebook.</p>
+          <h1 className="font-display mt-2 text-2xl font-bold tracking-tight">Start your mission</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-300">Enter the mission code from your teacher. Emily will save your progress as you play.</p>
         </div>
 
         <form
@@ -37,20 +35,32 @@ export function StudentSessionModal({ error, loading, onSubmit }: StudentSession
             event.preventDefault();
 
             if (canSubmit) {
-              onSubmit({ classId, studentName });
+              onSubmit({ missionCode, studentName });
             }
           }}
         >
           <div>
-            <label htmlFor={classIdInputId} className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase">
-              Class ID
+            <label htmlFor={missionCodeInputId} className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase">
+              Mission code
             </label>
             <input
-              id={classIdInputId}
-              value={classId}
-              onChange={(event) => setClassId(event.target.value)}
+              id={missionCodeInputId}
+              value={missionCode}
+              onChange={(event) =>
+                setMissionCode(
+                  event.target.value
+                    .toUpperCase()
+                    .replace(/[^23456789ABCDEFGHJKMNPQRSTUVWXYZ]/g, "")
+                    .slice(0, 6),
+                )
+              }
               disabled={loading}
+              autoFocus
               autoComplete="off"
+              autoCapitalize="characters"
+              inputMode="text"
+              maxLength={6}
+              placeholder="ABC234"
               className="mt-2 h-12 w-full rounded-xl border border-white/12 bg-white/8 px-4 text-center font-display text-base font-semibold tracking-[0.08em] text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/70 focus:bg-white/12 disabled:opacity-60"
             />
           </div>
@@ -64,7 +74,6 @@ export function StudentSessionModal({ error, loading, onSubmit }: StudentSession
               value={studentName}
               onChange={(event) => setStudentName(event.target.value)}
               disabled={loading}
-              autoFocus
               autoComplete="name"
               placeholder="Your name"
               className="mt-2 h-12 w-full rounded-xl border border-white/12 bg-white/8 px-4 text-center text-base font-semibold text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/70 focus:bg-white/12 disabled:opacity-60"

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var ErrInvalidStudentActivitySummary = errors.New("invalid student activity summary")
+var ErrInvalidStudentMissionSummary = errors.New("invalid student mission summary")
 
 type Service struct {
 	repository *Repository
@@ -19,20 +19,20 @@ func NewService(repository *Repository) *Service {
 	}
 }
 
-func (service *Service) UpsertActivitySummary(
+func (service *Service) UpsertMissionSummary(
 	ctx context.Context,
-	input UpsertStudentActivitySummaryInput,
+	input UpsertStudentMissionSummaryInput,
 ) (ClassStudentDocument, error) {
 	if service.repository == nil {
 		return ClassStudentDocument{}, errors.New("teacher class student repository is not configured")
 	}
 
 	input = normalizeInput(input)
-	if input.ClassID == "" || input.StudentID == "" || input.ActivitySummary.ActivityID == "" {
-		return ClassStudentDocument{}, ErrInvalidStudentActivitySummary
+	if input.ClassID == "" || input.StudentID == "" || input.MissionSummary.MissionID == "" {
+		return ClassStudentDocument{}, ErrInvalidStudentMissionSummary
 	}
-	if input.CurrentActivityID == "" {
-		input.CurrentActivityID = input.ActivitySummary.ActivityID
+	if input.CurrentMissionID == "" {
+		input.CurrentMissionID = input.MissionSummary.MissionID
 	}
 	if input.StudentName == "" {
 		input.StudentName = "Unnamed student"
@@ -42,9 +42,9 @@ func (service *Service) UpsertActivitySummary(
 	}
 
 	input.ThinkingSummary = normalizeThinkingSummary(input.ThinkingSummary, input.Timestamp)
-	input.NotebookNotes = normalizeNotebookNotes(input.NotebookNotes, input.ActivitySummary.ActivityID, input.Timestamp)
+	input.NotebookNotes = normalizeNotebookNotes(input.NotebookNotes, input.MissionSummary.MissionID, input.Timestamp)
 
-	return service.repository.UpsertActivitySummary(ctx, input)
+	return service.repository.UpsertMissionSummary(ctx, input)
 }
 
 func normalizeThinkingSummary(
@@ -62,25 +62,25 @@ func normalizeThinkingSummary(
 
 func normalizeNotebookNotes(
 	notes []StudentNotebookNote,
-	defaultActivityID string,
+	defaultMissionID string,
 	timestamp time.Time,
 ) []StudentNotebookNote {
 	normalized := make([]StudentNotebookNote, 0, len(notes))
 	for _, note := range notes {
 		note.ID = strings.TrimSpace(note.ID)
-		note.ActivityID = strings.TrimSpace(note.ActivityID)
+		note.MissionID = strings.TrimSpace(note.MissionID)
 		note.Skill = normalizeText(note.Skill)
 		note.Kind = normalizeText(note.Kind)
 		note.Text = normalizeText(note.Text)
 		note.Evidence = normalizeStrings(note.Evidence)
-		if note.ActivityID == "" {
-			note.ActivityID = defaultActivityID
+		if note.MissionID == "" {
+			note.MissionID = defaultMissionID
 		}
 		if note.Text == "" {
 			continue
 		}
 		if note.ID == "" {
-			note.ID = note.ActivityID + ":" + note.Kind + ":" + note.Skill
+			note.ID = note.MissionID + ":" + note.Kind + ":" + note.Skill
 		}
 		if note.Count <= 0 {
 			note.Count = 1

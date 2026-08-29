@@ -127,22 +127,22 @@ func (service *Service) createWithGeneratedCode(
 	return TeacherClassDocument{}, ErrClassCodeGenerationFailed
 }
 
-func (service *Service) SetActiveActivity(
+func (service *Service) SetActiveMission(
 	ctx context.Context,
 	identity sharedfirebase.Identity,
 	classID string,
-	activityID string,
+	missionID string,
 ) error {
 	teacher, err := service.teacher(identity)
 	if err != nil {
 		return err
 	}
 
-	return service.repository.SetActiveActivity(
+	return service.repository.SetActiveMission(
 		ctx,
 		normalizeClassID(classID),
 		teacher.ProviderUserID,
-		activityID,
+		missionID,
 		time.Now(),
 	)
 }

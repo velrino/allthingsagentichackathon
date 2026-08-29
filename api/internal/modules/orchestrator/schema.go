@@ -1,6 +1,6 @@
 package orchestrator
 
-func activityBlueprintSchema() map[string]any {
+func missionBlueprintSchema() map[string]any {
 	stringArray := map[string]any{
 		"type":  "array",
 		"items": map[string]any{"type": "string"},
@@ -29,7 +29,7 @@ func activityBlueprintSchema() map[string]any {
 			},
 			"summary": map[string]any{
 				"type":        "string",
-				"description": "One or two sentences explaining the activity.",
+				"description": "One or two sentences explaining the mission.",
 			},
 			"subject": map[string]any{"type": "string"},
 			"grade_level": map[string]any{

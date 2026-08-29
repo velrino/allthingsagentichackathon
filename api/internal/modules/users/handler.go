@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -24,7 +25,7 @@ const (
 	defaultStudentSessionRateLimitExpires = 5 * time.Minute
 )
 
-var classIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{1,39}$`)
+var missionCodePattern = regexp.MustCompile(`^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$`)
 
 type Authenticator interface {
 	AuthenticateBearerToken(context.Context, string) (sharedfirebase.Identity, error)
@@ -64,7 +65,7 @@ type Handler struct {
 }
 
 type StudentSessionRequest struct {
-	ClassID     string `json:"class_id"`
+	MissionCode string `json:"mission_code"`
 	StudentName string `json:"student_name"`
 }
 
@@ -73,11 +74,11 @@ type StudentSessionResponse struct {
 }
 
 type StudentPresenceRequest struct {
-	ActivityID string `json:"activity_id"`
-	Subject    string `json:"subject"`
-	StageID    string `json:"stage_id"`
-	StageName  string `json:"stage_name"`
-	Status     string `json:"status"`
+	MissionID string `json:"mission_id"`
+	Subject   string `json:"subject"`
+	StageID   string `json:"stage_id"`
+	StageName string `json:"stage_name"`
+	Status    string `json:"status"`
 }
 
 type ErrorResponse struct {
@@ -113,6 +114,7 @@ func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return jsonError(ctx, http.StatusBadRequest, "bad_request", "Invalid JSON body.")
 	}
+	request.MissionCode = strings.ToUpper(strings.TrimSpace(request.MissionCode))
 	if err := request.Validate(); err != nil {
 		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
 	}
@@ -135,12 +137,15 @@ func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
 	user, err := handler.usersService.UpsertStudent(
 		sessionContext,
 		identity,
-		request.ClassID,
+		request.MissionCode,
 		request.StudentName,
 	)
 	if err != nil {
 		if errors.Is(err, ErrStudentRequiresAnonymousAuth) {
 			return jsonError(ctx, http.StatusForbidden, "forbidden", "Student sessions require anonymous Firebase auth.")
+		}
+		if errors.Is(err, ErrMissionCodeNotFound) {
+			return jsonError(ctx, http.StatusNotFound, "mission_not_found", "Published mission code not found.")
 		}
 
 		slog.Error("student session upsert failed", "error", err, "auth_method", identity.AuthMethod)
@@ -176,7 +181,7 @@ func (handler *Handler) PostStudentPresence(ctx *echo.Context) error {
 	user, err := handler.usersService.UpdateStudentPresence(
 		requestContext,
 		identity,
-		request.ActivityID,
+		request.MissionID,
 		request.Subject,
 		request.StageID,
 		request.StageName,
@@ -224,10 +229,10 @@ func (handler *Handler) authenticate(
 
 func (request StudentSessionRequest) Validate() error {
 	return validation.ValidateStruct(&request,
-		validation.Field(&request.ClassID,
+		validation.Field(&request.MissionCode,
 			validation.Required,
-			validation.Length(2, 40),
-			validation.Match(classIDPattern),
+			validation.Length(6, 6),
+			validation.Match(missionCodePattern),
 		),
 		validation.Field(&request.StudentName,
 			validation.Required,
@@ -238,7 +243,7 @@ func (request StudentSessionRequest) Validate() error {
 
 func (request StudentPresenceRequest) Validate() error {
 	return validation.ValidateStruct(&request,
-		validation.Field(&request.ActivityID, validation.Required, validation.Length(1, 120)),
+		validation.Field(&request.MissionID, validation.Required, validation.Length(1, 120)),
 		validation.Field(&request.Subject, validation.Required, validation.Length(2, 80)),
 		validation.Field(&request.StageID, validation.Required, validation.Length(1, 80)),
 		validation.Field(&request.StageName, validation.Required, validation.Length(1, 120)),

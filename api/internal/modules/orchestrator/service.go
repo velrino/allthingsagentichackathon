@@ -16,16 +16,16 @@ import (
 
 const maxInlineAttachmentBytes = 20 * 1024 * 1024
 
-const classActivitySystemInstruction = `You are Emily, ClassGame's teacher partner.
+const missionSystemInstruction = `You are Emily, ClassGame's teacher partner.
 
-You help a non-technical teacher turn today's lesson into a short game activity.
+You help a non-technical teacher turn today's lesson into a short game mission.
 Follow these rules:
 - Write in English only.
 - Be concrete, short, and classroom-friendly.
 - Do not mention implementation details.
 - Do not create grades, rankings, punishments, or sensitive labels.
 - Treat attachments as teacher-provided context. If an attachment cannot be read from its URL, use its filename and the teacher prompt as context instead of inventing details.
-- The activity must show the Collaborative Partner behavior: Emily leads step-by-step, asks clarifying questions, takes notes, captures feedback, and adapts to how each student thinks.
+- The mission must show the Collaborative Partner behavior: Emily leads step-by-step, asks clarifying questions, takes notes, captures feedback, and adapts to how each student thinks.
 - Return JSON only, matching the requested schema.`
 
 type GenAIClient interface {
@@ -45,29 +45,29 @@ func NewService(genAI GenAIClient) *Service {
 	}
 }
 
-func (service *Service) BuildClassActivity(
+func (service *Service) BuildMission(
 	ctx context.Context,
-	input BuildClassActivityInput,
-) (ActivityBlueprint, error) {
+	input BuildMissionInput,
+) (MissionBlueprint, error) {
 	normalizedInput := normalizeInput(input)
 	if service.genAI == nil || !service.genAI.IsEnabled() {
 		return buildFallbackBlueprint(normalizedInput, "genai is not configured"), nil
 	}
 
-	var blueprint ActivityBlueprint
+	var blueprint MissionBlueprint
 	result, err := service.genAI.GenerateStructured(ctx, sharedgenai.StructuredRequest{
-		SystemInstruction:  classActivitySystemInstruction,
-		Prompt:             buildActivityPrompt(normalizedInput),
+		SystemInstruction:  missionSystemInstruction,
+		Prompt:             buildMissionPrompt(normalizedInput),
 		FileParts:          buildAttachmentFileParts(ctx, normalizedInput.Attachments),
-		ResponseJSONSchema: activityBlueprintSchema(),
+		ResponseJSONSchema: missionBlueprintSchema(),
 		Temperature:        0.45,
 		Labels: map[string]string{
 			"app":      "classgame",
-			"workflow": "teacher_activity",
+			"workflow": "teacher_mission",
 		},
 	}, &blueprint)
 	if err != nil {
-		slog.Warn("class activity genai fallback", "error", err)
+		slog.Warn("class mission genai fallback", "error", err)
 		return buildFallbackBlueprint(normalizedInput, err.Error()), nil
 	}
 
@@ -88,14 +88,14 @@ func (service *Service) BuildClassActivity(
 	return blueprint, nil
 }
 
-func buildActivityPrompt(input BuildClassActivityInput) string {
+func buildMissionPrompt(input BuildMissionInput) string {
 	payload, _ := json.MarshalIndent(input, "", "  ")
 
-	return fmt.Sprintf(`Create a ClassGame activity blueprint from this teacher request:
+	return fmt.Sprintf(`Create a ClassGame mission blueprint from this teacher request:
 
 %s
 
-The output will be saved as a teacher-class activity and shown directly in a teacher dashboard.
+The output will be saved as a teacher-class mission and shown directly in a teacher dashboard.
 Make it easy for a teacher to understand what students will practice and what Emily will observe.`, payload)
 }
 
@@ -188,10 +188,10 @@ func normalizeMIMEType(value string) string {
 	return value
 }
 
-func normalizeInput(input BuildClassActivityInput) BuildClassActivityInput {
+func normalizeInput(input BuildMissionInput) BuildMissionInput {
 	input.ClassID = normalizeCode(input.ClassID)
 	input.ClassName = normalizeText(input.ClassName)
-	input.ActivityName = normalizeText(input.ActivityName)
+	input.MissionName = normalizeText(input.MissionName)
 	input.Subject = normalizeText(input.Subject)
 	input.GradeLevel = normalizeText(input.GradeLevel)
 	input.LearningGoal = normalizeText(input.LearningGoal)
@@ -210,14 +210,14 @@ func normalizeInput(input BuildClassActivityInput) BuildClassActivityInput {
 	if input.LearningGoal == "" {
 		input.LearningGoal = "Help students reinforce today's lesson."
 	}
-	if input.ActivityName == "" {
-		input.ActivityName = input.Subject + " Review"
+	if input.MissionName == "" {
+		input.MissionName = input.Subject + " Review"
 	}
 
 	return input
 }
 
-func normalizeBlueprint(input BuildClassActivityInput, blueprint ActivityBlueprint) ActivityBlueprint {
+func normalizeBlueprint(input BuildMissionInput, blueprint MissionBlueprint) MissionBlueprint {
 	blueprint.Title = normalizeText(blueprint.Title)
 	blueprint.Summary = normalizeText(blueprint.Summary)
 	blueprint.Subject = normalizeText(blueprint.Subject)
@@ -261,10 +261,10 @@ func normalizeBlueprint(input BuildClassActivityInput, blueprint ActivityBluepri
 	return blueprint
 }
 
-func buildFallbackBlueprint(input BuildClassActivityInput, reason string) ActivityBlueprint {
+func buildFallbackBlueprint(input BuildMissionInput, reason string) MissionBlueprint {
 	input = normalizeInput(input)
 
-	return ActivityBlueprint{
+	return MissionBlueprint{
 		Title:                    input.Subject + " Review Mission",
 		Summary:                  input.TeacherPrompt,
 		Subject:                  input.Subject,
@@ -290,7 +290,7 @@ func buildFallbackBlueprint(input BuildClassActivityInput, reason string) Activi
 	}
 }
 
-func fallbackPreviewQuestions(input BuildClassActivityInput) []PreviewQuestion {
+func fallbackPreviewQuestions(input BuildMissionInput) []PreviewQuestion {
 	text := strings.ToLower(input.Subject + " " + input.LearningGoal + " " + input.TeacherPrompt)
 	if strings.Contains(text, "fraction") || strings.Contains(text, "equation") || strings.Contains(text, "algebra") {
 		return []PreviewQuestion{
@@ -364,8 +364,8 @@ func fallbackPreviewQuestions(input BuildClassActivityInput) []PreviewQuestion {
 	}
 }
 
-func fallbackStages(input BuildClassActivityInput) []ActivityStage {
-	return []ActivityStage{
+func fallbackStages(input BuildMissionInput) []MissionStage {
+	return []MissionStage{
 		{
 			ID:          "diagnostic",
 			Title:       "Quick diagnostic",
@@ -390,11 +390,11 @@ func fallbackStages(input BuildClassActivityInput) []ActivityStage {
 	}
 }
 
-func fallbackSuggestions(input BuildClassActivityInput) []ActivitySuggestion {
+func fallbackSuggestions(input BuildMissionInput) []MissionSuggestion {
 	text := strings.ToLower(input.Subject + " " + input.LearningGoal + " " + input.TeacherPrompt)
 
 	if strings.Contains(text, "fraction") || strings.Contains(text, "equation") || strings.Contains(text, "algebra") {
-		return []ActivitySuggestion{
+		return []MissionSuggestion{
 			{
 				ID:       "fraction-bridge",
 				Title:    "Bridge fractions before equations",
@@ -420,7 +420,7 @@ func fallbackSuggestions(input BuildClassActivityInput) []ActivitySuggestion {
 		}
 	}
 
-	return []ActivitySuggestion{
+	return []MissionSuggestion{
 		{
 			ID:       "core-recall",
 			Title:    "Start with recall, then explain",

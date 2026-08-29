@@ -18,15 +18,15 @@ The app has a Firebase client foundation in `src/shared/firebase/client.ts`.
 - Local config lives in `.env.local` and is ignored by git.
 - Required deploy envs are listed in `.env.example`.
 - Firestore project: `allthingsagentichackatho-ee359`.
-- `/home` requires an anonymous Firebase session before the game loads. The first visit shows a blocking student modal for `class_id` and `student_name`, then posts to `POST /users/student-session`.
+- `/home` requires an anonymous Firebase session before the game loads. It shows a blocking student modal for the teacher-issued `mission_code` and `student_name`, then posts to `POST /users/student-session`.
 - While the game tab is visible, it posts the current subject, stage, and status to `POST /users/student-presence` every 15 seconds. Presence failures never block gameplay.
-- `/dashboard` and `/dashboard/classes` require Google sign-in. Teachers can manage classes, create and approve activity previews, inspect learning analytics, and see the 10 most recently active players. Dashboard data refreshes in the background every 8 seconds.
+- `/dashboard` and `/dashboard/classes` require Google sign-in. Teachers can manage classes, create and approve mission previews, inspect learning analytics, and see the 10 most recently active players. Dashboard data refreshes in the background every 8 seconds.
 - Current lesson state still uses `localStorage`; Firestore now receives the student user record that the teacher dashboard lists.
 - Returning students are matched by Firebase anonymous UID on the same browser/device. A teacher-issued `student_code` is the planned next step for cross-device identity.
 
 ## Uploadcare
 
-The teacher activity builder supports optional file attachments.
+The teacher mission builder supports optional file attachments.
 
 - `NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY` is safe to expose and is required for direct browser uploads.
 - The Uploadcare secret key must stay out of frontend code, screenshots and git. Move it to Secret Manager only when the API adds signed upload generation.
@@ -93,7 +93,7 @@ Dev-only: `__classgameDebug()` in the browser console returns `{ cameraYaw, avat
 - Route `/home`: the game.
 - Route `/login`: Google sign-in for teachers.
 - Route `/dashboard`: teacher overview with reusable analytics, Emily suggestions, student metrics, and live recent-player presence.
-- Route `/dashboard/classes`: responsive class table, class creation/edit dialog, and activity builder dialog with optional Uploadcare files and an approve/publish flow.
+- Route `/dashboard/classes`: responsive class table, class creation/edit dialog, and mission builder dialog with optional Uploadcare files and an approve/publish flow.
 - 3D classroom (GLB) laid out at load time: shell stretched 2×, furniture spread apart, whiteboard recoloured, colliders derived from the geometry.
 - Third-person camera with orbit, wall pull-in and wall escape.
 - Six chibi characters; the student picks one from the top bar, Emily teaches from the whiteboard.
@@ -145,7 +145,7 @@ src/shared/firebase/client.ts    Firebase app/auth/firestore client
 - Load the mission by code from the API instead of `content/algebra-mission.ts`.
 - Replace `mock-tutor.ts` calls with `POST /missions/{code}/students/{id}/turn` backed by Gemini 3.5+.
 - Move `student-memory.ts` persistence from `localStorage` to Firestore (through the API).
-- Aggregate real student attempts into the class notebook and make `/home` load the active activity by class code.
+- Aggregate real student attempts into the class notebook and make `/home` load the active mission by class code.
 - Add signed Uploadcare uploads through the API before opening file uploads to broad public traffic.
 
 ## Credits

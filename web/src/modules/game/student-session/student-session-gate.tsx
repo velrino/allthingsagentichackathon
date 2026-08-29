@@ -7,6 +7,10 @@ import { API } from "@/backend/api/api.endpoints";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/shared/firebase/client";
 
 import { StudentSessionModal, type StudentSessionFormValue } from "./student-session-modal";
+import {
+  clearStudentMissionSession,
+  saveStudentMissionSession,
+} from "./student-mission-session";
 import { studentSessionReadyEvent } from "./use-student-presence";
 
 type StudentSessionGateProps = {
@@ -28,12 +32,13 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
     }
 
     const auth = getFirebaseAuth();
-    return onAuthStateChanged(auth, (user) => {
+    return onAuthStateChanged(auth, () => {
       if (registeringRef.current) {
         return;
       }
 
-      setStatus(user?.isAnonymous ? "ready" : "needs_student_session");
+      clearStudentMissionSession();
+      setStatus("needs_student_session");
     });
   }, [firebaseConfigured]);
 
@@ -47,9 +52,15 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       const user = await anonymousUser(auth.currentUser);
       const idToken = await user.getIdToken(true);
 
-      await API.users.studentSession(idToken, {
+      const response = await API.users.studentSession(idToken, {
         student_name: value.studentName,
-        class_id: value.classId,
+        mission_code: value.missionCode,
+      });
+
+      saveStudentMissionSession({
+        missionCode: response.user.student.mission_code,
+        missionId: response.user.activity.current_game.mission_id,
+        subject: response.user.activity.current_game.subject,
       });
 
       setStatus("ready");

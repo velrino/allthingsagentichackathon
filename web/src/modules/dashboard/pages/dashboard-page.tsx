@@ -19,7 +19,7 @@ import type {
   IApiDashboardStudent,
   IApiSuggestion,
   IApiTeacherClass,
-  IApiTeacherClassActivity,
+  IApiTeacherClassMission,
 } from "@/backend/api/api.interface";
 import { Main } from "@/components/layout/main";
 import { Button } from "@/components/ui/button";
@@ -34,19 +34,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import {
-  ActivityBuilder,
-  type ActivityBuilderForm,
-} from "../components/activity-builder";
+  MissionBuilder,
+  type MissionBuilderForm,
+} from "../components/mission-builder";
 import { AnalyticsCard } from "../components/analytics/analytics-card";
 import {
   buildClassGlance,
   buildClassSummary,
   buildGrowthPatterns,
   buildMissionFunnel,
-  buildNextActivityPrompt,
+  buildNextMissionPrompt,
   buildStrengthPatterns,
   planSuggestions,
 } from "../components/analytics/analytics-data";
+import { ClassMissionsTable } from "../components/class-missions-table";
 import { DashboardShell } from "../components/dashboard-shell";
 import { ClassGlanceTiles } from "../components/overview/class-glance-tiles";
 import { ClassPatternsSummary } from "../components/overview/class-patterns-summary";
@@ -61,18 +62,18 @@ import {
   upsertTeacherClass,
 } from "../utils/teacher-class-state";
 
-type DashboardTab = "overview" | "activity" | "students" | "notebook";
+type DashboardTab = "overview" | "mission" | "students" | "notebook";
 
 const hashByTab: Record<DashboardTab, string> = {
   overview: "#overview",
-  activity: "#activity-builder",
+  mission: "#mission-builder",
   students: "#students",
   notebook: "#notebook",
 };
 
 const tabByHash: Record<string, DashboardTab> = {
   "#overview": "overview",
-  "#activity-builder": "activity",
+  "#mission-builder": "mission",
   "#students": "students",
   "#notebook": "notebook",
 };
@@ -85,9 +86,11 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     useState<IApiDashboardOverviewResponse | null>(null);
   const [teacherClasses, setTeacherClasses] = useState<IApiTeacherClass[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
-  const [activityBuilderOpen, setActivityBuilderOpen] = useState(false);
-  const [previewActivity, setPreviewActivity] =
-    useState<IApiTeacherClassActivity | null>(null);
+  const [missionBuilderOpen, setMissionBuilderOpen] = useState(false);
+  const [previewMission, setPreviewMission] =
+    useState<IApiTeacherClassMission | null>(null);
+  const [missions, setMissions] = useState<IApiTeacherClassMission[]>([]);
+  const [missionsLoading, setMissionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -223,6 +226,46 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     }
 
     let cancelled = false;
+    const user = auth.user;
+    const classId = selectedClassId;
+
+    Promise.resolve()
+      .then(async () => {
+        setMissionsLoading(true);
+        const token = await user.getIdToken();
+        return API.teacherClassMissions.list(token, classId);
+      })
+      .then((response) => {
+        if (!cancelled) {
+          setMissions(response.missions);
+        }
+      })
+      .catch((caughtError: unknown) => {
+        if (!cancelled) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load class missions.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setMissionsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.status, auth.user, selectedClassId]);
+
+  useEffect(() => {
+    if (auth.status !== "signed_in" || !auth.user || !selectedClassId) {
+      return;
+    }
+
+    let cancelled = false;
     let refreshing = false;
     const user = auth.user;
     const classId = selectedClassId;
@@ -286,7 +329,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     );
   }, [overview?.teacher_class, selectedClassId, teacherClasses]);
 
-  const activeActivity = overview?.active_activity ?? null;
+  const activeMission = overview?.active_mission ?? null;
   const suggestions = useMemo(
     () => overview?.suggestions ?? [],
     [overview?.suggestions],
@@ -296,16 +339,16 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     [overview?.students],
   );
   const classCode =
-    previewActivity?.class_code ??
-    activeActivity?.class_code ??
+    previewMission?.class_code ??
+    activeMission?.class_code ??
     selectedClass?.class_code ??
     overview?.class_code ??
     "";
   const hasSelectedClass = Boolean(selectedClassId);
   const glance = useMemo(() => buildClassGlance(students), [students]);
   const funnel = useMemo(
-    () => buildMissionFunnel(students, activeActivity),
-    [students, activeActivity],
+    () => buildMissionFunnel(students, activeMission),
+    [students, activeMission],
   );
   const growthPatterns = useMemo(
     () => buildGrowthPatterns(students),
@@ -346,7 +389,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     rememberSelectedClass(response.class_id);
   }
 
-  async function handleProcessActivity(value: ActivityBuilderForm) {
+  async function handleProcessMission(value: MissionBuilderForm) {
     if (!auth.user) {
       return;
     }
@@ -355,35 +398,40 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     setError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassActivities.preview(
+      const response = await API.teacherClassMissions.preview(
         token,
         value.class_id,
         {
           class_name: value.class_name,
-          activity_name: value.activity_name,
+          mission_name: value.mission_name,
           subject: value.subject,
           grade_level: value.grade_level,
           learning_goal: value.learning_goal,
           teacher_prompt: value.teacher_prompt,
+          audience_type: value.audience_type,
+          target_student_ids: value.target_student_ids,
           attachments: value.attachments,
         },
       );
-      setPreviewActivity(response.activity);
-      setSelectedClassId(response.activity.class_id);
-      setActivityBuilderOpen(true);
-      setActiveDashboardTab("activity");
+      setPreviewMission(response.mission);
+      setMissions((current) =>
+        upsertClassMission(current, response.mission),
+      );
+      setSelectedClassId(response.mission.class_id);
+      setMissionBuilderOpen(true);
+      setActiveDashboardTab("mission");
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Could not process class activity.",
+          : "Could not process class mission.",
       );
     } finally {
       setProcessing(false);
     }
   }
 
-  async function handleApproveActivity(activity: IApiTeacherClassActivity) {
+  async function handleApproveMission(mission: IApiTeacherClassMission) {
     if (!auth.user) {
       return;
     }
@@ -392,19 +440,23 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     setError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassActivities.approve(
+      const response = await API.teacherClassMissions.approve(
         token,
-        activity.class_id,
-        activity.id,
+        mission.class_id,
+        mission.id,
       );
-      setPreviewActivity(response.activity);
-      await loadOverview(token, response.activity.class_id);
-      setActiveDashboardTab("overview");
+      setPreviewMission(response.mission);
+      setMissions((current) =>
+        upsertClassMission(current, response.mission),
+      );
+      await loadOverview(token, response.mission.class_id);
+      setMissionBuilderOpen(false);
+      setActiveDashboardTab("mission");
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Could not publish class activity.",
+          : "Could not publish class mission.",
       );
     } finally {
       setApproving(false);
@@ -416,32 +468,36 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     router.replace("/login");
   }
 
-  function handleOpenActivityBuilder() {
+  function handleOpenMissionBuilder() {
     if (!selectedClassId) {
       router.push("/dashboard/classes");
       return;
     }
 
-    setActivityBuilderOpen(true);
-    setActiveDashboardTab("activity");
+    setPreviewMission(null);
+    setDraftPrompt(null);
+    setDraftVersion((current) => current + 1);
+    setActiveDashboardTab("mission");
+    setMissionBuilderOpen(true);
   }
 
-  function handleBuildNextActivity() {
+  function handleBuildNextMission() {
     if (!selectedClassId) {
       router.push("/dashboard/classes");
       return;
     }
 
+    setPreviewMission(null);
     setDraftPrompt(
-      buildNextActivityPrompt(
+      buildNextMissionPrompt(
         growthPatterns.data,
         strengthPatterns.data,
-        activeActivity,
+        activeMission,
       ),
     );
     setDraftVersion((current) => current + 1);
-    setActivityBuilderOpen(true);
-    setActiveDashboardTab("activity");
+    setMissionBuilderOpen(true);
+    setActiveDashboardTab("mission");
   }
 
   function handlePlanFollowUp() {
@@ -515,7 +571,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
             <p className="mt-1 text-sm text-muted-foreground">
               {selectedClass
                 ? `${selectedClass.class_name || selectedClass.class_code} - ${selectedClass.subject}`
-                : "Create a class before publishing activities to students."}
+                : "Create a class before publishing missions to students."}
             </p>
           </div>
 
@@ -536,10 +592,10 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
             <Button
               type="button"
               disabled={!hasSelectedClass}
-              onClick={handleOpenActivityBuilder}
+              onClick={handleOpenMissionBuilder}
             >
               <ClipboardList className="size-4" aria-hidden />
-              {hasSelectedClass ? "Build activity" : "Create class first"}
+              {hasSelectedClass ? "New mission" : "Create class first"}
             </Button>
           </div>
         </div>
@@ -559,7 +615,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
           <div className="overflow-x-auto pb-1">
             <TabsList className="min-w-max">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="activity">Activity Builder</TabsTrigger>
+              <TabsTrigger value="mission">Missions</TabsTrigger>
               <TabsTrigger value="students">Students</TabsTrigger>
               <TabsTrigger value="notebook">Notebook</TabsTrigger>
             </TabsList>
@@ -637,13 +693,13 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
                 eyebrow="Next lesson"
                 title="Plan the follow-up"
                 detail="Emily's suggestions for reteaching, the whole class, and the students who are ahead."
-                source={activeActivity ? (overview?.generated_by_ai ? "live" : "estimated") : undefined}
+                source={activeMission ? (overview?.generated_by_ai ? "live" : "estimated") : undefined}
               />
             </div>
             <NextLessonPlan
               canBuild={hasSelectedClass}
               suggestions={plannedSuggestions}
-              onBuildNextActivity={handleBuildNextActivity}
+              onBuildNextMission={handleBuildNextMission}
             />
 
             <Card className="gap-0 py-0">
@@ -664,15 +720,15 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
               <CardContent className="p-0">
                 <RecentPlayersTable
                   fallbackSubject={
-                    activeActivity?.subject ?? selectedClass?.subject
+                    activeMission?.subject ?? selectedClass?.subject
                   }
                   students={students}
                 />
               </CardContent>
             </Card>
 
-            <ActiveActivityCard
-              activeActivity={activeActivity}
+            <ActiveMissionCard
+              activeMission={activeMission}
               classCode={classCode}
               generatedByAi={overview?.generated_by_ai ?? false}
               generatedByMock={overview?.generated_by_mock ?? false}
@@ -680,11 +736,12 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
             />
           </TabsContent>
 
-          <TabsContent id="activity-builder" value="activity" className="mt-2">
-            <ActivityBuilderLauncherCard
-              classCode={classCode}
-              teacherClass={selectedClass}
-              onOpenActivityBuilder={handleOpenActivityBuilder}
+          <TabsContent id="mission-builder" value="mission" className="mt-2">
+            <ClassMissionsTable
+              activeMissionId={activeMission?.id}
+              missions={missions}
+              loading={missionsLoading}
+              onCreateMission={handleOpenMissionBuilder}
             />
           </TabsContent>
 
@@ -694,7 +751,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
 
           <TabsContent id="notebook" value="notebook" className="mt-2">
             <NotebookPanel
-              activeActivity={activeActivity}
+              activeMission={activeMission}
               students={students}
               suggestions={suggestions}
             />
@@ -702,19 +759,19 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
         </Tabs>
 
         {selectedClassId ? (
-          <ActivityBuilder
-            key={`${selectedClassId}:${activeActivity?.id ?? "empty"}:${previewActivity?.id ?? "preview"}:${draftVersion}`}
-            activeActivity={activeActivity}
+          <MissionBuilder
+            key={`${selectedClassId}:${draftVersion}`}
             approving={approving}
             classId={selectedClassId}
             draftPrompt={draftPrompt ?? undefined}
-            open={activityBuilderOpen}
-            previewActivity={previewActivity}
+            open={missionBuilderOpen}
+            previewMission={previewMission}
             processing={processing}
+            students={students}
             teacherClass={selectedClass}
-            onApprove={handleApproveActivity}
-            onOpenChange={setActivityBuilderOpen}
-            onProcess={handleProcessActivity}
+            onApprove={handleApproveMission}
+            onOpenChange={setMissionBuilderOpen}
+            onProcess={handleProcessMission}
           />
         ) : null}
 
@@ -728,14 +785,14 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
   );
 }
 
-function ActiveActivityCard({
-  activeActivity,
+function ActiveMissionCard({
+  activeMission,
   classCode,
   generatedByAi,
   generatedByMock,
   teacherClass,
 }: {
-  readonly activeActivity: IApiTeacherClassActivity | null;
+  readonly activeMission: IApiTeacherClassMission | null;
   readonly classCode: string;
   readonly generatedByAi: boolean;
   readonly generatedByMock: boolean;
@@ -750,12 +807,12 @@ function ActiveActivityCard({
               Current class plan
             </p>
             <CardTitle className="mt-2 text-2xl">
-              {activeActivity?.title ?? "Set today's class activity"}
+              {activeMission?.title ?? "Set today's class mission"}
             </CardTitle>
             <CardDescription className="mt-2 max-w-2xl leading-6">
               {teacherClass
-                ? (activeActivity?.summary ??
-                  "Tell Emily what students should study or reinforce. She will ask for the right context, generate a preview, and keep the class activity grounded in your goal.")
+                ? (activeMission?.summary ??
+                  "Tell Emily what students should study or reinforce. She will ask for the right context, generate a preview, and keep the class mission grounded in your goal.")
                 : "Create a class first. Each class gets its own code, assignments, students, and notebook."}
             </CardDescription>
           </div>
@@ -772,25 +829,25 @@ function ActiveActivityCard({
       <CardContent className="grid gap-4 px-4 py-5 sm:px-6">
         <div className="flex flex-wrap gap-2">
           <StatusBadge
-            value={activeActivity?.status ?? teacherClass?.status ?? "draft"}
+            value={activeMission?.status ?? teacherClass?.status ?? "draft"}
           />
           {generatedByAi ? <BadgeTone tone="emerald">Gemini</BadgeTone> : null}
           {generatedByMock ? (
             <BadgeTone tone="amber">Fallback</BadgeTone>
           ) : null}
           <BadgeTone tone="cyan">
-            {activeActivity?.subject ??
+            {activeMission?.subject ??
               teacherClass?.subject ??
               "No subject yet"}
           </BadgeTone>
         </div>
 
-        {activeActivity ? (
+        {activeMission ? (
           <div className="grid gap-4 md:grid-cols-3">
             <InfoPanel
               label="Class"
               value={
-                activeActivity.class_name ||
+                activeMission.class_name ||
                 teacherClass?.class_name ||
                 classCode
               }
@@ -798,29 +855,29 @@ function ActiveActivityCard({
             <InfoPanel
               label="Grade"
               value={
-                activeActivity.grade_level ||
+                activeMission.grade_level ||
                 teacherClass?.grade_level ||
                 "Not set"
               }
             />
             <InfoPanel
               label="Duration"
-              value={`${activeActivity.suggested_duration_minutes} minutes`}
+              value={`${activeMission.suggested_duration_minutes} minutes`}
             />
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
             {teacherClass
-              ? "No published activity yet. Open the Activity Builder to create a preview and publish the code students will use inside the game."
-              : "No class selected. Create a class, then publish the first activity for that specific class code."}
+              ? "No published mission yet. Open the Mission Builder to create a preview and publish the code students will use inside the game."
+              : "No class selected. Create a class, then publish the first mission for that specific class code."}
           </div>
         )}
 
-        {activeActivity ? (
+        {activeMission ? (
           <div className="grid gap-3">
             <h3 className="text-sm font-semibold">Learning flow</h3>
             <div className="grid gap-2">
-              {activeActivity.stages.map((stage) => (
+              {activeMission.stages.map((stage) => (
                 <div
                   key={stage.id}
                   className="rounded-md border border-border bg-muted/40 p-3"
@@ -834,57 +891,6 @@ function ActiveActivityCard({
             </div>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ActivityBuilderLauncherCard({
-  classCode,
-  onOpenActivityBuilder,
-  teacherClass,
-}: {
-  readonly classCode: string;
-  readonly onOpenActivityBuilder: () => void;
-  readonly teacherClass: IApiTeacherClass | null;
-}) {
-  return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase text-cyan-700">
-              Activity Builder
-            </p>
-            <CardTitle className="mt-2">Open Emily Activity Builder</CardTitle>
-            <CardDescription className="mt-2 max-w-2xl leading-6">
-              {teacherClass
-                ? "Create or revise the current activity for this class. Emily will generate a student-facing preview before you publish."
-                : "Create a class first so the activity belongs to the right class code."}
-            </CardDescription>
-          </div>
-          {classCode ? <ClassCodeBadge value={classCode} /> : null}
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <p className="text-sm leading-6 text-muted-foreground">
-          {teacherClass
-            ? `${teacherClass.class_name || teacherClass.class_code} is selected.`
-            : "No class is selected for this teacher yet."}
-        </p>
-        {teacherClass ? (
-          <Button type="button" onClick={onOpenActivityBuilder}>
-            <ClipboardList className="size-4" aria-hidden />
-            Build activity
-          </Button>
-        ) : (
-          <Button asChild>
-            <Link href="/dashboard/classes">
-              <BookOpenCheck className="size-4" aria-hidden />
-              Create class
-            </Link>
-          </Button>
-        )}
       </CardContent>
     </Card>
   );
@@ -961,11 +967,11 @@ function StudentsTableSection({
 }
 
 function NotebookPanel({
-  activeActivity,
+  activeMission,
   students,
   suggestions,
 }: {
-  readonly activeActivity: IApiTeacherClassActivity | null;
+  readonly activeMission: IApiTeacherClassMission | null;
   readonly students: IApiDashboardStudent[];
   readonly suggestions: IApiSuggestion[];
 }) {
@@ -988,7 +994,7 @@ function NotebookPanel({
               <CardTitle>Class notebook</CardTitle>
               <CardDescription className="mt-2 leading-6">
                 Emily captures how students solve problems, where they hesitate,
-                and what should change in the next activity.
+                and what should change in the next mission.
               </CardDescription>
             </div>
           </div>
@@ -999,7 +1005,7 @@ function NotebookPanel({
             icon={BookOpenCheck}
             title="Current focus"
             value={
-              activeActivity?.learning_goal ?? "No active learning goal yet."
+              activeMission?.learning_goal ?? "No active learning goal yet."
             }
           />
           <NotebookRow
@@ -1007,7 +1013,7 @@ function NotebookPanel({
             title="Positive signal"
             value={
               completedStudents.length > 0
-                ? `${completedStudents.length} students completed the activity.`
+                ? `${completedStudents.length} students completed the mission.`
                 : "Completion signals will appear after students play."
             }
           />
@@ -1048,7 +1054,7 @@ function NotebookPanel({
           )}
           {suggestions.length === 0 ? (
             <p className="text-sm leading-6 text-muted-foreground">
-              Publish an activity and collect student attempts to unlock better
+              Publish a mission and collect student attempts to unlock better
               lesson notes.
             </p>
           ) : null}
@@ -1183,8 +1189,26 @@ function statusLabel(value: string) {
   return value;
 }
 
+function upsertClassMission(
+  missions: IApiTeacherClassMission[],
+  mission: IApiTeacherClassMission,
+) {
+  return [
+    mission,
+    ...missions.filter((current) => current.id !== mission.id),
+  ].sort(
+    (left, right) =>
+      toTimestamp(right.updated_at) - toTimestamp(left.updated_at),
+  );
+}
+
+function toTimestamp(value: string) {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
 function toDashboardTab(value: string): DashboardTab {
-  if (value === "activity" || value === "students" || value === "notebook") {
+  if (value === "mission" || value === "students" || value === "notebook") {
     return value;
   }
 

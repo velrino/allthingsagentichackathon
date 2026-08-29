@@ -1,9 +1,9 @@
 package orchestrator
 
-type BuildClassActivityInput struct {
+type BuildMissionInput struct {
 	ClassID       string            `json:"class_id"`
 	ClassName     string            `json:"class_name"`
-	ActivityName  string            `json:"activity_name"`
+	MissionName   string            `json:"mission_name"`
 	Subject       string            `json:"subject"`
 	GradeLevel    string            `json:"grade_level"`
 	LearningGoal  string            `json:"learning_goal"`
@@ -11,28 +11,28 @@ type BuildClassActivityInput struct {
 	Attachments   []AttachmentInput `json:"attachments"`
 }
 
-type ActivityBlueprint struct {
-	Title                    string               `json:"title"`
-	Summary                  string               `json:"summary"`
-	Subject                  string               `json:"subject"`
-	GradeLevel               string               `json:"grade_level"`
-	LearningGoal             string               `json:"learning_goal"`
-	SuggestedDurationMinutes int                  `json:"suggested_duration_minutes"`
-	Stages                   []ActivityStage      `json:"stages"`
-	PreviewQuestions         []PreviewQuestion    `json:"preview_questions"`
-	Suggestions              []ActivitySuggestion `json:"suggestions"`
-	PositiveSignals          []string             `json:"positive_signals"`
-	ImprovementSignals       []string             `json:"improvement_signals"`
-	GeneratedByAI            bool                 `json:"generated_by_ai"`
-	GeneratedByMock          bool                 `json:"generated_by_mock"`
-	Provider                 string               `json:"provider"`
-	Model                    string               `json:"model"`
-	ModelVersion             string               `json:"model_version"`
-	FallbackReason           string               `json:"fallback_reason"`
-	Usage                    GenAIUsage           `json:"usage"`
+type MissionBlueprint struct {
+	Title                    string              `json:"title"`
+	Summary                  string              `json:"summary"`
+	Subject                  string              `json:"subject"`
+	GradeLevel               string              `json:"grade_level"`
+	LearningGoal             string              `json:"learning_goal"`
+	SuggestedDurationMinutes int                 `json:"suggested_duration_minutes"`
+	Stages                   []MissionStage      `json:"stages"`
+	PreviewQuestions         []PreviewQuestion   `json:"preview_questions"`
+	Suggestions              []MissionSuggestion `json:"suggestions"`
+	PositiveSignals          []string            `json:"positive_signals"`
+	ImprovementSignals       []string            `json:"improvement_signals"`
+	GeneratedByAI            bool                `json:"generated_by_ai"`
+	GeneratedByMock          bool                `json:"generated_by_mock"`
+	Provider                 string              `json:"provider"`
+	Model                    string              `json:"model"`
+	ModelVersion             string              `json:"model_version"`
+	FallbackReason           string              `json:"fallback_reason"`
+	Usage                    GenAIUsage          `json:"usage"`
 }
 
-type ActivityStage struct {
+type MissionStage struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
 	Goal        string   `json:"goal"`
@@ -40,7 +40,7 @@ type ActivityStage struct {
 	UnlocksWhen string   `json:"unlocks_when"`
 }
 
-type ActivitySuggestion struct {
+type MissionSuggestion struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
 	Reason      string   `json:"reason"`

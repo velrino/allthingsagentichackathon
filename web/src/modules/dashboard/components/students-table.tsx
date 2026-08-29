@@ -143,7 +143,7 @@ function statusClassName(status: string) {
 
 function formatDate(value: string) {
   if (!value) {
-    return "No activity";
+    return "No mission";
   }
 
   return new Intl.DateTimeFormat("en", {

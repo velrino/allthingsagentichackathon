@@ -17,9 +17,9 @@ import (
 	"classgame-api/internal/config"
 	"classgame-api/internal/modules/dashboard"
 	healthcheck "classgame-api/internal/modules/health-check"
+	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
-	teacherclassactivity "classgame-api/internal/modules/teacher-class-activity"
 	"classgame-api/internal/modules/users"
 	sharedgoogle "classgame-api/internal/shared/google"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
@@ -79,7 +79,6 @@ func run() error {
 	}()
 
 	usersRepository := users.NewRepository(firebaseConnection.FirestoreClient())
-	usersService := users.NewService(usersRepository)
 	genAIClient, err := sharedgenai.Connect(context.Background(), sharedgenai.Options{
 		Enabled:         cfg.GenAIEnabled,
 		Backend:         cfg.GenAIBackend,
@@ -99,14 +98,15 @@ func run() error {
 	orchestratorService := orchestrator.NewService(genAIClient)
 	teacherClassRepository := teacherclass.NewRepository(firebaseConnection.FirestoreClient())
 	teacherClassService := teacherclass.NewService(teacherClassRepository)
-	activityRepository := teacherclassactivity.NewRepository(firebaseConnection.FirestoreClient())
-	activityService := teacherclassactivity.NewService(
-		activityRepository,
+	missionRepository := mission.NewRepository(firebaseConnection.FirestoreClient())
+	usersService := users.NewService(usersRepository, missionRepository)
+	missionService := mission.NewService(
+		missionRepository,
 		teacherClassService,
 		orchestratorService,
 	)
 	dashboardRepository := dashboard.NewRepository(firebaseConnection.FirestoreClient())
-	dashboardService := dashboard.NewService(dashboardRepository, teacherClassService, activityService)
+	dashboardService := dashboard.NewService(dashboardRepository, teacherClassService, missionService)
 	authenticator := sharedfirebase.NewFirebaseAuthenticator(firebaseConnection.AuthClient())
 
 	server := app.New(app.Options{
@@ -119,9 +119,9 @@ func run() error {
 			Authenticator:       authenticator,
 			TeacherClassService: teacherClassService,
 		},
-		TeacherClassActivity: teacherclassactivity.HandlerOptions{
-			Authenticator:   authenticator,
-			ActivityService: activityService,
+		Mission: mission.HandlerOptions{
+			Authenticator:  authenticator,
+			MissionService: missionService,
 		},
 		HealthChecks: []healthcheck.Check{
 			{

@@ -5,17 +5,17 @@ import "time"
 const CollectionName = "students"
 
 type ClassStudentDocument struct {
-	ID                string                            `firestore:"id" json:"id"`
-	ClassID           string                            `firestore:"class_id" json:"class_id"`
-	StudentID         string                            `firestore:"student_id" json:"student_id"`
-	StudentName       string                            `firestore:"student_name" json:"student_name"`
-	CurrentActivityID string                            `firestore:"current_activity_id" json:"current_activity_id"`
-	ThinkingSummary   StudentThinkingSummary            `firestore:"thinking_summary" json:"thinking_summary"`
-	ActivitySummaries map[string]StudentActivitySummary `firestore:"activity_summaries" json:"activity_summaries"`
-	NotebookNotes     []StudentNotebookNote             `firestore:"notebook_notes" json:"notebook_notes"`
-	FeedbackSummary   StudentFeedbackSummary            `firestore:"feedback_summary" json:"feedback_summary"`
-	CreatedAt         time.Time                         `firestore:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                         `firestore:"updated_at" json:"updated_at"`
+	ID               string                           `firestore:"id" json:"id"`
+	ClassID          string                           `firestore:"class_id" json:"class_id"`
+	StudentID        string                           `firestore:"student_id" json:"student_id"`
+	StudentName      string                           `firestore:"student_name" json:"student_name"`
+	CurrentMissionID string                           `firestore:"current_mission_id" json:"current_mission_id"`
+	ThinkingSummary  StudentThinkingSummary           `firestore:"thinking_summary" json:"thinking_summary"`
+	MissionSummaries map[string]StudentMissionSummary `firestore:"mission_summaries" json:"mission_summaries"`
+	NotebookNotes    []StudentNotebookNote            `firestore:"notebook_notes" json:"notebook_notes"`
+	FeedbackSummary  StudentFeedbackSummary           `firestore:"feedback_summary" json:"feedback_summary"`
+	CreatedAt        time.Time                        `firestore:"created_at" json:"created_at"`
+	UpdatedAt        time.Time                        `firestore:"updated_at" json:"updated_at"`
 }
 
 type StudentThinkingSummary struct {
@@ -26,8 +26,8 @@ type StudentThinkingSummary struct {
 	LastUpdatedAt             time.Time `firestore:"last_updated_at" json:"last_updated_at"`
 }
 
-type StudentActivitySummary struct {
-	ActivityID         string    `firestore:"activity_id" json:"activity_id"`
+type StudentMissionSummary struct {
+	MissionID          string    `firestore:"mission_id" json:"mission_id"`
 	Status             string    `firestore:"status" json:"status"`
 	CompletedQuestions int       `firestore:"completed_questions" json:"completed_questions"`
 	TotalQuestions     int       `firestore:"total_questions" json:"total_questions"`
@@ -38,15 +38,15 @@ type StudentActivitySummary struct {
 }
 
 type StudentNotebookNote struct {
-	ID         string    `firestore:"id" json:"id"`
-	ActivityID string    `firestore:"activity_id" json:"activity_id"`
-	Skill      string    `firestore:"skill" json:"skill"`
-	Kind       string    `firestore:"kind" json:"kind"`
-	Text       string    `firestore:"text" json:"text"`
-	Evidence   []string  `firestore:"evidence" json:"evidence"`
-	Count      int       `firestore:"count" json:"count"`
-	CreatedAt  time.Time `firestore:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `firestore:"updated_at" json:"updated_at"`
+	ID        string    `firestore:"id" json:"id"`
+	MissionID string    `firestore:"mission_id" json:"mission_id"`
+	Skill     string    `firestore:"skill" json:"skill"`
+	Kind      string    `firestore:"kind" json:"kind"`
+	Text      string    `firestore:"text" json:"text"`
+	Evidence  []string  `firestore:"evidence" json:"evidence"`
+	Count     int       `firestore:"count" json:"count"`
+	CreatedAt time.Time `firestore:"created_at" json:"created_at"`
+	UpdatedAt time.Time `firestore:"updated_at" json:"updated_at"`
 }
 
 type StudentFeedbackSummary struct {
@@ -56,14 +56,14 @@ type StudentFeedbackSummary struct {
 	TooHardCount   int `firestore:"too_hard_count" json:"too_hard_count"`
 }
 
-type UpsertStudentActivitySummaryInput struct {
-	ClassID           string
-	StudentID         string
-	StudentName       string
-	CurrentActivityID string
-	ThinkingSummary   StudentThinkingSummary
-	ActivitySummary   StudentActivitySummary
-	NotebookNotes     []StudentNotebookNote
-	FeedbackSummary   StudentFeedbackSummary
-	Timestamp         time.Time
+type UpsertStudentMissionSummaryInput struct {
+	ClassID          string
+	StudentID        string
+	StudentName      string
+	CurrentMissionID string
+	ThinkingSummary  StudentThinkingSummary
+	MissionSummary   StudentMissionSummary
+	NotebookNotes    []StudentNotebookNote
+	FeedbackSummary  StudentFeedbackSummary
+	Timestamp        time.Time
 }

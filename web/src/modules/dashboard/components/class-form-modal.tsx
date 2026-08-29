@@ -170,7 +170,7 @@ export function ClassFormModal({
 
             {teacherClass ? (
               <div className="grid gap-3 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-3">
-                <ClassMeta label="Activities" value={String(teacherClass.activity_count)} />
+                <ClassMeta label="Missions" value={String(teacherClass.mission_count)} />
                 <ClassMeta label="Status" value={teacherClass.status || "active"} />
                 <ClassMeta label="Updated" value={formatDate(teacherClass.updated_at)} />
               </div>

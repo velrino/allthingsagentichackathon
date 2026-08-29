@@ -14,12 +14,12 @@ export interface IApiRequest {
 }
 
 export interface IApiStudentSession {
-  class_id: string;
+  mission_code: string;
   student_name: string;
 }
 
 export interface IApiStudentPresence {
-  activity_id: string;
+  mission_id: string;
   subject: string;
   stage_id: string;
   stage_name: string;
@@ -42,6 +42,8 @@ export interface IApiStudentSessionUser {
   };
   student: {
     class_id: string;
+    mission_id: string;
+    mission_code: string;
     student_name: string;
   };
   activity: {
@@ -49,7 +51,7 @@ export interface IApiStudentSessionUser {
     last_seen_at: string;
     login_count: number;
     current_game: {
-      activity_id: string;
+      mission_id: string;
       subject: string;
       stage_id: string;
       stage_name: string;
@@ -73,7 +75,7 @@ export interface IApiDashboardOverviewRequest {
   class_id?: string;
 }
 
-export interface IApiActivityAttachment {
+export interface IApiMissionAttachment {
   uploadcare_uuid: string;
   cdn_url: string;
   file_name: string;
@@ -81,15 +83,17 @@ export interface IApiActivityAttachment {
   size_bytes: number;
 }
 
-export interface IApiCreateTeacherClassActivityRequest {
+export interface IApiCreateTeacherClassMissionRequest {
   class_id?: string;
   class_name: string;
-  activity_name: string;
+  mission_name: string;
   subject: string;
   grade_level: string;
   learning_goal: string;
   teacher_prompt: string;
-  attachments: IApiActivityAttachment[];
+  audience_type: "all" | "selected";
+  target_student_ids: string[];
+  attachments: IApiMissionAttachment[];
 }
 
 export interface IApiUpsertTeacherClassRequest {
@@ -124,14 +128,14 @@ export interface IApiTeacherClass {
   grade_level: string;
   teacher_id: string;
   teacher: IApiTeacher;
-  active_activity_id: string;
-  activity_count: number;
+  active_mission_id: string;
+  mission_count: number;
   status: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface IApiActivityStage {
+export interface IApiMissionStage {
   id: string;
   title: string;
   goal: string;
@@ -139,7 +143,7 @@ export interface IApiActivityStage {
   unlocks_when: string;
 }
 
-export interface IApiActivityPreviewQuestion {
+export interface IApiMissionPreviewQuestion {
   id: string;
   prompt: string;
   answer_type: "multiple_choice" | "next_step" | "short_text" | string;
@@ -148,7 +152,7 @@ export interface IApiActivityPreviewQuestion {
   misconception_traps: string[];
 }
 
-export interface IApiActivityOrchestration {
+export interface IApiMissionOrchestration {
   provider: string;
   model: string;
   model_version: string;
@@ -161,26 +165,29 @@ export interface IApiActivityOrchestration {
   total_token_count: number;
 }
 
-export interface IApiTeacherClassActivity {
+export interface IApiTeacherClassMission {
   id: string;
+  mission_code: string;
   class_id: string;
   class_code: string;
   class_name: string;
-  activity_name: string;
+  mission_name: string;
   title: string;
   summary: string;
   subject: string;
   grade_level: string;
   learning_goal: string;
   teacher_prompt: string;
-  attachments: IApiActivityAttachment[];
-  preview_questions: IApiActivityPreviewQuestion[];
+  audience_type: "all" | "selected";
+  target_student_ids: string[];
+  attachments: IApiMissionAttachment[];
+  preview_questions: IApiMissionPreviewQuestion[];
   suggested_duration_minutes: number;
-  stages: IApiActivityStage[];
+  stages: IApiMissionStage[];
   suggestions: IApiSuggestion[];
   positive_signals: string[];
   improvement_signals: string[];
-  orchestration: IApiActivityOrchestration;
+  orchestration: IApiMissionOrchestration;
   status: string;
   created_by: IApiTeacher;
   updated_by: IApiTeacher;
@@ -189,12 +196,12 @@ export interface IApiTeacherClassActivity {
   updated_at: string;
 }
 
-export interface IApiTeacherClassActivityResponse {
-  activity: IApiTeacherClassActivity;
+export interface IApiTeacherClassMissionResponse {
+  mission: IApiTeacherClassMission;
 }
 
-export interface IApiTeacherClassActivitiesResponse {
-  activities: IApiTeacherClassActivity[];
+export interface IApiTeacherClassMissionsResponse {
+  missions: IApiTeacherClassMission[];
 }
 
 export interface IApiTeacherClassResponse {
@@ -231,7 +238,7 @@ export interface IApiDashboardStudent {
   last_activity_at: string;
   notebook_notes: number;
   session?: {
-    activity_id: string;
+    mission_id: string;
     subject: string;
     stage_id: string;
     stage_name: string;
@@ -246,7 +253,7 @@ export interface IApiDashboardOverviewResponse {
   class_id: string;
   class_code: string;
   teacher_class: IApiTeacherClass | null;
-  active_activity: IApiTeacherClassActivity | null;
+  active_mission: IApiTeacherClassMission | null;
   metrics: IApiDashboardMetrics;
   students: IApiDashboardStudent[];
   suggestions: IApiSuggestion[];

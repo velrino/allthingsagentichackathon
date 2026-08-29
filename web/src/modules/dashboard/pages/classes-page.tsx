@@ -6,15 +6,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
 import type {
+  IApiDashboardStudent,
   IApiTeacherClass,
-  IApiTeacherClassActivity,
+  IApiTeacherClassMission,
   IApiUpsertTeacherClassRequest,
 } from "@/backend/api/api.interface";
 import { Main } from "@/components/layout/main";
 import { Button } from "@/components/ui/button";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
-import { ActivityBuilder, type ActivityBuilderForm } from "../components/activity-builder";
+import { MissionBuilder, type MissionBuilderForm } from "../components/mission-builder";
 import { ClassFormModal } from "../components/class-form-modal";
 import { ClassesTable } from "../components/classes-table";
 import { DashboardShell } from "../components/dashboard-shell";
@@ -26,10 +27,11 @@ export function ClassesPage() {
   const auth = useTeacherAuth();
   const [teacherClasses, setTeacherClasses] = useState<IApiTeacherClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<IApiTeacherClass | null>(null);
-  const [activityClass, setActivityClass] = useState<IApiTeacherClass | null>(null);
-  const [previewActivity, setPreviewActivity] = useState<IApiTeacherClassActivity | null>(null);
+  const [missionClass, setMissionClass] = useState<IApiTeacherClass | null>(null);
+  const [missionStudents, setMissionStudents] = useState<IApiDashboardStudent[]>([]);
+  const [previewMission, setPreviewMission] = useState<IApiTeacherClassMission | null>(null);
   const [classFormOpen, setClassFormOpen] = useState(false);
-  const [activityBuilderOpen, setActivityBuilderOpen] = useState(false);
+  const [missionBuilderOpen, setMissionBuilderOpen] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [classFormError, setClassFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -79,12 +81,12 @@ export function ClassesPage() {
     () => teacherClasses.filter((teacherClass) => teacherClass.status !== "archived").length,
     [teacherClasses],
   );
-  const publishedActivities = useMemo(
-    () => teacherClasses.reduce((total, teacherClass) => total + teacherClass.activity_count, 0),
+  const publishedMissions = useMemo(
+    () => teacherClasses.reduce((total, teacherClass) => total + teacherClass.mission_count, 0),
     [teacherClasses],
   );
   const playableClasses = useMemo(
-    () => teacherClasses.filter((teacherClass) => Boolean(teacherClass.active_activity_id)).length,
+    () => teacherClasses.filter((teacherClass) => Boolean(teacherClass.active_mission_id)).length,
     [teacherClasses],
   );
 
@@ -120,14 +122,33 @@ export function ClassesPage() {
     }
   }
 
-  function handleBuildActivity(teacherClass: IApiTeacherClass) {
+  async function handleBuildMission(teacherClass: IApiTeacherClass) {
+    if (!auth.user) {
+      return;
+    }
+
     rememberSelectedClass(teacherClass.class_id);
-    setActivityClass(teacherClass);
-    setPreviewActivity(null);
-    setActivityBuilderOpen(true);
+    setMissionClass(teacherClass);
+    setMissionStudents([]);
+    setPreviewMission(null);
+    setMissionBuilderOpen(true);
+
+    try {
+      const token = await auth.user.getIdToken();
+      const response = await API.dashboard.overview(token, {
+        class_id: teacherClass.class_id,
+      });
+      setMissionStudents(response.students);
+    } catch (caughtError) {
+      setPageError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not load students for this class.",
+      );
+    }
   }
 
-  async function handleProcessActivity(value: ActivityBuilderForm) {
+  async function handleProcessMission(value: MissionBuilderForm) {
     if (!auth.user) {
       return;
     }
@@ -136,24 +157,26 @@ export function ClassesPage() {
     setPageError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassActivities.preview(token, value.class_id, {
+      const response = await API.teacherClassMissions.preview(token, value.class_id, {
         class_name: value.class_name,
-        activity_name: value.activity_name,
+        mission_name: value.mission_name,
         subject: value.subject,
         grade_level: value.grade_level,
         learning_goal: value.learning_goal,
         teacher_prompt: value.teacher_prompt,
+        audience_type: value.audience_type,
+        target_student_ids: value.target_student_ids,
         attachments: value.attachments,
       });
-      setPreviewActivity(response.activity);
+      setPreviewMission(response.mission);
     } catch (caughtError) {
-      setPageError(caughtError instanceof Error ? caughtError.message : "Could not process class activity.");
+      setPageError(caughtError instanceof Error ? caughtError.message : "Could not process class mission.");
     } finally {
       setProcessing(false);
     }
   }
 
-  async function handleApproveActivity(activity: IApiTeacherClassActivity) {
+  async function handleApproveMission(mission: IApiTeacherClassMission) {
     if (!auth.user) {
       return;
     }
@@ -162,16 +185,17 @@ export function ClassesPage() {
     setPageError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassActivities.approve(token, activity.class_id, activity.id);
-      setPreviewActivity(response.activity);
+      const response = await API.teacherClassMissions.approve(token, mission.class_id, mission.id);
+      setPreviewMission(response.mission);
 
       const classesResponse = await API.teacherClasses.list(token);
       const nextClasses = sortTeacherClasses(classesResponse.teacher_classes);
       setTeacherClasses(nextClasses);
-      setActivityClass(nextClasses.find((teacherClass) => teacherClass.class_id === activity.class_id) ?? activityClass);
-      rememberSelectedClass(activity.class_id);
+      setMissionClass(nextClasses.find((teacherClass) => teacherClass.class_id === mission.class_id) ?? missionClass);
+      rememberSelectedClass(mission.class_id);
+      setMissionBuilderOpen(false);
     } catch (caughtError) {
-      setPageError(caughtError instanceof Error ? caughtError.message : "Could not publish class activity.");
+      setPageError(caughtError instanceof Error ? caughtError.message : "Could not publish class mission.");
     } finally {
       setApproving(false);
     }
@@ -204,7 +228,7 @@ export function ClassesPage() {
           <div>
             <h1 className="text-2xl font-bold">Classes</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create class codes, define the content teachers want to reinforce, and launch student game activities.
+              Create class codes, define the content teachers want to reinforce, and launch student game missions.
             </p>
           </div>
 
@@ -229,8 +253,8 @@ export function ClassesPage() {
           />
           <MetricCard
             icon={ClipboardList}
-            label="Activities"
-            value={String(publishedActivities)}
+            label="Missions"
+            value={String(publishedMissions)}
             detail="Published across classes"
           />
           <MetricCard icon={Users} label="Students" value="0" detail="Loaded after students play" />
@@ -238,13 +262,13 @@ export function ClassesPage() {
             icon={Gamepad2}
             label="Ready to play"
             value={String(playableClasses)}
-            detail="Classes with a published activity"
+            detail="Classes with a published mission"
           />
         </section>
 
         <ClassesTable
           teacherClasses={teacherClasses}
-          onBuildActivity={handleBuildActivity}
+          onBuildMission={handleBuildMission}
           onOpenClass={handleOpenClass}
         />
 
@@ -258,19 +282,19 @@ export function ClassesPage() {
           onSubmit={handleSubmitClass}
         />
 
-        {activityClass ? (
-          <ActivityBuilder
-            key={`classes:${activityClass.class_id}:${previewActivity?.id ?? "empty"}`}
-            activeActivity={null}
+        {missionClass ? (
+          <MissionBuilder
+            key={`classes:${missionClass.class_id}:${missionBuilderOpen ? "open" : "closed"}`}
             approving={approving}
-            classId={activityClass.class_id}
-            open={activityBuilderOpen}
-            previewActivity={previewActivity}
+            classId={missionClass.class_id}
+            open={missionBuilderOpen}
+            previewMission={previewMission}
             processing={processing}
-            teacherClass={activityClass}
-            onApprove={handleApproveActivity}
-            onOpenChange={setActivityBuilderOpen}
-            onProcess={handleProcessActivity}
+            students={missionStudents}
+            teacherClass={missionClass}
+            onApprove={handleApproveMission}
+            onOpenChange={setMissionBuilderOpen}
+            onProcess={handleProcessMission}
           />
         ) : null}
       </Main>

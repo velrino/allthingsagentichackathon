@@ -3,36 +3,36 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 
 import type {
-  IApiCreateTeacherClassActivityRequest,
+  IApiCreateTeacherClassMissionRequest,
+  IApiDashboardStudent,
   IApiTeacherClass,
-  IApiTeacherClassActivity,
+  IApiTeacherClassMission,
 } from "@/backend/api/api.interface";
 import { Button } from "@/components/ui/button";
 
 import { DashboardModal } from "./dashboard-modal";
-import { uploadActivityFiles } from "../upload/uploadcare-client";
+import { uploadMissionFiles } from "../upload/uploadcare-client";
 
-export type ActivityBuilderForm = IApiCreateTeacherClassActivityRequest & {
+export type MissionBuilderForm = IApiCreateTeacherClassMissionRequest & {
   class_id: string;
 };
 
-type ActivityBuilderProps = {
-  readonly activeActivity: IApiTeacherClassActivity | null;
+type MissionBuilderProps = {
   readonly approving: boolean;
   readonly classId: string;
   /** Pre-written teacher prompt, e.g. built from the class patterns on the dashboard. */
   readonly draftPrompt?: string;
   readonly open: boolean;
-  readonly previewActivity: IApiTeacherClassActivity | null;
+  readonly previewMission: IApiTeacherClassMission | null;
   readonly processing: boolean;
+  readonly students: IApiDashboardStudent[];
   readonly teacherClass: IApiTeacherClass | null;
-  readonly onApprove: (activity: IApiTeacherClassActivity) => Promise<void>;
+  readonly onApprove: (mission: IApiTeacherClassMission) => Promise<void>;
   readonly onOpenChange: (open: boolean) => void;
-  readonly onProcess: (value: ActivityBuilderForm) => Promise<void>;
+  readonly onProcess: (value: MissionBuilderForm) => Promise<void>;
 };
 
-export function ActivityBuilder({
-  activeActivity,
+export function MissionBuilder({
   approving,
   classId,
   draftPrompt,
@@ -40,28 +40,34 @@ export function ActivityBuilder({
   onOpenChange,
   onProcess,
   open,
-  previewActivity,
+  previewMission,
   processing,
+  students,
   teacherClass,
-}: ActivityBuilderProps) {
-  const [form, setForm] = useState<ActivityBuilderForm>(() => ({
+}: MissionBuilderProps) {
+  const [form, setForm] = useState<MissionBuilderForm>(() => ({
     class_id: classId,
-    class_name: activeActivity?.class_name ?? teacherClass?.class_name ?? "",
-    activity_name: activeActivity?.activity_name ?? "",
-    subject: activeActivity?.subject ?? teacherClass?.subject ?? "",
-    grade_level: activeActivity?.grade_level ?? teacherClass?.grade_level ?? "",
-    learning_goal: activeActivity?.learning_goal ?? "",
-    teacher_prompt: draftPrompt ?? activeActivity?.teacher_prompt ?? "",
-    attachments: activeActivity?.attachments ?? [],
+    class_name: teacherClass?.class_name ?? "",
+    mission_name: "",
+    subject: teacherClass?.subject ?? "",
+    grade_level: teacherClass?.grade_level ?? "",
+    learning_goal: "",
+    teacher_prompt: draftPrompt ?? "",
+    audience_type: "all",
+    target_student_ids: [],
+    attachments: [],
   }));
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const visibleActivity = previewActivity ?? activeActivity;
-  const canApprove = visibleActivity?.status === "preview";
-  const shareCode = visibleActivity?.status === "published" ? visibleActivity.class_code : activeActivity?.class_code;
+  const visibleMission = previewMission;
+  const canApprove = visibleMission?.status === "preview";
+  const missionCode = visibleMission?.mission_code;
   const busy = processing || approving || uploading;
+  const canSubmit =
+    !busy &&
+    (form.audience_type === "all" || form.target_student_ids.length > 0);
   const selectedFileLabel = useMemo(() => {
     if (selectedFiles.length === 0) {
       return "No files selected";
@@ -76,7 +82,7 @@ export function ActivityBuilder({
 
     try {
       setUploading(selectedFiles.length > 0);
-      const uploadedAttachments = selectedFiles.length > 0 ? await uploadActivityFiles(selectedFiles) : form.attachments;
+      const uploadedAttachments = selectedFiles.length > 0 ? await uploadMissionFiles(selectedFiles) : form.attachments;
       await onProcess({
         ...form,
         class_id: classId,
@@ -88,7 +94,7 @@ export function ActivityBuilder({
       }));
       setSelectedFiles([]);
     } catch (caughtError) {
-      setUploadError(caughtError instanceof Error ? caughtError.message : "Could not upload activity files.");
+      setUploadError(caughtError instanceof Error ? caughtError.message : "Could not upload mission files.");
     } finally {
       setUploading(false);
     }
@@ -98,12 +104,21 @@ export function ActivityBuilder({
     setSelectedFiles(Array.from(event.target.files ?? []));
   }
 
+  function toggleStudent(studentId: string) {
+    setForm((current) => ({
+      ...current,
+      target_student_ids: current.target_student_ids.includes(studentId)
+        ? current.target_student_ids.filter((id) => id !== studentId)
+        : [...current.target_student_ids, studentId],
+    }));
+  }
+
   return (
     <DashboardModal
       open={open}
       onOpenChange={onOpenChange}
-      title="Emily Activity Builder"
-      description="Create a practice activity for the selected class. Review the preview before the class code is shared."
+      title="Create mission"
+      description="Add a mission for this class. Emily will generate a student preview for you to review before publishing."
       size="xl"
     >
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
@@ -117,7 +132,7 @@ export function ActivityBuilder({
                   {teacherClass?.subject || "No subject set"} {teacherClass?.grade_level ? `- ${teacherClass.grade_level}` : ""}
                 </p>
               </div>
-              <ClassCodeBadge value={teacherClass?.class_code || classId} />
+              <ClassCodeBadge label="Class code" value={teacherClass?.class_code || classId} />
             </div>
           </header>
 
@@ -133,11 +148,12 @@ export function ActivityBuilder({
               </label>
 
               <label className="grid gap-2 text-sm font-medium text-foreground">
-                Activity name
+                Mission name
                 <input
                   required
-                  value={form.activity_name}
-                  onChange={(event) => setForm((current) => ({ ...current, activity_name: event.target.value }))}
+                  minLength={2}
+                  value={form.mission_name}
+                  onChange={(event) => setForm((current) => ({ ...current, mission_name: event.target.value }))}
                   placeholder="Fractions in equations review"
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
                 />
@@ -169,6 +185,7 @@ export function ActivityBuilder({
               Learning goal
               <input
                 required
+                minLength={6}
                 value={form.learning_goal}
                 onChange={(event) => setForm((current) => ({ ...current, learning_goal: event.target.value }))}
                 placeholder="Help students review fractions inside two-step equations."
@@ -180,12 +197,95 @@ export function ActivityBuilder({
               Teacher prompt
               <textarea
                 required
+                minLength={10}
                 value={form.teacher_prompt}
                 onChange={(event) => setForm((current) => ({ ...current, teacher_prompt: event.target.value }))}
                 placeholder="What did students study today? What should Emily watch for? What should count as success?"
                 className="min-h-40 rounded-md border border-input bg-background px-3 py-3 text-sm leading-6 outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
             </label>
+
+            <fieldset className="mt-4 rounded-lg border border-border p-4">
+              <legend className="px-1 text-sm font-semibold text-foreground">
+                Who is this mission for?
+              </legend>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                This helps you organize missions. Anyone with the mission
+                code can still join.
+              </p>
+
+              <div className="mt-3 grid gap-2">
+                <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 hover:bg-muted/40">
+                  <input
+                    type="radio"
+                    name="mission-audience"
+                    value="all"
+                    checked={form.audience_type === "all"}
+                    onChange={() =>
+                      setForm((current) => ({
+                        ...current,
+                        audience_type: "all",
+                        target_student_ids: [],
+                      }))
+                    }
+                    className="mt-0.5 size-4 accent-primary"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold">
+                      Everyone in the class
+                    </span>
+                    <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                      Includes students who join the class later.
+                    </span>
+                  </span>
+                </label>
+
+                {students.length > 0 ? (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 hover:bg-muted/40">
+                    <input
+                      type="radio"
+                      name="mission-audience"
+                      value="selected"
+                      checked={form.audience_type === "selected"}
+                      onChange={() =>
+                        setForm((current) => ({
+                          ...current,
+                          audience_type: "selected",
+                        }))
+                      }
+                      className="mt-0.5 size-4 accent-primary"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold">
+                        Selected students
+                      </span>
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                        Choose one or more students as the intended audience.
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
+              </div>
+
+              {form.audience_type === "selected" ? (
+                <div className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                  {students.map((student) => (
+                    <label
+                      key={student.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-muted"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.target_student_ids.includes(student.id)}
+                        onChange={() => toggleStudent(student.id)}
+                        className="size-4 rounded accent-primary"
+                      />
+                      <span className="font-medium">{student.student_name}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </fieldset>
 
             <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
               Optional files
@@ -219,8 +319,8 @@ export function ActivityBuilder({
             ) : null}
 
             <div className="mt-5 flex justify-end">
-              <Button type="submit" disabled={busy}>
-                {busy ? "Processing..." : "Process with Emily"}
+              <Button type="submit" disabled={!canSubmit}>
+                {busy ? "Generating preview..." : "Generate preview"}
               </Button>
             </div>
           </div>
@@ -231,24 +331,26 @@ export function ActivityBuilder({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase text-cyan-700">Student preview</p>
-                <h3 className="mt-2 text-lg font-semibold">{visibleActivity?.title ?? "Waiting for Emily"}</h3>
+                <h3 className="mt-2 text-lg font-semibold">{visibleMission?.title ?? "Waiting for Emily"}</h3>
               </div>
-              {visibleActivity ? (
+              {visibleMission ? (
                 <span className="rounded-md bg-muted px-2 py-1 text-xs font-bold uppercase text-muted-foreground">
-                  {visibleActivity.status}
+                  {visibleMission.status}
                 </span>
               ) : null}
             </div>
           </header>
 
           <div className="grid gap-4 px-4 py-5 sm:px-6">
-            {shareCode ? <ClassCodeBadge value={shareCode} /> : null}
-            {visibleActivity ? (
+            {missionCode ? (
+              <ClassCodeBadge label="Mission code" value={missionCode} />
+            ) : null}
+            {visibleMission ? (
               <>
-                <p className="text-sm leading-6 text-muted-foreground">{visibleActivity.summary}</p>
+                <p className="text-sm leading-6 text-muted-foreground">{visibleMission.summary}</p>
 
                 <div className="grid gap-2">
-                  {visibleActivity.preview_questions.map((question, index) => (
+                  {visibleMission.preview_questions.map((question, index) => (
                     <article key={question.id} className="rounded-md border border-border p-3">
                       <p className="text-xs font-bold uppercase text-muted-foreground">Question {index + 1}</p>
                       <h4 className="mt-2 font-semibold text-foreground">{question.prompt}</h4>
@@ -266,7 +368,7 @@ export function ActivityBuilder({
                   ))}
                 </div>
 
-                {visibleActivity.orchestration.generated_by_mock ? (
+                {visibleMission.orchestration.generated_by_mock ? (
                   <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
                     Local fallback generated this preview.
                   </p>
@@ -276,16 +378,16 @@ export function ActivityBuilder({
                   <Button
                     type="button"
                     disabled={approving}
-                    onClick={() => onApprove(visibleActivity)}
+                    onClick={() => onApprove(visibleMission)}
                     className="bg-emerald-600 text-white hover:bg-emerald-500"
                   >
-                    {approving ? "Publishing..." : "Approve and publish"}
+                    {approving ? "Assigning..." : "Approve and assign to class"}
                   </Button>
                 ) : null}
               </>
             ) : (
               <p className="text-sm leading-6 text-muted-foreground">
-                The preview will appear here after Emily processes the activity.
+                The preview will appear here after Emily processes the mission.
               </p>
             )}
           </div>
@@ -295,10 +397,16 @@ export function ActivityBuilder({
   );
 }
 
-function ClassCodeBadge({ value }: { readonly value: string }) {
+function ClassCodeBadge({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}) {
   return (
     <div className="w-fit rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-      <span className="block text-xs font-bold uppercase text-emerald-700">Class code</span>
+      <span className="block text-xs font-bold uppercase text-emerald-700">{label}</span>
       <span className="mt-1 block font-mono text-base font-black text-emerald-900">{value}</span>
     </div>
   );

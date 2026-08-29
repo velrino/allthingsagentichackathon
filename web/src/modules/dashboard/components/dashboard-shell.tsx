@@ -96,20 +96,25 @@ function DashboardAppSidebar({
     () =>
       dashboardSidebarData.navGroups.map((group) => ({
         ...group,
-        items: group.items.map((item) =>
-          item.title === "Classes"
+        items: group.items.map((item) => {
+          const scopedItem = {
+            ...item,
+            url: resolveScopedDashboardURL(item.url, pathname),
+          };
+
+          return item.title === "Classes"
             ? {
-                ...item,
+                ...scopedItem,
                 items: teacherClasses.map((teacherClass) => ({
                   classId: teacherClass.class_id,
                   title: teacherClass.class_name.trim() || teacherClass.class_code,
                   url: `/dashboard/class/${encodeURIComponent(teacherClass.class_id)}`,
                 })),
               }
-            : item,
-        ),
+            : scopedItem;
+        }),
       })),
-    [teacherClasses],
+    [pathname, teacherClasses],
   );
 
   return (
@@ -244,20 +249,25 @@ function DashboardHeader({
         <Separator orientation="vertical" className="h-6" />
 
         <nav className="hidden items-center space-x-4 lg:flex xl:space-x-6">
-          {dashboardTopNav.map((link) => (
-            <a
-              key={link.title}
-              href={link.disabled ? undefined : link.href}
-              aria-disabled={link.disabled}
-              className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                !isActiveDashboardRoute(link.href, pathname, activeHash) && "text-muted-foreground",
-                link.disabled && "pointer-events-none opacity-50",
-              )}
-            >
-              {link.title}
-            </a>
-          ))}
+          {dashboardTopNav.map((link) => {
+            const href = resolveScopedDashboardURL(link.href, pathname);
+
+            return (
+              <a
+                key={link.title}
+                href={link.disabled ? undefined : href}
+                aria-disabled={link.disabled}
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary",
+                  !isActiveDashboardRoute(href, pathname, activeHash) &&
+                    "text-muted-foreground",
+                  link.disabled && "pointer-events-none opacity-50",
+                )}
+              >
+                {link.title}
+              </a>
+            );
+          })}
         </nav>
 
         <div className="ml-auto flex min-w-0 items-center gap-2">
@@ -359,4 +369,17 @@ function parseDashboardRoute(target: string) {
     pathname: pathname || "/dashboard",
     hash: hash ? `#${hash}` : "",
   };
+}
+
+function resolveScopedDashboardURL(target: string, pathname: string) {
+  if (!pathname.startsWith("/dashboard/class/")) {
+    return target;
+  }
+
+  const route = parseDashboardRoute(target);
+  if (route.pathname !== "/dashboard") {
+    return target;
+  }
+
+  return `${pathname}${route.hash || "#overview"}`;
 }

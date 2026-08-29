@@ -31,6 +31,8 @@ type UserProfileResponse struct {
 
 type StudentProfileResponse struct {
 	ClassID     string `json:"class_id"`
+	MissionID   string `json:"mission_id"`
+	MissionCode string `json:"mission_code"`
 	StudentName string `json:"student_name"`
 }
 
@@ -42,7 +44,7 @@ type UserActivityResponse struct {
 }
 
 type StudentGameSessionResponse struct {
-	ActivityID      string `json:"activity_id"`
+	MissionID       string `json:"mission_id"`
 	Subject         string `json:"subject"`
 	StageID         string `json:"stage_id"`
 	StageName       string `json:"stage_name"`
@@ -68,6 +70,8 @@ func ToResponse(user UserDocument) UserResponse {
 		},
 		Student: StudentProfileResponse{
 			ClassID:     user.Student.ClassID,
+			MissionID:   user.Student.MissionID,
+			MissionCode: user.Student.MissionCode,
 			StudentName: user.Student.StudentName,
 		},
 		Activity: UserActivityResponse{
@@ -75,7 +79,7 @@ func ToResponse(user UserDocument) UserResponse {
 			LastSeenAt:  formatTime(user.Activity.LastSeenAt),
 			LoginCount:  user.Activity.LoginCount,
 			CurrentGame: StudentGameSessionResponse{
-				ActivityID:      user.Activity.CurrentGame.ActivityID,
+				MissionID:       user.Activity.CurrentGame.MissionID,
 				Subject:         user.Activity.CurrentGame.Subject,
 				StageID:         user.Activity.CurrentGame.StageID,
 				StageName:       user.Activity.CurrentGame.StageName,

@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
 
 type ClassesTableProps = {
   readonly teacherClasses: IApiTeacherClass[];
-  readonly onBuildActivity: (teacherClass: IApiTeacherClass) => void;
+  readonly onBuildMission: (teacherClass: IApiTeacherClass) => void;
   readonly onOpenClass: (teacherClass: IApiTeacherClass) => void;
 };
 
-export function ClassesTable({ onBuildActivity, onOpenClass, teacherClasses }: ClassesTableProps) {
+export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: ClassesTableProps) {
   const columns = useMemo<ColumnDef<IApiTeacherClass>[]>(
     () => [
       {
@@ -64,11 +64,11 @@ export function ClassesTable({ onBuildActivity, onOpenClass, teacherClasses }: C
         },
       },
       {
-        accessorKey: "activity_count",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Activities" />,
+        accessorKey: "mission_count",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Missions" />,
         cell: ({ row }) => (
           <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
-            {row.original.activity_count}
+            {row.original.mission_count}
           </span>
         ),
         meta: {
@@ -106,14 +106,14 @@ export function ClassesTable({ onBuildActivity, onOpenClass, teacherClasses }: C
             <Button
               type="button"
               size="sm"
-              aria-label={`Build activity for ${row.original.class_name || row.original.class_code}`}
+              aria-label={`Build mission for ${row.original.class_name || row.original.class_code}`}
               onClick={(event) => {
                 event.stopPropagation();
-                onBuildActivity(row.original);
+                onBuildMission(row.original);
               }}
             >
               <ClipboardList className="size-4" aria-hidden />
-              Activity
+              Mission
             </Button>
           </div>
         ),
@@ -122,7 +122,7 @@ export function ClassesTable({ onBuildActivity, onOpenClass, teacherClasses }: C
         },
       },
     ],
-    [onBuildActivity, onOpenClass],
+    [onBuildMission, onOpenClass],
   );
 
   return (
