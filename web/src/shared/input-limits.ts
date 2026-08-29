@@ -8,7 +8,7 @@ export const INPUT_LIMITS = {
   missionQuestionOption: 240,
   missionQuestionPrompt: 1000,
   missionSummary: 2000,
-  missionTeacherPrompt: 4000,
+  missionTeacherPrompt: 1000,
   missionTitle: 160,
   search: 120,
   studentAnswer: 120,

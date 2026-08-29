@@ -460,7 +460,7 @@ func (request CreateMissionRequest) Validate() error {
 		),
 		validation.Field(&request.TeacherPrompt,
 			validation.Required,
-			validation.Length(10, 4000),
+			validation.Length(10, 1000),
 		),
 		validation.Field(&request.AudienceType,
 			validation.In("", AudienceAll, AudienceSelected),

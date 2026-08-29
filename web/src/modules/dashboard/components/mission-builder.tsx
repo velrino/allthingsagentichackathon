@@ -233,6 +233,10 @@ export function MissionBuilder({
                 placeholder="Fractions in equations review"
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
+              <CharacterCounter
+                value={form.mission_name}
+                maxLength={INPUT_LIMITS.missionName}
+              />
             </label>
 
             <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
@@ -253,6 +257,10 @@ export function MissionBuilder({
                 maxLength={INPUT_LIMITS.learningGoal}
                 placeholder="Help students review fractions inside two-step equations."
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
+              />
+              <CharacterCounter
+                value={form.learning_goal}
+                maxLength={INPUT_LIMITS.learningGoal}
               />
             </label>
 
@@ -275,17 +283,11 @@ export function MissionBuilder({
                 placeholder="What did students study today? What should Emily watch for? What should count as success?"
                 className="min-h-40 resize-none rounded-md border border-input bg-background px-3 py-3 text-sm leading-6 outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
+              <CharacterCounter
+                value={form.teacher_prompt}
+                maxLength={INPUT_LIMITS.missionTeacherPrompt}
+              />
             </label>
-
-            <div className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                Everyone in the class
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                After publishing, this mission appears automatically in the
-                classroom for every student.
-              </p>
-            </div>
 
             <div className="mt-4 grid gap-2">
               <div>
@@ -565,28 +567,36 @@ function EditableMissionPreview({
               {options.length > 0 ? (
                 <div className="mt-3 grid gap-2">
                   {options.map((option, optionIndex) => (
-                    <input
+                    <div
                       key={`${question.id}:option:${optionIndex}`}
-                      aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
-                      disabled={disabled}
-                      value={option}
-                      onChange={(event) =>
-                        updateQuestion(question.id, (current) => ({
-                          ...current,
-                          options: (current.options ?? []).map(
-                            (currentOption, index) =>
-                              index === optionIndex
-                                ? limitInput(
-                                    event.target.value,
-                                    INPUT_LIMITS.missionQuestionOption,
-                                  )
-                                : currentOption,
-                          ),
-                        }))
-                      }
-                      maxLength={INPUT_LIMITS.missionQuestionOption}
-                      className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
-                    />
+                      className="grid gap-2"
+                    >
+                      <input
+                        aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
+                        disabled={disabled}
+                        value={option}
+                        onChange={(event) =>
+                          updateQuestion(question.id, (current) => ({
+                            ...current,
+                            options: (current.options ?? []).map(
+                              (currentOption, index) =>
+                                index === optionIndex
+                                  ? limitInput(
+                                      event.target.value,
+                                      INPUT_LIMITS.missionQuestionOption,
+                                    )
+                                  : currentOption,
+                            ),
+                          }))
+                        }
+                        maxLength={INPUT_LIMITS.missionQuestionOption}
+                        className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
+                      />
+                      <CharacterCounter
+                        value={option}
+                        maxLength={INPUT_LIMITS.missionQuestionOption}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : null}
@@ -634,24 +644,48 @@ function EditablePreviewField({
   readonly value: string;
 }) {
   return (
-    <textarea
-      aria-label={ariaLabel}
-      disabled={disabled}
-      rows={minRows}
-      value={value}
-      onChange={(event) =>
-        onChange(
-          maxLength
-            ? limitInput(event.target.value, maxLength)
-            : event.target.value,
-        )
-      }
-      maxLength={maxLength}
-      className={cn(
-        "w-full resize-none rounded-md border border-transparent bg-transparent p-0 outline-none transition focus:border-ring focus:bg-background focus:px-3 focus:py-2 focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70",
-        className,
-      )}
-    />
+    <div className="grid gap-2">
+      <textarea
+        aria-label={ariaLabel}
+        disabled={disabled}
+        rows={minRows}
+        value={value}
+        onChange={(event) =>
+          onChange(
+            maxLength
+              ? limitInput(event.target.value, maxLength)
+              : event.target.value,
+          )
+        }
+        maxLength={maxLength}
+        className={cn(
+          "w-full resize-none rounded-md border border-transparent bg-transparent p-0 outline-none transition focus:border-ring focus:bg-background focus:px-3 focus:py-2 focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70",
+          className,
+        )}
+      />
+      {maxLength ? (
+        <CharacterCounter value={value} maxLength={maxLength} />
+      ) : null}
+    </div>
+  );
+}
+
+function CharacterCounter({
+  maxLength,
+  value,
+}: {
+  readonly maxLength: number;
+  readonly value: string;
+}) {
+  const currentLength = [...value].length;
+
+  return (
+    <output
+      aria-label={`${currentLength} of ${maxLength} characters used`}
+      className="-mt-1 block text-right text-xs font-normal tabular-nums text-muted-foreground"
+    >
+      {currentLength} of {maxLength}
+    </output>
   );
 }
 
