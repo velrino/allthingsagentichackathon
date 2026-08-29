@@ -35,6 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/date";
+import { INPUT_LIMITS, limitInput } from "@/shared/input-limits";
 
 type ClassroomCardItem = {
   readonly activeMissionId: string;
@@ -77,7 +78,7 @@ const simulatedClassroomTotal: number | null = null;
 
 const cardColors: readonly CardColor[] = [
   {
-    background: "#6236ff",
+    background: "#9164f9",
     foreground: "#ffffff",
     label: "Violet",
   },
@@ -321,7 +322,10 @@ export function ClassroomCardGrid({
               />
               <Input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) =>
+                  setQuery(limitInput(event.target.value, INPUT_LIMITS.search))
+                }
+                maxLength={INPUT_LIMITS.search}
                 className="h-10 bg-background ps-9"
                 placeholder="Find a classroom..."
                 aria-label="Find a classroom"
@@ -378,7 +382,7 @@ export function ClassroomCardGrid({
       ) : classrooms.length === 0 ? (
         <section className="grid min-h-[calc(100svh-6rem)] place-items-center rounded-2xl border border-dashed bg-muted/20 px-6 py-12 text-center sm:min-h-[calc(100svh-7rem)] md:min-h-[calc(100svh-8rem)]">
           <div className="max-w-sm">
-            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#6236ff] text-white shadow-sm">
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <BookOpenText className="size-5" aria-hidden />
             </span>
             <h2 className="mt-5 text-xl font-bold tracking-tight text-foreground">

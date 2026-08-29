@@ -10,7 +10,7 @@
   --card-foreground: #020617;
   --popover: #ffffff;
   --popover-foreground: #020617;
-  --primary: #6236ff;
+  --primary: #9164f9;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
@@ -21,15 +21,15 @@
   --destructive: #e11d48;
   --border: #e2e8f0;
   --input: #cbd5e1;
-  --ring: #6236ff;
+  --ring: #9164f9;
   --sidebar: #ffffff;
   --sidebar-foreground: #020617;
-  --sidebar-primary: #6236ff;
+  --sidebar-primary: #9164f9;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f1f5f9;
   --sidebar-accent-foreground: #020617;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #6236ff;
+  --sidebar-ring: #9164f9;
   --chalk-board: #1e463a;
   --chalk-frame: #6f4a2c;
   --chalk-ink: #f3f1e6;
@@ -105,7 +105,7 @@ body {
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: #ffffff;
   --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: #6236ff;
+  --primary: #9164f9;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.968 0.007 247.896);
   --secondary-foreground: oklch(0.208 0.042 265.755);
@@ -116,7 +116,7 @@ body {
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
-  --ring: #6236ff;
+  --ring: #9164f9;
   --sidebar: var(--background);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
@@ -125,7 +125,7 @@ body {
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
-  --chart-purple-1: #6236ff;
+  --chart-purple-1: #9164f9;
   --chart-purple-2: #7c4cff;
   --chart-purple-3: #9161ff;
   --chart-purple-4: #a376ff;
@@ -152,7 +152,7 @@ body {
   --card-foreground: oklch(0.984 0.003 247.858);
   --popover: oklch(0.208 0.042 265.755);
   --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: #6236ff;
+  --primary: #9164f9;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.279 0.041 260.031);
   --secondary-foreground: oklch(0.984 0.003 247.858);
@@ -164,7 +164,7 @@ body {
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: #7c4cff;
-  --chart-purple-1: #6236ff;
+  --chart-purple-1: #9164f9;
   --chart-purple-2: #7c4cff;
   --chart-purple-3: #9161ff;
   --chart-purple-4: #a376ff;
