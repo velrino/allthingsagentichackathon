@@ -17,6 +17,7 @@ import (
 
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	sharedanalytics "classgame-api/internal/shared/analytics"
 	sharedcontentpolicy "classgame-api/internal/shared/contentpolicy"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
@@ -52,6 +53,7 @@ type MissionService interface {
 }
 
 type HandlerOptions struct {
+	Analytics               sharedanalytics.Tracker
 	Authenticator           Authenticator
 	GenerationRateLimiters  GenerationRateLimiters
 	MissionTimeout          time.Duration
@@ -62,6 +64,7 @@ type HandlerOptions struct {
 }
 
 type Handler struct {
+	analytics          sharedanalytics.Tracker
 	missionService     MissionService
 	missionTimeout     time.Duration
 	authenticator      Authenticator
@@ -112,6 +115,7 @@ type ErrorResponseBody struct {
 
 func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 	handler := &Handler{
+		analytics:          options.Analytics,
 		missionService:     options.MissionService,
 		missionTimeout:     resolveMissionTimeout(options.MissionTimeout),
 		authenticator:      options.Authenticator,
@@ -180,6 +184,16 @@ func (handler *Handler) PostMissionApprove(ctx *echo.Context) error {
 	if err != nil {
 		return handler.serviceError(ctx, err)
 	}
+	sharedanalytics.Track(
+		handler.analytics,
+		requestContext,
+		sharedanalytics.EventMissionPublished,
+		identity.ProviderUserID,
+		sharedanalytics.Properties{
+			"class_id":   mission.ClassID,
+			"mission_id": mission.ID,
+		},
+	)
 
 	return ctx.JSON(http.StatusOK, map[string]any{
 		"mission": ToResponse(mission),
@@ -294,6 +308,18 @@ func (handler *Handler) createMission(ctx *echo.Context) error {
 	mission, err := handler.missionService.Preview(requestContext, identity, input)
 	if err != nil {
 		return handler.serviceError(ctx, err)
+	}
+	if strings.TrimSpace(request.MissionID) == "" {
+		sharedanalytics.Track(
+			handler.analytics,
+			requestContext,
+			sharedanalytics.EventMissionCreated,
+			identity.ProviderUserID,
+			sharedanalytics.Properties{
+				"class_id":   mission.ClassID,
+				"mission_id": mission.ID,
+			},
+		)
 	}
 
 	return ctx.JSON(http.StatusOK, map[string]any{

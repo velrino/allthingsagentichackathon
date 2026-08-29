@@ -32,6 +32,25 @@ Health check:
 curl http://localhost:4004/
 ```
 
+## Analytics and error tracking
+
+PostHog is optional locally and enabled in the production Cloud Run deploy. Configure it with
+`POSTHOG_ENABLED`, `POSTHOG_PROJECT_TOKEN`, and `POSTHOG_HOST`; `.env.example` keeps local capture
+disabled so development traffic does not pollute production analytics.
+
+All API product event names live in `internal/shared/analytics/events.go` and use the `mia_api_*`
+prefix. The API emits authoritative success events for class creation, game join, mission creation,
+publication, start, and completion. These events use the authenticated Firebase UID as the PostHog
+distinct ID and include only record IDs needed for analysis—never names, emails, prompts, or mission
+content.
+
+The server automatically reports every recovered panic and every HTTP 5xx response as a PostHog
+`$exception`, including handlers that write a 5xx JSON response directly. Browser tracing headers
+link these failures to the originating web session. Expected 4xx outcomes such as validation,
+authentication, conflicts, and rate limiting are not exceptions; the web's explicit
+`mia_web_*_failed` events cover the relevant product failures. Cloud Logging remains the source for
+raw application logs and detailed operational context.
+
 ## Runtime
 
 - `GET /` returns the health check and service dependency status.

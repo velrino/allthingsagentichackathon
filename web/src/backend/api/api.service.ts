@@ -3,13 +3,13 @@ import { IApiRequestMethod, type IApiRequest } from "./api.interface";
 const LOCAL_API_BASE_URL = "http://localhost:4004";
 const PRODUCTION_API_BASE_URL = "https://classgame-api-2057331207.us-east1.run.app";
 
-const BASE_URL =
+export const CLASSGAME_API_BASE_URL =
   process.env.NEXT_PUBLIC_CLASSGAME_API_BASE_URL?.trim() ||
   (process.env.NODE_ENV === "development" ? LOCAL_API_BASE_URL : PRODUCTION_API_BASE_URL);
 
 export const ApiResources = {
   async request(parameters: IApiRequest): Promise<Response> {
-    let url = `${BASE_URL}${parameters.path}`;
+    let url = `${CLASSGAME_API_BASE_URL}${parameters.path}`;
     const headers = new Headers(parameters.headers);
 
     if (!headers.has("Content-Type") && !(parameters.data instanceof FormData)) {

@@ -15,6 +15,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 
+	sharedanalytics "classgame-api/internal/shared/analytics"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
 )
@@ -95,6 +96,7 @@ type TutorRateLimiters struct {
 }
 
 type HandlerOptions struct {
+	Analytics                      sharedanalytics.Tracker
 	Authenticator                  Authenticator
 	StudentSessionTimeout          time.Duration
 	StudentSessionRateLimitRate    float64
@@ -108,6 +110,7 @@ type HandlerOptions struct {
 }
 
 type Handler struct {
+	analytics              sharedanalytics.Tracker
 	authenticator          Authenticator
 	studentSessionTimeout  time.Duration
 	studentLearningTimeout time.Duration
@@ -198,6 +201,7 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 		studentTutorService, _ = options.UsersService.(StudentTutorService)
 	}
 	handler := &Handler{
+		analytics:              options.Analytics,
 		authenticator:          options.Authenticator,
 		studentSessionTimeout:  resolveStudentSessionTimeout(options.StudentSessionTimeout),
 		studentLearningTimeout: resolveStudentLearningTimeout(options.StudentLearningTimeout),
@@ -319,6 +323,13 @@ func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
 		slog.Error("student session upsert failed", "error", err, "auth_method", identity.AuthMethod)
 		return jsonError(ctx, http.StatusInternalServerError, "session_failed", "Could not create student session.")
 	}
+	sharedanalytics.Track(
+		handler.analytics,
+		sessionContext,
+		sharedanalytics.EventGameJoined,
+		identity.ProviderUserID,
+		sharedanalytics.Properties{"class_id": user.SessionClass.ID},
+	)
 
 	return ctx.JSON(http.StatusOK, StudentSessionResponse{
 		User:  ToResponse(user),
@@ -366,6 +377,17 @@ func (handler *Handler) PostStudentMission(ctx *echo.Context) error {
 			return jsonError(ctx, http.StatusInternalServerError, "mission_start_failed", "Could not start this mission.")
 		}
 	}
+	sharedanalytics.Track(
+		handler.analytics,
+		requestContext,
+		sharedanalytics.EventMissionStarted,
+		identity.ProviderUserID,
+		sharedanalytics.Properties{
+			"attempt_id": user.Activity.CurrentGame.AttemptID,
+			"class_id":   user.SessionClass.ID,
+			"mission_id": user.SessionMission.ID,
+		},
+	)
 
 	return ctx.JSON(http.StatusOK, StudentSessionResponse{
 		User:    ToResponse(user),
@@ -484,6 +506,19 @@ func (handler *Handler) PostStudentLearning(ctx *echo.Context) error {
 	)
 	if err != nil {
 		return handler.studentLearningError(ctx, err)
+	}
+	if strings.EqualFold(request.Status, "completed") {
+		sharedanalytics.Track(
+			handler.analytics,
+			requestContext,
+			sharedanalytics.EventMissionCompleted,
+			identity.ProviderUserID,
+			sharedanalytics.Properties{
+				"attempt_id": attempt.ID,
+				"class_id":   attempt.ClassID,
+				"mission_id": attempt.MissionID,
+			},
+		)
 	}
 
 	resume := ToStudentLearningResume(attempt)

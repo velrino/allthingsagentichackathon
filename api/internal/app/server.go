@@ -14,11 +14,13 @@ import (
 	mission "classgame-api/internal/modules/mission"
 	teacherclass "classgame-api/internal/modules/teacher-class"
 	"classgame-api/internal/modules/users"
+	sharedanalytics "classgame-api/internal/shared/analytics"
 )
 
 const defaultRequestBodyLimitBytes int64 = 256 * 1024
 
 type Options struct {
+	Analytics           sharedanalytics.Tracker
 	Config              config.Config
 	Dashboard           dashboard.HandlerOptions
 	HealthChecks        []healthcheck.Check
@@ -39,7 +41,13 @@ func New(options Options) *echo.Echo {
 		server.IPExtractor = echo.ExtractIPDirect()
 	}
 
+	if options.Analytics != nil && options.Analytics.Enabled() {
+		server.Use(serverErrorCaptureMiddleware(options.Analytics))
+	}
 	server.Use(middleware.Recover())
+	if options.Analytics != nil && options.Analytics.Enabled() {
+		server.Use(echo.WrapMiddleware(options.Analytics.RequestContextMiddleware))
+	}
 	server.Use(middleware.BodyLimit(defaultRequestBodyLimitBytes))
 	server.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowHeaders: []string{
@@ -47,6 +55,9 @@ func New(options Options) *echo.Echo {
 			echo.HeaderAuthorization,
 			echo.HeaderContentType,
 			echo.HeaderOrigin,
+			"X-PostHog-Distinct-Id",
+			"X-PostHog-Session-Id",
+			"X-PostHog-Window-Id",
 		},
 		AllowMethods: []string{
 			http.MethodDelete,

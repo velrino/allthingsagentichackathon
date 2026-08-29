@@ -114,6 +114,12 @@ func (config Config) Validate() error {
 			validation.Required,
 			validation.Min(256),
 		),
+		"POSTHOG_PROJECT_TOKEN": validation.Validate(config.PostHogProjectToken,
+			validation.By(validateRequiredWhenEnabled(config.PostHogEnabled)),
+		),
+		"POSTHOG_HOST": validation.Validate(config.PostHogHost,
+			validation.By(validateHTTPSURL(config.PostHogEnabled, "PostHog")),
+		),
 		"REDIS_URL": validation.Validate(config.RedisURL,
 			validation.Required,
 			validation.By(validateRedisURL),
@@ -220,6 +226,10 @@ func validateMinimumLengthWhenEnabled(enabled bool, minimum int) validation.Rule
 }
 
 func validateHTTPSURLWhenEnabled(enabled bool) validation.RuleFunc {
+	return validateHTTPSURL(enabled, "Cloud Tasks")
+}
+
+func validateHTTPSURL(enabled bool, featureName string) validation.RuleFunc {
 	return func(value any) error {
 		if !enabled {
 			return nil
@@ -231,7 +241,7 @@ func validateHTTPSURLWhenEnabled(enabled bool) validation.RuleFunc {
 		}
 		parsed, err := url.Parse(strings.TrimSpace(text))
 		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return fmt.Errorf("must be an absolute https URL when Cloud Tasks is enabled")
+			return fmt.Errorf("must be an absolute https URL when %s is enabled", featureName)
 		}
 
 		return nil

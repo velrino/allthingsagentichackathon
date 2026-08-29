@@ -47,6 +47,9 @@ type Config struct {
 	GenAICredentialsJSON            string
 	GenAIRequestTimeoutSeconds      int
 	GenAIMaxOutputTokens            int
+	PostHogEnabled                  bool
+	PostHogProjectToken             string
+	PostHogHost                     string
 	RedisURL                        string
 	RedisCACertPath                 string
 	RedisCACertPEM                  string
@@ -104,6 +107,9 @@ func Load() (Config, error) {
 		GenAICredentialsJSON:            reader.getString("GENAI_CREDENTIALS_JSON", ""),
 		GenAIRequestTimeoutSeconds:      reader.getInt("GENAI_REQUEST_TIMEOUT_SECONDS", 30),
 		GenAIMaxOutputTokens:            reader.getInt("GENAI_MAX_OUTPUT_TOKENS", 4096),
+		PostHogEnabled:                  reader.getBool("POSTHOG_ENABLED", false),
+		PostHogProjectToken:             reader.getString("POSTHOG_PROJECT_TOKEN", ""),
+		PostHogHost:                     reader.getString("POSTHOG_HOST", "https://us.i.posthog.com"),
 		RedisURL:                        reader.getString("REDIS_URL", ""),
 		RedisCACertPath:                 reader.getString("REDIS_CA_CERT_PATH", ""),
 		RedisCACertPEM:                  reader.getString("REDIS_CA_CERT_PEM", ""),

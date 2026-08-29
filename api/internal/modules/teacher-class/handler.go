@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 
+	sharedanalytics "classgame-api/internal/shared/analytics"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -36,6 +37,7 @@ type TeacherClassService interface {
 }
 
 type HandlerOptions struct {
+	Analytics                    sharedanalytics.Tracker
 	Authenticator                Authenticator
 	TeacherClassTimeout          time.Duration
 	TeacherClassRateLimitRate    float64
@@ -45,6 +47,7 @@ type HandlerOptions struct {
 }
 
 type Handler struct {
+	analytics           sharedanalytics.Tracker
 	authenticator       Authenticator
 	teacherClassTimeout time.Duration
 	teacherClassService TeacherClassService
@@ -68,6 +71,7 @@ type ErrorResponseBody struct {
 
 func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 	handler := &Handler{
+		analytics:           options.Analytics,
 		authenticator:       options.Authenticator,
 		teacherClassTimeout: resolveTeacherClassTimeout(options.TeacherClassTimeout),
 		teacherClassService: options.TeacherClassService,
@@ -97,7 +101,6 @@ func (handler *Handler) GetTeacherClasses(ctx *echo.Context) error {
 	if err != nil {
 		return handler.serviceError(ctx, err)
 	}
-
 	return ctx.JSON(http.StatusOK, map[string]any{
 		"teacher_classes": ToResponses(teacherClasses),
 	})
@@ -133,6 +136,15 @@ func (handler *Handler) PostTeacherClass(ctx *echo.Context) error {
 	})
 	if err != nil {
 		return handler.serviceError(ctx, err)
+	}
+	if strings.TrimSpace(request.ClassID) == "" {
+		sharedanalytics.Track(
+			handler.analytics,
+			requestContext,
+			sharedanalytics.EventClassCreated,
+			identity.ProviderUserID,
+			sharedanalytics.Properties{"class_id": teacherClass.ClassID},
+		)
 	}
 
 	return ctx.JSON(http.StatusOK, map[string]any{

@@ -24,6 +24,7 @@ import (
 	teacherclass "classgame-api/internal/modules/teacher-class"
 	"classgame-api/internal/modules/tenant"
 	"classgame-api/internal/modules/users"
+	sharedanalytics "classgame-api/internal/shared/analytics"
 	"classgame-api/internal/shared/cloudtasksqueue"
 	sharedgoogle "classgame-api/internal/shared/google"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
@@ -51,11 +52,30 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (runErr error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	analyticsClient, err := sharedanalytics.New(sharedanalytics.Options{
+		Enabled:      cfg.PostHogEnabled,
+		Environment:  cfg.AppEnv,
+		Host:         cfg.PostHogHost,
+		ProjectToken: cfg.PostHogProjectToken,
+	})
+	if err != nil {
+		return fmt.Errorf("initialize analytics: %w", err)
+	}
+	defer func() {
+		if runErr != nil {
+			analyticsClient.CaptureException(context.Background(), runErr, sharedanalytics.Properties{
+				"error_source": "process",
+			})
+		}
+		if err := analyticsClient.Close(); err != nil {
+			slog.Error("analytics disconnect failed", "error", err)
+		}
+	}()
 
 	startedAt := time.Now()
 
@@ -351,16 +371,19 @@ func run() error {
 	authenticator := sharedfirebase.NewFirebaseAuthenticator(firebaseConnection.AuthClient())
 
 	server := app.New(app.Options{
-		Config: cfg,
+		Analytics: analyticsClient,
+		Config:    cfg,
 		Dashboard: dashboard.HandlerOptions{
 			Authenticator:    authenticator,
 			DashboardService: dashboardService,
 		},
 		TeacherClass: teacherclass.HandlerOptions{
+			Analytics:           analyticsClient,
 			Authenticator:       authenticator,
 			TeacherClassService: teacherClassService,
 		},
 		Mission: mission.HandlerOptions{
+			Analytics:     analyticsClient,
 			Authenticator: authenticator,
 			GenerationRateLimiters: mission.GenerationRateLimiters{
 				PerIPHour:        missionGenerationPerIPHourLimiter,
@@ -385,6 +408,7 @@ func run() error {
 		},
 		StartedAt: startedAt,
 		Users: users.HandlerOptions{
+			Analytics:     analyticsClient,
 			Authenticator: authenticator,
 			TutorRateLimiters: users.TutorRateLimiters{
 				PerIPHour:        studentTutorPerIPHourLimiter,
@@ -410,6 +434,7 @@ func run() error {
 		"genai_model", cfg.GenAIModel,
 		"redis_enabled", redisConnection.IsEnabled(),
 		"cloud_tasks_enabled", cfg.CloudTasksEnabled,
+		"posthog_enabled", analyticsClient.Enabled(),
 		"firebase_storage_bucket", cfg.FirebaseStorageBucket,
 		"last_deploy", startedAt.Format(time.RFC3339Nano),
 	)

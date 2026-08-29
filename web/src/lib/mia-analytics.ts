@@ -1,5 +1,7 @@
 import posthog, { type Properties } from "posthog-js";
 
+import { CLASSGAME_API_BASE_URL } from "@/backend/api/api.service";
+
 const POSTHOG_PROJECT_TOKEN =
   "phc_rSqPFFgY7jqf7XxP7QAXXUhZ76Wt9HtJGKZx4A2EXfz4";
 const POSTHOG_API_HOST = "https://us.i.posthog.com";
@@ -107,6 +109,7 @@ export function initializeMiaAnalytics() {
     capture_pageview: false,
     capture_performance: false,
     disable_session_recording: true,
+    tracing_headers: [new URL(CLASSGAME_API_BASE_URL).hostname],
     capture_exceptions: {
       capture_console_errors: true,
       capture_unhandled_errors: true,
