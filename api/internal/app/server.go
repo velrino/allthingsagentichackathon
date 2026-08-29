@@ -30,6 +30,11 @@ type Options struct {
 func New(options Options) *echo.Echo {
 	server := echo.New()
 	server.HTTPErrorHandler = httpErrorHandler
+	if options.Config.AppEnv == "production" {
+		server.IPExtractor = echo.ExtractIPFromXFFHeader()
+	} else {
+		server.IPExtractor = echo.ExtractIPDirect()
+	}
 
 	server.Use(middleware.Recover())
 	server.Use(middleware.CORSWithConfig(middleware.CORSConfig{

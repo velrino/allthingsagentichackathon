@@ -178,7 +178,7 @@ curl -X POST http://localhost:4004/teacher-classes/ALG-2026-A/missions/$MISSION_
   --data '{"expected_draft_revision": 1}'
 ```
 
-Preview generation is limited both by IP and by authenticated teacher in Redis. A stale `expected_draft_revision` returns `409` instead of overwriting a draft generated in another tab.
+Preview generation is limited in Redis to 6 requests/minute and 30/hour per authenticated teacher, plus 120/hour per IP. A stale `expected_draft_revision` returns `409` instead of overwriting a draft generated in another tab.
 
 ## Cloud Tasks workers
 
@@ -267,6 +267,12 @@ observation and retrieval provenance remain in Firestore. Untrusted student or
 attachment text cannot override the education scope, request another student's
 data, expose teacher memory or solicit hidden chain-of-thought.
 
+Tutor generation uses the local Echo limiter for bursts and Redis across every
+Cloud Run instance: 12 requests/minute and 60/hour per anonymous student, plus
+180/minute and 900/hour per IP so one classroom network still has headroom.
+Each three-question attempt can generate at most 12 tutor turns. Replaying an
+existing `event_id` returns its stored turn before invoking Gemini.
+
 Completed or abandoned student attempts use a separate structured Gemini
 workflow. Gemini receives the mission context, previous persistent memory and
 only observable interaction evidence. It produces a teacher-facing
@@ -275,6 +281,10 @@ retrieve on a future turn. Student text is treated as untrusted data, and the
 model is explicitly forbidden from inventing or claiming to reveal private
 chain-of-thought, diagnoses, grades, rankings or sensitive traits. If Gemini is
 unavailable, the API builds a truthful flow directly from the recorded events.
+Trace and class-synthesis generation share a Redis budget of 180 model calls
+per class/hour; when the quota or Redis is unavailable, the observable local
+trace is finalized without spending model tokens. Completed attempts are
+immutable, preventing revised snapshots from repeatedly regenerating insights.
 
 Class-level synthesis clusters the latest finalized traces across every student
 in the class. The dashboard listens to `student_mission_attempts` and

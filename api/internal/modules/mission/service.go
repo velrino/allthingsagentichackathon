@@ -468,8 +468,11 @@ func normalizeDraftEdits(edits MissionDraftEdits) MissionDraftEdits {
 func normalizeEditedPreviewQuestions(
 	questions []orchestrator.PreviewQuestion,
 ) []orchestrator.PreviewQuestion {
-	normalized := make([]orchestrator.PreviewQuestion, 0, len(questions))
+	normalized := make([]orchestrator.PreviewQuestion, 0, min(len(questions), orchestrator.StudentPreviewQuestionLimit()))
 	for index, question := range questions {
+		if len(normalized) >= orchestrator.StudentPreviewQuestionLimit() {
+			break
+		}
 		id := strings.TrimSpace(question.ID)
 		if id == "" {
 			id = fmt.Sprintf("question-%d", index+1)
@@ -481,17 +484,19 @@ func normalizeEditedPreviewQuestions(
 			continue
 		}
 
-		answerType := strings.ToLower(normalizeText(question.AnswerType))
-		if answerType == "" {
-			answerType = "short_text"
-		}
+		answerType := "multiple_choice"
+		options := orchestrator.NormalizeMultipleChoiceOptions(
+			expectedAnswer,
+			normalizeTextList(question.Options, 4),
+			normalizeTextList(question.MisconceptionTraps, 4),
+		)
 
 		normalized = append(normalized, orchestrator.PreviewQuestion{
 			ID:                 id,
 			StageID:            strings.TrimSpace(question.StageID),
 			Prompt:             prompt,
 			AnswerType:         answerType,
-			Options:            normalizeTextList(question.Options, 8),
+			Options:            options,
 			ExpectedAnswer:     expectedAnswer,
 			ExplanationSteps:   normalizeTextList(question.ExplanationSteps, 8),
 			MisconceptionTraps: normalizeTextList(question.MisconceptionTraps, 8),

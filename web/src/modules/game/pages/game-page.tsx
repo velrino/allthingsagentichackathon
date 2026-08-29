@@ -1,6 +1,9 @@
 "use client";
 
+import { signOut } from "firebase/auth";
 import { useRef } from "react";
+
+import { getStudentFirebaseAuth } from "@/shared/firebase/client";
 
 import { Chalkboard } from "../components/chalkboard";
 import { GameCanvas } from "../components/game-canvas";
@@ -8,6 +11,7 @@ import { GameHud } from "../components/game-hud";
 import { sourceStageID, stageLabel } from "../content/game-mission";
 import { useGameSession } from "../state/use-game-session";
 import { StudentSessionGate } from "../student-session/student-session-gate";
+import { clearStudentMissionSession } from "../student-session/student-mission-session";
 import { useStudentPresence } from "../student-session/use-student-presence";
 import type { MovementState } from "../types/game";
 
@@ -32,6 +36,12 @@ export function GamePage() {
     status: presenceStatus,
   }, { enabled: session.hydrated });
 
+  function handleEndStudentSession() {
+    handlers.reset();
+    clearStudentMissionSession();
+    void signOut(getStudentFirebaseAuth()).catch(() => undefined);
+  }
+
   return (
     <StudentSessionGate>
       <main className="relative isolate h-dvh overflow-hidden bg-[#05070d] text-white">
@@ -44,11 +54,14 @@ export function GamePage() {
             progress={session.memory.progress}
             explanationStyle={session.memory.preferences.explanationStyle}
             onChoose={handlers.choose}
+            onWriteAnswer={handlers.writeAnswer}
             onStep={handlers.step}
             onWhy={handlers.why}
             onExplainNext={handlers.explainNext}
             onFeedback={handlers.feedback}
             onContinue={handlers.continue}
+            onStand={handlers.stand}
+            onEndSession={handleEndStudentSession}
           />
         ) : session.hydrated ? (
           <GameHud

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { DashboardModal } from "./dashboard-modal";
 import { MissionFlowPreview } from "./mission-flow-preview";
 import { MissionFileUploader } from "../upload/mission-file-uploader";
+import { normalizeMissionPreviewQuestions } from "../utils/mission-preview";
 import { missionHasPublishedRevision } from "../utils/mission-lifecycle";
 
 export type MissionBuilderForm = IApiCreateTeacherClassMissionRequest & {
@@ -576,6 +577,10 @@ function EditableMissionPreview({
   mission,
   onMissionChange,
 }: EditableMissionPreviewProps) {
+  const previewQuestions = normalizeMissionPreviewQuestions(
+    mission.preview_questions,
+  );
+
   function updateQuestion(
     questionId: string,
     updater: (
@@ -584,7 +589,9 @@ function EditableMissionPreview({
   ) {
     onMissionChange((current) => ({
       ...current,
-      preview_questions: current.preview_questions.map((question) =>
+      preview_questions: normalizeMissionPreviewQuestions(
+        current.preview_questions,
+      ).map((question) =>
         question.id === questionId ? updater(question) : question,
       ),
     }));
@@ -614,74 +621,79 @@ function EditableMissionPreview({
       </label>
 
       <div className="grid gap-2">
-        {mission.preview_questions.map((question, index) => (
-          <article
-            key={question.id}
-            className="rounded-md border border-border p-3"
-          >
-            <p className="text-xs font-bold uppercase text-muted-foreground">
-              Question {index + 1}
-            </p>
+        {previewQuestions.map((question, index) => {
+          const options = question.options ?? [];
 
-            <label className="mt-3 grid gap-2 text-sm font-medium text-foreground">
-              Prompt
-              <EditablePreviewField
-                ariaLabel={`Question ${index + 1} prompt`}
-                disabled={disabled}
-                minRows={3}
-                value={question.prompt}
-                onChange={(prompt) =>
-                  updateQuestion(question.id, (current) => ({
-                    ...current,
-                    prompt,
-                  }))
-                }
-                className="font-semibold text-foreground"
-              />
-            </label>
+          return (
+            <article
+              key={question.id}
+              className="rounded-md border border-border p-3"
+            >
+              <p className="text-xs font-bold uppercase text-muted-foreground">
+                Question {index + 1}
+              </p>
 
-            {question.options.length > 0 ? (
-              <div className="mt-3 grid gap-2">
-                {question.options.map((option, optionIndex) => (
-                  <input
-                    key={`${question.id}:option:${optionIndex}`}
-                    aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
-                    disabled={disabled}
-                    value={option}
-                    onChange={(event) =>
-                      updateQuestion(question.id, (current) => ({
-                        ...current,
-                        options: current.options.map((currentOption, index) =>
-                          index === optionIndex
-                            ? event.target.value
-                            : currentOption,
-                        ),
-                      }))
-                    }
-                    className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
-                  />
-                ))}
-              </div>
-            ) : null}
+              <label className="mt-3 grid gap-2 text-sm font-medium text-foreground">
+                Prompt
+                <EditablePreviewField
+                  ariaLabel={`Question ${index + 1} prompt`}
+                  disabled={disabled}
+                  minRows={3}
+                  value={question.prompt}
+                  onChange={(prompt) =>
+                    updateQuestion(question.id, (current) => ({
+                      ...current,
+                      prompt,
+                    }))
+                  }
+                  className="font-semibold text-foreground"
+                />
+              </label>
 
-            <label className="mt-3 grid gap-2 text-sm font-medium text-emerald-700">
-              Expected answer
-              <EditablePreviewField
-                ariaLabel={`Question ${index + 1} expected answer`}
-                disabled={disabled}
-                minRows={2}
-                value={question.expected_answer}
-                onChange={(expectedAnswer) =>
-                  updateQuestion(question.id, (current) => ({
-                    ...current,
-                    expected_answer: expectedAnswer,
-                  }))
-                }
-                className="font-semibold text-emerald-700"
-              />
-            </label>
-          </article>
-        ))}
+              {options.length > 0 ? (
+                <div className="mt-3 grid gap-2">
+                  {options.map((option, optionIndex) => (
+                    <input
+                      key={`${question.id}:option:${optionIndex}`}
+                      aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
+                      disabled={disabled}
+                      value={option}
+                      onChange={(event) =>
+                        updateQuestion(question.id, (current) => ({
+                          ...current,
+                          options: (current.options ?? []).map(
+                            (currentOption, index) =>
+                              index === optionIndex
+                                ? event.target.value
+                                : currentOption,
+                          ),
+                        }))
+                      }
+                      className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              <label className="mt-3 grid gap-2 text-sm font-medium text-emerald-700">
+                Expected answer
+                <EditablePreviewField
+                  ariaLabel={`Question ${index + 1} expected answer`}
+                  disabled={disabled}
+                  minRows={2}
+                  value={question.expected_answer}
+                  onChange={(expectedAnswer) =>
+                    updateQuestion(question.id, (current) => ({
+                      ...current,
+                      expected_answer: expectedAnswer,
+                    }))
+                  }
+                  className="font-semibold text-emerald-700"
+                />
+              </label>
+            </article>
+          );
+        })}
       </div>
     </div>
   );
@@ -755,11 +767,15 @@ function PreviewLoadingOverlay() {
 }
 
 function previewMissionCanBeApproved(mission: IApiTeacherClassMission) {
+  const previewQuestions = normalizeMissionPreviewQuestions(
+    mission.preview_questions,
+  );
+
   return (
     mission.title.trim().length >= 2 &&
     mission.summary.trim().length >= 10 &&
-    mission.preview_questions.length > 0 &&
-    mission.preview_questions.every(
+    previewQuestions.length > 0 &&
+    previewQuestions.every(
       (question) =>
         question.prompt.trim().length >= 2 &&
         question.expected_answer.trim().length > 0,

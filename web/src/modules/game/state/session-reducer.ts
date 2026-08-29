@@ -11,6 +11,7 @@ import {
   FALLBACK_GAME_MISSION,
   getMissionMisconception,
   getMissionQuestion,
+  normalizeMissionAnswer,
   type GameMission,
 } from "../content/game-mission";
 import { POD_ORDER, type FeedbackValue, type PodId } from "../types/game";
@@ -66,6 +67,7 @@ export type SessionAction =
   | { type: "stand" }
   | { type: "walk" }
   | { type: "choose"; index: number; now: number }
+  | { type: "write-answer"; text: string; now: number }
   | { type: "step"; index: number; now: number }
   | { type: "why"; reasoning: { misconceptionId: string } | { text: string }; now: number }
   | { type: "explain-next" }
@@ -313,6 +315,21 @@ function limitedEventText(value: string, length = 400) {
   return [...value].slice(0, length).join("");
 }
 
+function correctChoiceText(question: Question) {
+  return question.kind === "choice"
+    ? question.options.find((option) => option.correct)?.text ?? ""
+    : "";
+}
+
+function choiceAnswerIsCorrect(question: Question, answer: string) {
+  const expected = correctChoiceText(question);
+
+  return (
+    expected !== "" &&
+    normalizeMissionAnswer(answer) === normalizeMissionAnswer(expected)
+  );
+}
+
 function leaveSeat(session: Session, memory: StudentMemory, tutorPod: PodId, tutorLine: string): Session {
   return { ...session, memory, lesson: null, seatedAt: null, tutorPod, tutorLine };
 }
@@ -438,6 +455,58 @@ export function sessionReducer(session: Session, action: SessionAction): Session
               session.mission,
               option.misconception,
             ),
+          },
+        },
+      };
+    }
+
+    case "write-answer": {
+      const { lesson } = session;
+      const answer = action.text.trim();
+
+      if (
+        !lesson ||
+        lesson.phase !== "question" ||
+        lesson.question.kind !== "choice" ||
+        answer.length === 0
+      ) {
+        return session;
+      }
+
+      if (choiceAnswerIsCorrect(lesson.question, answer)) {
+        return {
+          ...session,
+          memory: appendLearningEvent(session.memory, {
+            type: "answer",
+            stageId: lesson.pod,
+            questionId: lesson.question.id,
+            title: limitedEventText(questionLabel(lesson.question), 150),
+            detail: limitedEventText(`Wrote "${answer}".`),
+            outcome: "correct",
+            occurredAt: action.now,
+          }),
+          lesson: { ...lesson, phase: "correct" },
+        };
+      }
+
+      return {
+        ...session,
+        memory: appendLearningEvent(session.memory, {
+          type: "answer",
+          stageId: lesson.pod,
+          questionId: lesson.question.id,
+          title: limitedEventText(questionLabel(lesson.question), 150),
+          detail: limitedEventText(`Wrote "${answer}".`),
+          outcome: "incorrect",
+          occurredAt: action.now,
+        }),
+        lesson: {
+          ...lesson,
+          phase: "why",
+          clean: false,
+          wrong: {
+            chosen: answer,
+            misconception: null,
           },
         },
       };

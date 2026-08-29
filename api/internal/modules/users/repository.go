@@ -246,6 +246,10 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 			traceState = existing.TraceState
 			finalizeRequestedAt = existing.FinalizeRequestedAt
 			tutorTurns = existing.TutorTurns
+			if existing.Status == "completed" {
+				attempt = existing
+				return nil
+			}
 			if existing.Snapshot.Revision >= input.Snapshot.Revision {
 				attempt = existing
 				return nil
@@ -257,9 +261,6 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 				finalizeRequestedAt = time.Time{}
 			} else if existing.Trace.Finalized && existing.Trace.EventCount == len(input.Snapshot.Events) {
 				trace = existing.Trace
-			}
-			if existing.Status == "completed" {
-				input.Status = "completed"
 			}
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read learning attempt: %w", err)

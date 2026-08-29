@@ -368,7 +368,7 @@ func activeMissionQuestionCount(activeMission *mission.MissionDocument) int {
 		return 0
 	}
 
-	return len(activeMission.PreviewQuestions)
+	return min(len(activeMission.PreviewQuestions), orchestrator.StudentPreviewQuestionLimit())
 }
 
 func latestStudentAttempt(

@@ -29,6 +29,7 @@ import {
 import type { Question } from "../content/mission";
 import {
   buildGameMission,
+  normalizeMissionAnswer,
   slotForStageID,
   sourceQuestionID,
   sourceStageID,
@@ -477,6 +478,41 @@ export function useGameSession() {
           prompt: questionPrompt(lesson.question),
           student_response: option.text,
           expected_answer: expectedAnswer(lesson.question),
+          outcome,
+          explicit_reasoning: "",
+          feedback: "",
+        });
+      },
+      writeAnswer: (text: string) => {
+        const lesson = session.lesson;
+        const answer = text.trim();
+        if (lesson?.question.kind !== "choice" || answer.length === 0) {
+          return;
+        }
+        const now = Date.now();
+        const expected = expectedAnswer(lesson.question);
+        const outcome =
+          expected !== "" &&
+          normalizeMissionAnswer(answer) === normalizeMissionAnswer(expected)
+            ? "correct"
+            : "incorrect";
+        const eventID = learningEventID(
+          now,
+          session.memory.eventSequence + 1,
+        );
+        dispatch({ type: "write-answer", text: answer, now });
+        void requestTutorTurn(lesson.question.id, {
+          event_id: eventID,
+          type: "answer",
+          stage_id: sourceStageID(
+            session.mission,
+            lesson.pod,
+            lesson.question.id,
+          ),
+          question_id: sourceQuestionID(session.mission, lesson.question.id),
+          prompt: questionPrompt(lesson.question),
+          student_response: answer,
+          expected_answer: expected,
           outcome,
           explicit_reasoning: "",
           feedback: "",

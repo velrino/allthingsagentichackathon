@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
+	sharedratelimit "classgame-api/internal/shared/ratelimit"
 )
 
 const (
@@ -77,6 +78,13 @@ type StudentTutorService interface {
 	) (StudentTutorTurn, error)
 }
 
+type TutorRateLimiters struct {
+	PerIPHour        sharedratelimit.Limiter
+	PerIPMinute      sharedratelimit.Limiter
+	PerStudentHour   sharedratelimit.Limiter
+	PerStudentMinute sharedratelimit.Limiter
+}
+
 type HandlerOptions struct {
 	Authenticator                  Authenticator
 	StudentSessionTimeout          time.Duration
@@ -86,6 +94,7 @@ type HandlerOptions struct {
 	StudentLearningTimeout         time.Duration
 	StudentLearningService         StudentLearningService
 	StudentTutorService            StudentTutorService
+	TutorRateLimiters              TutorRateLimiters
 	UsersService                   UsersService
 }
 
@@ -95,6 +104,7 @@ type Handler struct {
 	studentLearningTimeout time.Duration
 	studentLearningService StudentLearningService
 	studentTutorService    StudentTutorService
+	tutorRateLimiters      TutorRateLimiters
 	usersService           UsersService
 }
 
@@ -176,6 +186,7 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 		studentLearningTimeout: resolveStudentLearningTimeout(options.StudentLearningTimeout),
 		studentLearningService: studentLearningService,
 		studentTutorService:    studentTutorService,
+		tutorRateLimiters:      options.TutorRateLimiters,
 		usersService:           options.UsersService,
 	}
 
@@ -423,6 +434,10 @@ func (handler *Handler) PostStudentTutorTurn(ctx *echo.Context) error {
 	if err != nil || !ok {
 		return err
 	}
+	limited, err := handler.limitTutorGeneration(requestContext, ctx, identity)
+	if err != nil || limited {
+		return err
+	}
 
 	turn, err := handler.studentTutorService.SaveStudentTutorTurn(
 		requestContext,
@@ -450,6 +465,34 @@ func (handler *Handler) PostStudentTutorTurn(ctx *echo.Context) error {
 	})
 }
 
+func (handler *Handler) limitTutorGeneration(
+	ctx context.Context,
+	echoCtx *echo.Context,
+	identity sharedfirebase.Identity,
+) (bool, error) {
+	studentIdentifier := string(identity.Provider) + ":" + identity.ProviderUserID
+	ipIdentifier := "ip:" + echoCtx.RealIP()
+	policy, err := sharedratelimit.Evaluate(ctx,
+		sharedratelimit.Rule{Limiter: handler.tutorRateLimiters.PerStudentMinute, Identifier: "student:" + studentIdentifier},
+		sharedratelimit.Rule{Limiter: handler.tutorRateLimiters.PerStudentHour, Identifier: "student:" + studentIdentifier},
+		sharedratelimit.Rule{Limiter: handler.tutorRateLimiters.PerIPMinute, Identifier: ipIdentifier},
+		sharedratelimit.Rule{Limiter: handler.tutorRateLimiters.PerIPHour, Identifier: ipIdentifier},
+	)
+	if err != nil {
+		slog.Error("student tutor rate limiter failed", "error", err)
+		return true, jsonError(echoCtx, http.StatusServiceUnavailable, "rate_limit_unavailable", "Student tutor is temporarily unavailable.")
+	}
+	if !policy.Evaluated {
+		return false, nil
+	}
+
+	sharedratelimit.SetResponseHeaders(echoCtx.Response().Header(), policy.Decision)
+	if !policy.Decision.Allowed {
+		return true, jsonError(echoCtx, http.StatusTooManyRequests, "tutor_rate_limited", "Too many tutor requests. Wait a moment and try again.")
+	}
+	return false, nil
+}
+
 func (handler *Handler) studentLearningError(ctx *echo.Context, err error) error {
 	switch {
 	case errors.Is(err, ErrStudentRequiresAnonymousAuth):
@@ -464,6 +507,8 @@ func (handler *Handler) studentLearningError(ctx *echo.Context, err error) error
 		return jsonError(ctx, http.StatusBadRequest, "question_not_found", "The question is not part of the published mission.")
 	case errors.Is(err, ErrMissionRevisionNotFound):
 		return jsonError(ctx, http.StatusConflict, "mission_revision_not_found", "The published mission revision for this attempt is unavailable.")
+	case errors.Is(err, ErrStudentTutorTurnLimit):
+		return jsonError(ctx, http.StatusTooManyRequests, "tutor_turn_limit_reached", "This mission has reached its tutor request limit.")
 	default:
 		slog.Error("student learning request failed", "error", err)
 		return jsonError(ctx, http.StatusInternalServerError, "student_learning_failed", "Could not save student learning.")

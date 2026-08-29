@@ -5,6 +5,12 @@ func missionBlueprintSchema() map[string]any {
 		"type":  "array",
 		"items": map[string]any{"type": "string"},
 	}
+	choiceOptions := map[string]any{
+		"type":     "array",
+		"minItems": 3,
+		"maxItems": 4,
+		"items":    map[string]any{"type": "string"},
+	}
 
 	return map[string]any{
 		"type":                 "object",
@@ -67,8 +73,8 @@ func missionBlueprintSchema() map[string]any {
 			},
 			"preview_questions": map[string]any{
 				"type":     "array",
-				"minItems": 3,
-				"maxItems": 6,
+				"minItems": maxStudentPreviewQuestions,
+				"maxItems": maxStudentPreviewQuestions,
 				"items": map[string]any{
 					"type":                 "object",
 					"additionalProperties": false,
@@ -86,8 +92,8 @@ func missionBlueprintSchema() map[string]any {
 						"id":                  map[string]any{"type": "string"},
 						"stage_id":            map[string]any{"type": "string"},
 						"prompt":              map[string]any{"type": "string"},
-						"answer_type":         map[string]any{"type": "string", "enum": []string{"multiple_choice", "next_step", "short_text"}},
-						"options":             stringArray,
+						"answer_type":         map[string]any{"type": "string", "enum": []string{"multiple_choice"}},
+						"options":             choiceOptions,
 						"expected_answer":     map[string]any{"type": "string"},
 						"explanation_steps":   stringArray,
 						"misconception_traps": stringArray,

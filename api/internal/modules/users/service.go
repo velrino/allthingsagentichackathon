@@ -13,6 +13,7 @@ import (
 	"classgame-api/internal/modules/orchestrator"
 	"classgame-api/internal/modules/tenant"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
+	sharedratelimit "classgame-api/internal/shared/ratelimit"
 )
 
 var ErrStudentRequiresAnonymousAuth = errors.New("student session requires anonymous auth")
@@ -22,6 +23,9 @@ var ErrStudentMissionMismatch = errors.New("student mission does not match curre
 var ErrStudentAttemptNotFound = errors.New("student learning attempt not found")
 var ErrStudentQuestionNotFound = errors.New("student mission question not found")
 var ErrMissionRevisionNotFound = errors.New("published student mission revision not found")
+var ErrStudentTutorTurnLimit = errors.New("student tutor turn limit reached")
+
+const maxGeneratedTutorTurnsPerAttempt = 12
 
 type MissionReader interface {
 	GetByCode(context.Context, string) (mission.MissionDocument, bool, error)
@@ -49,13 +53,14 @@ type ClassLearningGenerator interface {
 }
 
 type Service struct {
-	abandonmentWindow      time.Duration
-	learningTaskEnqueuer   LearningTaskEnqueuer
-	learningTraceGenerator LearningTraceGenerator
-	tutorTurnGenerator     TutorTurnGenerator
-	classLearningGenerator ClassLearningGenerator
-	missionReader          MissionReader
-	repository             *Repository
+	abandonmentWindow         time.Duration
+	learningTaskEnqueuer      LearningTaskEnqueuer
+	learningGenerationLimiter sharedratelimit.Limiter
+	learningTraceGenerator    LearningTraceGenerator
+	tutorTurnGenerator        TutorTurnGenerator
+	classLearningGenerator    ClassLearningGenerator
+	missionReader             MissionReader
+	repository                *Repository
 }
 
 func NewService(
@@ -85,6 +90,10 @@ func (service *Service) ConfigureLearningTasks(
 	if abandonmentWindow > 0 {
 		service.abandonmentWindow = abandonmentWindow
 	}
+}
+
+func (service *Service) ConfigureLearningGenerationLimiter(limiter sharedratelimit.Limiter) {
+	service.learningGenerationLimiter = limiter
 }
 
 func (service *Service) UpsertStudent(
@@ -323,6 +332,12 @@ func (service *Service) SaveStudentTutorTurn(
 	if !exists {
 		return StudentTutorTurn{}, ErrStudentAttemptNotFound
 	}
+	if existingTurn, exists := existingStudentTutorTurn(attempt.TutorTurns, input.EventID); exists {
+		return existingTurn, nil
+	}
+	if studentTutorTurnLimitReached(attempt.TutorTurns) {
+		return StudentTutorTurn{}, ErrStudentTutorTurnLimit
+	}
 	missionDocument, err := service.missionForAttempt(
 		ctx,
 		attempt,
@@ -481,10 +496,14 @@ func (service *Service) finalizeStudentAttempt(
 	)
 	trace := orchestrator.BuildObservedLearningTrace(traceInput, "learning trace generator is not configured")
 	if service.learningTraceGenerator != nil {
-		trace, err = service.learningTraceGenerator.BuildLearningTrace(ctx, traceInput)
-		if err != nil {
-			_ = service.repository.SetStudentAttemptTraceState(ctx, attempt.ID, "failed", time.Now())
-			return StudentMissionAttemptDocument{}, err
+		if service.allowLearningGeneration(ctx, attempt.ClassID) {
+			trace, err = service.learningTraceGenerator.BuildLearningTrace(ctx, traceInput)
+			if err != nil {
+				_ = service.repository.SetStudentAttemptTraceState(ctx, attempt.ID, "failed", time.Now())
+				return StudentMissionAttemptDocument{}, err
+			}
+		} else {
+			trace = orchestrator.BuildObservedLearningTrace(traceInput, "learning generation quota reached")
 		}
 	}
 	trace.Finalized = true
@@ -519,6 +538,9 @@ func (service *Service) finalizeStudentAttempt(
 
 func (service *Service) refreshClassLearningSynthesis(ctx context.Context, classID string) error {
 	if service.classLearningGenerator == nil || strings.TrimSpace(classID) == "" {
+		return nil
+	}
+	if !service.allowLearningGeneration(ctx, classID) {
 		return nil
 	}
 	attempts, err := service.repository.ListLatestFinalizedAttemptsByClassID(ctx, classID, 100)
@@ -567,6 +589,24 @@ func (service *Service) refreshClassLearningSynthesis(ctx context.Context, class
 		EvidenceUpdatedAt: evidenceUpdatedAt,
 		UpdatedAt:         time.Now(),
 	})
+}
+
+func (service *Service) allowLearningGeneration(ctx context.Context, classID string) bool {
+	if service.learningGenerationLimiter == nil {
+		return true
+	}
+
+	decision, err := service.learningGenerationLimiter.Allow(ctx, "class:"+normalizeText(classID))
+	if err != nil {
+		slog.Error("student learning generation rate limiter failed", "error", err, "class_id", classID)
+		return false
+	}
+	if !decision.Allowed {
+		slog.Warn("student learning generation quota reached", "class_id", classID, "retry_after", decision.RetryAfter)
+		return false
+	}
+
+	return true
 }
 
 func (service *Service) missionForAttempt(
@@ -760,7 +800,15 @@ func studentSessionMissionFromDocument(document mission.MissionDocument) Student
 		GradeLevel:        document.GradeLevel,
 		LearningGoal:      document.LearningGoal,
 		Stages:            document.Stages,
-		PreviewQuestions:  document.PreviewQuestions,
+		PreviewQuestions: orchestrator.PlayablePreviewQuestions(orchestrator.BuildMissionInput{
+			ClassID:       document.ClassID,
+			ClassName:     document.ClassName,
+			MissionName:   document.MissionName,
+			Subject:       document.Subject,
+			GradeLevel:    document.GradeLevel,
+			LearningGoal:  document.LearningGoal,
+			TeacherPrompt: document.TeacherPrompt,
+		}, document.PreviewQuestions),
 	}
 }
 
@@ -826,6 +874,24 @@ func groundStudentTutorTurn(
 func normalizedStudentAnswer(value string) string {
 	value = strings.ToLower(normalizeText(value))
 	return strings.Trim(value, " .,!?:;\"'")
+}
+
+func existingStudentTutorTurn(
+	turns []StudentTutorTurn,
+	eventID string,
+) (StudentTutorTurn, bool) {
+	turnID := tutorTurnID(eventID)
+	for _, turn := range turns {
+		if turn.ID == turnID {
+			return turn, true
+		}
+	}
+
+	return StudentTutorTurn{}, false
+}
+
+func studentTutorTurnLimitReached(turns []StudentTutorTurn) bool {
+	return len(turns) >= maxGeneratedTutorTurnsPerAttempt
 }
 
 func retrieveMissionKnowledge(

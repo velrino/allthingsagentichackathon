@@ -31,6 +31,17 @@ import (
 	sharedredis "classgame-api/internal/shared/redis"
 )
 
+const (
+	missionGenerationPerIPHourLimit        int64 = 120
+	missionGenerationPerTeacherHourLimit   int64 = 30
+	missionGenerationPerTeacherMinuteLimit int64 = 6
+	studentLearningPerClassHourLimit       int64 = 180
+	studentTutorPerIPHourLimit             int64 = 900
+	studentTutorPerIPMinuteLimit           int64 = 180
+	studentTutorPerStudentHourLimit        int64 = 60
+	studentTutorPerStudentMinuteLimit      int64 = 12
+)
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("server failed", "error", err)
@@ -105,10 +116,10 @@ func run() error {
 	missionRepository := mission.NewRepository(firebaseConnection.FirestoreClient())
 	usersService := users.NewService(usersRepository, missionRepository, orchestratorService)
 
-	generationLimiter, err := sharedratelimit.NewRedisFixedWindow(
+	missionGenerationPerTeacherMinuteLimiter, err := sharedratelimit.NewRedisFixedWindow(
 		redisConnection.Client(),
 		sharedratelimit.FixedWindowOptions{
-			Limit:  6,
+			Limit:  missionGenerationPerTeacherMinuteLimit,
 			Prefix: "classgame:mission_generation",
 			Window: time.Minute,
 		},
@@ -116,6 +127,84 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("initialize mission generation rate limiter: %w", err)
 	}
+	missionGenerationPerTeacherHourLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  missionGenerationPerTeacherHourLimit,
+			Prefix: "classgame:mission_generation:teacher:hour",
+			Window: time.Hour,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize hourly mission generation rate limiter: %w", err)
+	}
+	missionGenerationPerIPHourLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  missionGenerationPerIPHourLimit,
+			Prefix: "classgame:mission_generation:ip:hour",
+			Window: time.Hour,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize mission generation IP rate limiter: %w", err)
+	}
+	studentTutorPerStudentMinuteLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  studentTutorPerStudentMinuteLimit,
+			Prefix: "classgame:student_tutor:student:minute",
+			Window: time.Minute,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize student tutor per-minute rate limiter: %w", err)
+	}
+	studentTutorPerStudentHourLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  studentTutorPerStudentHourLimit,
+			Prefix: "classgame:student_tutor:student:hour",
+			Window: time.Hour,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize student tutor hourly rate limiter: %w", err)
+	}
+	studentTutorPerIPMinuteLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  studentTutorPerIPMinuteLimit,
+			Prefix: "classgame:student_tutor:ip:minute",
+			Window: time.Minute,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize student tutor IP per-minute rate limiter: %w", err)
+	}
+	studentTutorPerIPHourLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  studentTutorPerIPHourLimit,
+			Prefix: "classgame:student_tutor:ip:hour",
+			Window: time.Hour,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize student tutor IP hourly rate limiter: %w", err)
+	}
+	studentLearningPerClassHourLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  studentLearningPerClassHourLimit,
+			Prefix: "classgame:student_learning:class:hour",
+			Window: time.Hour,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize student learning generation rate limiter: %w", err)
+	}
+	usersService.ConfigureLearningGenerationLimiter(studentLearningPerClassHourLimiter)
 
 	missionServiceOptions := make([]mission.ServiceOption, 0, 1)
 	var missionAttachmentHandler http.Handler
@@ -241,9 +330,13 @@ func run() error {
 			TeacherClassService: teacherClassService,
 		},
 		Mission: mission.HandlerOptions{
-			Authenticator:     authenticator,
-			GenerationLimiter: generationLimiter,
-			MissionService:    missionService,
+			Authenticator: authenticator,
+			GenerationRateLimiters: mission.GenerationRateLimiters{
+				PerIPHour:        missionGenerationPerIPHourLimiter,
+				PerTeacherHour:   missionGenerationPerTeacherHourLimiter,
+				PerTeacherMinute: missionGenerationPerTeacherMinuteLimiter,
+			},
+			MissionService: missionService,
 		},
 		MissionAttachment:   missionAttachmentHandler,
 		StudentLearningTask: studentLearningTaskHandler,
@@ -262,7 +355,13 @@ func run() error {
 		StartedAt: startedAt,
 		Users: users.HandlerOptions{
 			Authenticator: authenticator,
-			UsersService:  usersService,
+			TutorRateLimiters: users.TutorRateLimiters{
+				PerIPHour:        studentTutorPerIPHourLimiter,
+				PerIPMinute:      studentTutorPerIPMinuteLimiter,
+				PerStudentHour:   studentTutorPerStudentHourLimiter,
+				PerStudentMinute: studentTutorPerStudentMinuteLimiter,
+			},
+			UsersService: usersService,
 		},
 	})
 

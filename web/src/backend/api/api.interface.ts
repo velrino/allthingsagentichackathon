@@ -432,10 +432,10 @@ export interface IApiMissionPreviewQuestion {
   stage_id: string;
   prompt: string;
   answer_type: "multiple_choice" | "next_step" | "short_text" | string;
-  options: string[];
+  options: string[] | null;
   expected_answer: string;
-  explanation_steps: string[];
-  misconception_traps: string[];
+  explanation_steps: string[] | null;
+  misconception_traps: string[] | null;
 }
 
 export interface IApiMissionKnowledgeChunk {

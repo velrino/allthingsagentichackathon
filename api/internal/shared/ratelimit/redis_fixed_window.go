@@ -47,6 +47,10 @@ type Decision struct {
 	RetryAfter time.Duration
 }
 
+type Limiter interface {
+	Allow(context.Context, string) (Decision, error)
+}
+
 type FixedWindowOptions struct {
 	Limit  int64
 	Prefix string

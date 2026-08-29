@@ -61,6 +61,7 @@ import { PatternGroups } from "../components/overview/pattern-groups";
 import { RecentPlayersTable } from "../components/recent-players-table";
 import { StudentsTable } from "../components/students-table";
 import { StudentLearningDetail } from "../components/student-learning-detail";
+import { normalizeMissionPreviewQuestions } from "../utils/mission-preview";
 import {
   rememberSelectedClass,
   resolveSelectedClassId,
@@ -1372,7 +1373,9 @@ function buildApproveMissionRequest(
     draft: {
       title: mission.title,
       summary: mission.summary,
-      preview_questions: mission.preview_questions,
+      preview_questions: normalizeMissionPreviewQuestions(
+        mission.preview_questions,
+      ),
     },
   };
 }

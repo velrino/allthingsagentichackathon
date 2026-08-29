@@ -25,6 +25,7 @@ type ChalkboardProps = {
   readonly progress: Record<PodId, PodProgress>;
   readonly explanationStyle: ExplanationStyle;
   readonly onChoose: (index: number) => void;
+  readonly onWriteAnswer: (text: string) => void;
   readonly onStep: (index: number) => void;
   readonly onWhy: (
     reasoning: { misconceptionId: string } | { text: string },
@@ -32,6 +33,8 @@ type ChalkboardProps = {
   readonly onExplainNext: () => void;
   readonly onFeedback: (value: FeedbackValue) => void;
   readonly onContinue: () => void;
+  readonly onStand: () => void;
+  readonly onEndSession: () => void;
 };
 
 /** Slight, deterministic tilt per option so the board reads as handwriting, not a form. */
@@ -180,26 +183,75 @@ function VisualExplanation({
 function QuestionPhase({
   lesson,
   onChoose,
+  onWriteAnswer,
   onStep,
-}: Pick<ChalkboardProps, "lesson" | "onChoose" | "onStep">) {
+}: Pick<ChalkboardProps, "lesson" | "onChoose" | "onWriteAnswer" | "onStep">) {
+  const [writing, setWriting] = useState(false);
+  const [text, setText] = useState("");
   const { question } = lesson;
 
   if (question.kind === "choice") {
     return (
       <>
         <p className="chalk text-[1.9em] leading-tight">{question.prompt}</p>
-        <div className="mt-auto grid grid-cols-2 gap-[0.6em] pt-[1em] pb-[3px]">
-          {question.options.map((option, index) => (
+        {writing ? (
+          <form
+            className="mt-auto flex flex-col gap-[0.6em] pt-[1em]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (text.trim().length > 0) {
+                onWriteAnswer(text);
+              }
+            }}
+          >
+            <textarea
+              autoFocus
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              rows={3}
+              placeholder="Write your answer…"
+              className="chalk chalk-line pointer-events-auto w-full resize-none rounded-sm border-2 bg-transparent px-[0.6em] py-[0.4em] text-[1.1em] outline-none placeholder:text-chalk-ink/40"
+            />
+            <div className="grid grid-cols-2 gap-[0.6em]">
+              <button
+                type="button"
+                onClick={() => setWriting(false)}
+                className={`${chalkButton} text-[1.05em]`}
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={text.trim().length === 0}
+                className={`${chalkPrimary} text-[1.05em]`}
+              >
+                Submit answer
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-auto grid gap-[0.6em] pt-[1em] pb-[3px]">
+            <div className="grid grid-cols-2 gap-[0.6em]">
+              {question.options.map((option, index) => (
+                <button
+                  key={option.text}
+                  type="button"
+                  onClick={() => onChoose(index)}
+                  className={`${chalkButton} text-[1.4em] ${TILT[index % TILT.length]}`}
+                >
+                  {option.text}
+                </button>
+              ))}
+            </div>
             <button
-              key={option.text}
               type="button"
-              onClick={() => onChoose(index)}
-              className={`${chalkButton} text-[1.4em] ${TILT[index % TILT.length]}`}
+              onClick={() => setWriting(true)}
+              className={`${chalkButton} text-[0.95em] text-chalk-ink/80`}
             >
-              {option.text}
+              ✎ Write my answer
             </button>
-          ))}
-        </div>
+          </div>
+        )}
       </>
     );
   }
@@ -518,7 +570,7 @@ function questionLabel(question: Question) {
  * The board fills the screen; text shrinks to fit rather than scroll.
  */
 export function Chalkboard(props: ChalkboardProps) {
-  const { lesson, mission, progress, onFeedback } = props;
+  const { lesson, mission, progress, onEndSession, onFeedback, onStand } = props;
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useFitScale(bodyRef, [
@@ -543,7 +595,25 @@ export function Chalkboard(props: ChalkboardProps) {
                 Prof. {TUTOR_NAME} · {questionLabel(lesson.question)}
               </p>
             </div>
-            <PodDots progress={progress} className="mt-1" />
+            <div className="flex items-start gap-2">
+              <PodDots progress={progress} className="mt-1" />
+              <div className="pointer-events-auto flex flex-col gap-1 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={onStand}
+                  className="chalk-line rounded-sm border px-2 py-1 text-xs font-semibold text-chalk-ink/75 transition hover:bg-white/10"
+                >
+                  Leave board
+                </button>
+                <button
+                  type="button"
+                  onClick={onEndSession}
+                  className="chalk-line rounded-sm border px-2 py-1 text-xs font-semibold text-chalk-wrong transition hover:bg-white/10"
+                >
+                  New session
+                </button>
+              </div>
+            </div>
           </header>
 
           {/* Body: sized in em; the font-size is set imperatively by useFitScale. */}

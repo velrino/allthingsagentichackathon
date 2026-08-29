@@ -3,11 +3,11 @@ package mission
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -37,8 +37,10 @@ type Authenticator interface {
 	AuthenticateBearerToken(context.Context, string) (sharedfirebase.Identity, error)
 }
 
-type GenerationLimiter interface {
-	Allow(context.Context, string) (sharedratelimit.Decision, error)
+type GenerationRateLimiters struct {
+	PerIPHour        sharedratelimit.Limiter
+	PerTeacherHour   sharedratelimit.Limiter
+	PerTeacherMinute sharedratelimit.Limiter
 }
 
 type MissionService interface {
@@ -50,7 +52,7 @@ type MissionService interface {
 
 type HandlerOptions struct {
 	Authenticator           Authenticator
-	GenerationLimiter       GenerationLimiter
+	GenerationRateLimiters  GenerationRateLimiters
 	MissionTimeout          time.Duration
 	MissionRateLimitRate    float64
 	MissionRateLimitBurst   int
@@ -59,10 +61,10 @@ type HandlerOptions struct {
 }
 
 type Handler struct {
-	missionService    MissionService
-	missionTimeout    time.Duration
-	authenticator     Authenticator
-	generationLimiter GenerationLimiter
+	missionService     MissionService
+	missionTimeout     time.Duration
+	authenticator      Authenticator
+	generationLimiters GenerationRateLimiters
 }
 
 type CreateMissionRequest struct {
@@ -109,10 +111,10 @@ type ErrorResponseBody struct {
 
 func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 	handler := &Handler{
-		missionService:    options.MissionService,
-		missionTimeout:    resolveMissionTimeout(options.MissionTimeout),
-		authenticator:     options.Authenticator,
-		generationLimiter: options.GenerationLimiter,
+		missionService:     options.MissionService,
+		missionTimeout:     resolveMissionTimeout(options.MissionTimeout),
+		authenticator:      options.Authenticator,
+		generationLimiters: options.GenerationRateLimiters,
 	}
 
 	group := server.Group("/teacher-classes/:class_id/missions")
@@ -267,7 +269,8 @@ func (handler *Handler) createMission(ctx *echo.Context) error {
 	if err != nil || !ok {
 		return err
 	}
-	if err := handler.limitGeneration(requestContext, ctx, identity); err != nil {
+	limited, err := handler.limitGeneration(requestContext, ctx, identity)
+	if err != nil || limited {
 		return err
 	}
 
@@ -352,30 +355,27 @@ func (handler *Handler) limitGeneration(
 	ctx context.Context,
 	echoCtx *echo.Context,
 	identity sharedfirebase.Identity,
-) error {
-	if handler.generationLimiter == nil {
-		return nil
-	}
-
-	decision, err := handler.generationLimiter.Allow(ctx, string(identity.Provider)+":"+identity.ProviderUserID)
+) (bool, error) {
+	teacherIdentifier := "teacher:" + string(identity.Provider) + ":" + identity.ProviderUserID
+	policy, err := sharedratelimit.Evaluate(ctx,
+		sharedratelimit.Rule{Limiter: handler.generationLimiters.PerTeacherMinute, Identifier: teacherIdentifier},
+		sharedratelimit.Rule{Limiter: handler.generationLimiters.PerTeacherHour, Identifier: teacherIdentifier},
+		sharedratelimit.Rule{Limiter: handler.generationLimiters.PerIPHour, Identifier: "ip:" + echoCtx.RealIP()},
+	)
 	if err != nil {
 		slog.Error("teacher mission generation rate limiter failed", "error", err)
-		return jsonError(echoCtx, http.StatusServiceUnavailable, "rate_limit_unavailable", "Mission generation is temporarily unavailable.")
+		return true, jsonError(echoCtx, http.StatusServiceUnavailable, "rate_limit_unavailable", "Mission generation is temporarily unavailable.")
+	}
+	if !policy.Evaluated {
+		return false, nil
 	}
 
-	echoCtx.Response().Header().Set("X-RateLimit-Limit", strconv.FormatInt(decision.Limit, 10))
-	echoCtx.Response().Header().Set("X-RateLimit-Remaining", strconv.FormatInt(decision.Remaining, 10))
-	if decision.Allowed {
-		return nil
+	sharedratelimit.SetResponseHeaders(echoCtx.Response().Header(), policy.Decision)
+	if policy.Decision.Allowed {
+		return false, nil
 	}
 
-	retryAfterSeconds := int64((decision.RetryAfter + time.Second - 1) / time.Second)
-	if retryAfterSeconds < 1 {
-		retryAfterSeconds = 1
-	}
-	echoCtx.Response().Header().Set("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
-
-	return jsonError(echoCtx, http.StatusTooManyRequests, "generation_rate_limited", "Too many mission previews. Wait a moment and try again.")
+	return true, jsonError(echoCtx, http.StatusTooManyRequests, "generation_rate_limited", "Too many mission previews. Wait a moment and try again.")
 }
 
 func (request ApproveMissionRequest) Validate() error {
@@ -520,6 +520,9 @@ func validatePreviewQuestions(value any) error {
 	if !ok {
 		return nil
 	}
+	if len(questions) > orchestrator.StudentPreviewQuestionLimit() {
+		return fmt.Errorf("preview_questions cannot contain more than %d questions", orchestrator.StudentPreviewQuestionLimit())
+	}
 	for _, question := range questions {
 		if err := validation.Validate(question.ID, validation.Length(0, 128)); err != nil {
 			return errors.New("preview_questions contains an invalid id")
@@ -533,7 +536,7 @@ func validatePreviewQuestions(value any) error {
 		if err := validation.Validate(question.AnswerType, validation.Length(0, 80)); err != nil {
 			return errors.New("preview_questions contains an invalid answer_type")
 		}
-		if err := validatePreviewQuestionTextList(question.Options, 8, 240, "options"); err != nil {
+		if err := validatePreviewQuestionTextList(question.Options, 4, 240, "options"); err != nil {
 			return err
 		}
 		if err := validation.Validate(question.ExpectedAnswer, validation.Required, validation.Length(1, 1000)); err != nil {

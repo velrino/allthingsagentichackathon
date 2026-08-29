@@ -103,7 +103,7 @@ Status on **August 29, 2026**. Everything below is deployed on Cloud Run unless 
   - **Notebook**: class notebook (current focus, positive signal, who needs follow-up) and next-lesson notes.
 - Realtime: Firestore listeners on `student_mission_attempts` (this class) and `class_learning_summaries/{classId}` trigger a debounced refresh of the server-authorized overview; a 60 s poll and a refresh on tab focus are the fallback.
 
-**API (Go on Cloud Run)** — see [API](#api) below. Gemini through the Google GenAI SDK (Vertex AI backend, `gemini-3.7-flash`), structured output everywhere, deterministic fallbacks everywhere, Firestore as the only database, Cloud Tasks for attachment copies and learning jobs, Cloud Storage for attachments, Redis for the mission-generation rate limit and health.
+**API (Go on Cloud Run)** — see [API](#api) below. Gemini through the Google GenAI SDK (Vertex AI backend, `gemini-3.7-flash`), structured output everywhere, deterministic fallbacks everywhere, Firestore as the only database, Cloud Tasks for attachment copies and learning jobs, Cloud Storage for attachments, and Redis for distributed GenAI quotas and health.
 
 **Content**: `apps/assets/grade/` holds Grade 5 worksheets (K5 Learning) with ready-to-copy mission setups — mission name, learning goal and teacher prompt for each file — so a mission can be generated from real classroom material in a minute.
 
@@ -112,6 +112,7 @@ Status on **August 29, 2026**. Everything below is deployed on Cloud Run unless 
 - **Firestore rules are read-only for browsers.** Teachers can read only the classes they own, their students' attempts and the class summary. Anonymous students can read nothing; their resume state comes only through the API, which strips notes, decisions, events, tutor observations and traces.
 - **Two guardrails on mission generation.** A deterministic pre-model gate (blocked phrases + required education signals) and a post-model `education_guardrail` from Gemini. Unsafe or off-topic requests get a harmless remediation preview; the mission module refuses to publish it (422). Teacher text and attachments are treated as untrusted material; instructions inside them are ignored.
 - **No hidden chain-of-thought.** Both the tutor and the learning-trace prompts reason only from observable answers, explicit explanations and feedback, and are forbidden from claiming otherwise. The student detail dialog says so on screen.
+- **Bounded GenAI spend.** Echo absorbs local bursts; Redis enforces per-teacher, per-student, per-class and per-IP quotas across Cloud Run replicas. Tutor event ids are idempotent, each three-question attempt has a 12-turn model budget, completed attempts cannot be regenerated, and Redis failures fall closed to deterministic learning traces.
 - **Provenance everywhere.** Every mission, turn and trace records `provider`, `model`, `generated_by_ai`, `fallback_reason` and token counts. The dashboard labels every block by source: **Live class data**, **Based on class signals** (levels computed client-side), **Example data** (only when a class has no students yet), plus **Gemini** / **Fallback** badges.
 - **Never a dead end.** Mission preview, tutor turn, learning trace and class synthesis all have deterministic fallbacks; the endpoints never fail because of the model.
 
@@ -132,7 +133,7 @@ Teacher dashboard (Next.js on Cloud Run)
   -> Go API
        POST /teacher-classes                                     Firestore teacher_classes/{class_id}
        POST /teacher-classes/{class_id}/missions/preview
-            -> Redis rate limit (6 previews / minute / teacher)
+            -> Redis quotas (6/min + 30/hour/teacher; 120/hour/IP)
             -> orchestrator.BuildMission -> Gemini structured output
                (attachments downloaded from Uploadcare and sent inline)
             -> Firestore missions/{mission_id} (draft revision n, tenant-scoped)
@@ -147,6 +148,7 @@ Student game (Three.js, Next.js on Cloud Run)
   -> Firebase Auth (anonymous, separate app) -> POST /users/student-session -> users/{uid} + published mission
   -> POST /users/student-presence             every 15 s
   -> POST /users/student-tutor-turn           every answer / why / feedback
+            -> Redis quotas (12/min + 60/hour/student; IP ceilings; 12 turns/attempt)
             -> ground against published revision
             -> retrieve knowledge chunks + student memory + attempt history + class context
             -> orchestrator.BuildTutorTurn -> Gemini structured output -> leak guard
@@ -154,6 +156,7 @@ Student game (Three.js, Next.js on Cloud Run)
   -> POST /users/student-learning             snapshot + exact checkpoint (450 ms debounce, 30 s heartbeat, pagehide)
             -> completed  -> Cloud Tasks -> POST /internal/tasks/student-learning (finalize)
             -> otherwise  -> Cloud Tasks watchdog (120 s) -> abandoned + partial trace
+                 -> Redis class budget (180 GenAI calls/hour; local fallback when exhausted)
                  -> orchestrator.BuildLearningTrace -> trace + users/{uid}.student.learning_memory
                  -> orchestrator.BuildClassLearningSynthesis -> class_learning_summaries/{class_id}
   -> GET  /users/student-learning?mission_id=… exact resume

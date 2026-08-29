@@ -287,7 +287,7 @@ func toMissionResponse(mission *mission.MissionDocument) *MissionResponse {
 		LearningGoal:             mission.LearningGoal,
 		TeacherPrompt:            mission.TeacherPrompt,
 		Attachments:              toAttachmentResponses(mission.Attachments),
-		PreviewQuestions:         toPreviewQuestions(mission.PreviewQuestions),
+		PreviewQuestions:         toPreviewQuestions(*mission),
 		KnowledgeChunks:          mission.KnowledgeChunks,
 		SuggestedDurationMinutes: mission.SuggestedDurationMinutes,
 		Stages:                   toStageResponses(mission.Stages),
@@ -456,7 +456,16 @@ func toAttachmentResponses(attachments []mission.MissionAttachment) []Attachment
 	return responses
 }
 
-func toPreviewQuestions(questions []orchestrator.PreviewQuestion) []PreviewQuestion {
+func toPreviewQuestions(mission mission.MissionDocument) []PreviewQuestion {
+	questions := orchestrator.PlayablePreviewQuestions(orchestrator.BuildMissionInput{
+		ClassID:       mission.ClassID,
+		ClassName:     mission.ClassName,
+		MissionName:   mission.MissionName,
+		Subject:       mission.Subject,
+		GradeLevel:    mission.GradeLevel,
+		LearningGoal:  mission.LearningGoal,
+		TeacherPrompt: mission.TeacherPrompt,
+	}, mission.PreviewQuestions)
 	responses := make([]PreviewQuestion, 0, len(questions))
 
 	for _, question := range questions {
