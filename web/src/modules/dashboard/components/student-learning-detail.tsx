@@ -83,21 +83,21 @@ export function StudentLearningDetail({
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <TabsList className="grid w-full grid-cols-4 sm:inline-flex sm:w-fit">
-                <TabsTrigger value="conversation">
+                <TabsTrigger value="conversation" aria-label="Conversation">
                   <MessageCircleMore aria-hidden />
-                  <span className="sr-only sm:not-sr-only">Conversation</span>
+                  <span className="hidden sm:inline">Conversation</span>
                 </TabsTrigger>
-                <TabsTrigger value="summary">
-                  <BrainCircuit aria-hidden />
-                  <span className="sr-only sm:not-sr-only">Summary</span>
-                </TabsTrigger>
-                <TabsTrigger value="flow">
+                <TabsTrigger value="flow" aria-label="Learning flow">
                   <Route aria-hidden />
-                  <span className="sr-only sm:not-sr-only">Learning flow</span>
+                  <span className="hidden sm:inline">Learning flow</span>
                 </TabsTrigger>
-                <TabsTrigger value="memory">
+                <TabsTrigger value="summary" aria-label="Summary">
+                  <BrainCircuit aria-hidden />
+                  <span className="hidden sm:inline">Summary</span>
+                </TabsTrigger>
+                <TabsTrigger value="memory" aria-label="Memory">
                   <Sparkles aria-hidden />
-                  <span className="sr-only sm:not-sr-only">Memory</span>
+                  <span className="hidden sm:inline">Memory</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -170,9 +170,9 @@ export function StudentLearningDetail({
 
           <TabsContent
             value="flow"
-            className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"
+            className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-6"
           >
-            <div className="mb-3 flex items-start gap-3 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">
+            <div className="flex shrink-0 items-start gap-3 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">
               <Route className="mt-0.5 size-4 shrink-0" aria-hidden />
               <p className="leading-6">
                 Nodes come from captured interactions. Gemini organizes the
@@ -180,6 +180,7 @@ export function StudentLearningDetail({
               </p>
             </div>
             <MissionFlowPreview
+              className="h-auto min-h-0 flex-1"
               emptyMessage="Learning events will appear here as the student works."
               flow={attempt.trace?.flow}
             />

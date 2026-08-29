@@ -14,8 +14,11 @@ import type {
   IApiMissionFlow,
   IApiMissionFlowNode,
 } from "@/backend/api/api.interface";
+import { cn } from "@/lib/utils";
 
 type MissionFlowPreviewProps = {
+  /** Overrides the canvas box (default 560px tall) — e.g. `h-auto flex-1` to fill a flex column. */
+  readonly className?: string;
   readonly emptyMessage?: string;
   readonly flow?: IApiMissionFlow | null;
 };
@@ -99,6 +102,7 @@ const nodeStyles: Record<string, CSSProperties> = {
 };
 
 export function MissionFlowPreview({
+  className,
   emptyMessage = "Generate a preview to see Emily's mission flow.",
   flow,
 }: MissionFlowPreviewProps) {
@@ -113,7 +117,12 @@ export function MissionFlowPreview({
   }
 
   return (
-    <div className="h-[560px] overflow-hidden rounded-md border border-border bg-slate-50">
+    <div
+      className={cn(
+        "h-[560px] overflow-hidden rounded-md border border-border bg-slate-50",
+        className,
+      )}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
