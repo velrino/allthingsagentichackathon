@@ -36,7 +36,7 @@ const subjectSuggestions = [
   "Art",
   "Music",
   "Physical Education",
-];
+].sort();
 
 const gradeLevelSuggestions = [
   "Pre-K",
