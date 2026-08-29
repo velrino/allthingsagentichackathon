@@ -13,6 +13,18 @@ UC.defineComponents(UC);
 const DEFAULT_UPLOADCARE_PUBLIC_KEY = "5c2474782ec064c09ef1";
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+const ACCEPTED_FILE_TYPES =
+  ".pdf,.png,.jpg,.jpeg,.docx,.txt,application/pdf,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
+const ACCEPTED_FILE_ERROR =
+  "Only PDF, PNG, JPEG, DOCX, or TXT files are supported.";
+const allowedFileExtensions = [".pdf", ".png", ".jpg", ".jpeg", ".docx", ".txt"];
+const allowedMimeTypes = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+]);
 const subscribeToClientEnvironment = () => () => {};
 
 type MissionFileUploaderProps = {
@@ -39,7 +51,9 @@ export function MissionFileUploader({
   const reactId = useId();
   const contextName = `mission-files-${reactId.replace(/:/g, "")}`;
   const contextProviderRef = useRef<UC.UploadCtxProvider>(null);
-  const publicKey = process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY?.trim() || DEFAULT_UPLOADCARE_PUBLIC_KEY;
+  const publicKey =
+    process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY?.trim() ||
+    DEFAULT_UPLOADCARE_PUBLIC_KEY;
 
   useEffect(() => {
     if (!isClient) {
@@ -55,13 +69,21 @@ export function MissionFileUploader({
       const collection = event.detail;
       const firstFailedEntry = collection.failedEntries[0];
       const firstError = firstFailedEntry?.errors[0] ?? collection.errors[0];
+      const unsupportedEntry = collection.successEntries.find(
+        (entry) => !isAllowedFileEntry(entry),
+      );
+      const acceptedEntries =
+        collection.successEntries.filter(isAllowedFileEntry);
 
-      onUploadingChange(collection.uploadingEntries.length > 0 || collection.idleEntries.length > 0);
+      onUploadingChange(
+        collection.uploadingEntries.length > 0 ||
+          collection.idleEntries.length > 0,
+      );
       onAttachmentsChange(
-        collection.successEntries.map((entry) => ({
+        acceptedEntries.map((entry) => ({
           uploadcare_uuid: entry.uuid,
           cdn_url: entry.cdnUrl,
-          file_name: entry.fileInfo.originalFilename || entry.name,
+          file_name: getFileEntryName(entry),
           mime_type: entry.mimeType || "application/octet-stream",
           size_bytes: entry.size,
         })),
@@ -69,6 +91,8 @@ export function MissionFileUploader({
       onErrorChange(
         firstError
           ? `${firstFailedEntry?.name ? `${firstFailedEntry.name}: ` : ""}${firstError.message}`
+          : unsupportedEntry
+            ? `${getFileEntryName(unsupportedEntry)}: ${ACCEPTED_FILE_ERROR}`
           : null,
       );
     }
@@ -101,7 +125,7 @@ export function MissionFileUploader({
             multiple={resolvedMaxFiles > 1}
             multipleMax={resolvedMaxFiles}
             sourceList="local"
-            accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx"
+            accept={ACCEPTED_FILE_TYPES}
             maxLocalFileSizeBytes={MAX_FILE_SIZE_BYTES}
             confirmUpload={false}
             store={false}
@@ -114,4 +138,18 @@ export function MissionFileUploader({
       )}
     </div>
   );
+}
+
+function isAllowedFileEntry(entry: UC.OutputFileEntry<"success">) {
+  const mimeType = entry.mimeType.toLocaleLowerCase();
+  const fileName = getFileEntryName(entry).toLocaleLowerCase();
+
+  return (
+    allowedMimeTypes.has(mimeType) ||
+    allowedFileExtensions.some((extension) => fileName.endsWith(extension))
+  );
+}
+
+function getFileEntryName(entry: UC.OutputFileEntry<"success">) {
+  return entry.fileInfo.originalFilename || entry.name;
 }

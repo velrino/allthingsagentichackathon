@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useState, type FormEvent } from "react";
+import {
+  ExternalLink,
+  File,
+  FileText,
+  FileType2,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import type {
   IApiCreateTeacherClassMissionRequest,
@@ -60,6 +67,11 @@ export function MissionBuilder({
   const [persistedAttachments, setPersistedAttachments] = useState<
     IApiMissionAttachment[]
   >(() => previewMission?.attachments ?? []);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const [previewAttachment, setPreviewAttachment] =
+    useState<IApiMissionAttachment | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -114,10 +126,15 @@ export function MissionBuilder({
     (attachments: IApiMissionAttachment[]) => {
       setForm((current) => ({
         ...current,
-        attachments: mergeMissionAttachments(persistedAttachments, attachments),
+        attachments: mergeMissionAttachments(
+          persistedAttachments,
+          attachments,
+        ).filter(
+          (attachment) => !removedAttachmentIds.has(attachment.uploadcare_uuid),
+        ),
       }));
     },
-    [persistedAttachments],
+    [persistedAttachments, removedAttachmentIds],
   );
 
   function toggleStudent(studentId: string) {
@@ -129,7 +146,12 @@ export function MissionBuilder({
     }));
   }
 
-  function removePersistedAttachment(uploadcareUUID: string) {
+  function removeAttachment(uploadcareUUID: string) {
+    setRemovedAttachmentIds((current) => {
+      const next = new Set(current);
+      next.add(uploadcareUUID);
+      return next;
+    });
     setPersistedAttachments((current) =>
       current.filter(
         (attachment) => attachment.uploadcare_uuid !== uploadcareUUID,
@@ -141,12 +163,23 @@ export function MissionBuilder({
         (attachment) => attachment.uploadcare_uuid !== uploadcareUUID,
       ),
     }));
+    setPreviewAttachment((current) =>
+      current?.uploadcare_uuid === uploadcareUUID ? null : current,
+    );
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      setPreviewAttachment(null);
+    }
+
+    onOpenChange(nextOpen);
   }
 
   return (
     <DashboardModal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title={editingMission ? "Edit mission" : "Create mission"}
       description={
         editingMission
@@ -328,8 +361,8 @@ export function MissionBuilder({
                   Optional files
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Up to 5 files, 20 MB each. Uploads are temporary and expire
-                  after 24 hours.
+                  PDF, PNG, JPEG, DOCX, or TXT only. Up to 5 files, 20 MB each.
+                  Uploads are temporary and expire after 24 hours.
                 </p>
               </div>
               <MissionFileUploader
@@ -342,33 +375,12 @@ export function MissionBuilder({
             </div>
 
             {form.attachments.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {form.attachments.map((attachment) => (
-                  <span
-                    key={attachment.uploadcare_uuid}
-                    className="inline-flex items-center gap-2 rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground"
-                  >
-                    {attachment.file_name}
-                    {persistedAttachments.some(
-                      (persisted) =>
-                        persisted.uploadcare_uuid ===
-                        attachment.uploadcare_uuid,
-                    ) ? (
-                      <button
-                        type="button"
-                        aria-label={`Remove ${attachment.file_name}`}
-                        disabled={busy}
-                        onClick={() =>
-                          removePersistedAttachment(attachment.uploadcare_uuid)
-                        }
-                        className="text-base leading-none text-muted-foreground hover:text-rose-700"
-                      >
-                        ×
-                      </button>
-                    ) : null}
-                  </span>
-                ))}
-              </div>
+              <UploadedMissionFilesGrid
+                attachments={form.attachments}
+                disabled={busy}
+                onPreview={setPreviewAttachment}
+                onRemove={removeAttachment}
+              />
             ) : null}
 
             {uploadError ? (
@@ -521,7 +533,324 @@ export function MissionBuilder({
           </div>
         </div>
       </section>
+      <AttachmentPreviewModal
+        attachment={previewAttachment}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setPreviewAttachment(null);
+          }
+        }}
+      />
     </DashboardModal>
+  );
+}
+
+type AttachmentKind = "docx" | "file" | "image" | "pdf" | "txt";
+
+const attachmentKindLabel: Record<AttachmentKind, string> = {
+  docx: "DOCX",
+  file: "FILE",
+  image: "IMAGE",
+  pdf: "PDF",
+  txt: "TXT",
+};
+
+const textPreviewLimit = 200_000;
+
+function UploadedMissionFilesGrid({
+  attachments,
+  disabled,
+  onPreview,
+  onRemove,
+}: {
+  readonly attachments: IApiMissionAttachment[];
+  readonly disabled: boolean;
+  readonly onPreview: (attachment: IApiMissionAttachment) => void;
+  readonly onRemove: (uploadcareUUID: string) => void;
+}) {
+  return (
+    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {attachments.map((attachment) => {
+        const kind = getAttachmentKind(attachment);
+
+        return (
+          <div key={attachment.uploadcare_uuid} className="relative">
+            <button
+              type="button"
+              className="flex h-full w-full min-w-0 items-center gap-3 rounded-md border border-border bg-background p-3 text-start shadow-sm transition hover:border-primary/30 hover:bg-primary/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onPreview(attachment)}
+            >
+              <AttachmentFileIcon attachment={attachment} kind={kind} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-foreground">
+                  {attachment.file_name}
+                </span>
+                <span className="mt-0.5 block text-xs font-medium text-muted-foreground">
+                  {attachmentKindLabel[kind]} -{" "}
+                  {formatFileSize(attachment.size_bytes)}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label={`Remove ${attachment.file_name}`}
+              disabled={disabled}
+              onClick={() => onRemove(attachment.uploadcare_uuid)}
+              className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-foreground text-background shadow-sm transition hover:bg-destructive hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AttachmentFileIcon({
+  attachment,
+  kind,
+}: {
+  readonly attachment: IApiMissionAttachment;
+  readonly kind: AttachmentKind;
+}) {
+  if (kind === "image") {
+    return (
+      <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-muted">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={attachment.cdn_url}
+          alt=""
+          className="size-full object-cover"
+        />
+      </span>
+    );
+  }
+
+  const Icon =
+    kind === "pdf"
+      ? FileType2
+      : kind === "txt"
+        ? FileText
+        : kind === "docx"
+          ? File
+          : File;
+
+  return (
+    <span className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+      <Icon className="size-5" aria-hidden />
+    </span>
+  );
+}
+
+function AttachmentPreviewModal({
+  attachment,
+  onOpenChange,
+}: {
+  readonly attachment: IApiMissionAttachment | null;
+  readonly onOpenChange: (open: boolean) => void;
+}) {
+  if (!attachment) {
+    return null;
+  }
+
+  const kind = getAttachmentKind(attachment);
+
+  return (
+    <DashboardModal
+      open
+      onOpenChange={onOpenChange}
+      title={attachment.file_name}
+      description={`${attachmentKindLabel[kind]} - ${formatFileSize(attachment.size_bytes)}`}
+      size="xl"
+    >
+      <AttachmentPreview attachment={attachment} kind={kind} />
+    </DashboardModal>
+  );
+}
+
+function AttachmentPreview({
+  attachment,
+  kind,
+}: {
+  readonly attachment: IApiMissionAttachment;
+  readonly kind: AttachmentKind;
+}) {
+  if (kind === "image") {
+    return (
+      <div className="grid gap-3">
+        <div className="grid max-h-[70svh] place-items-center overflow-auto rounded-md border border-border bg-muted/30 p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={attachment.cdn_url}
+            alt={attachment.file_name}
+            className="max-h-[calc(70svh-1.5rem)] max-w-full rounded object-contain"
+          />
+        </div>
+        <AttachmentPreviewActions attachment={attachment} />
+      </div>
+    );
+  }
+
+  if (kind === "pdf") {
+    return (
+      <div className="grid gap-3">
+        <iframe
+          title={attachment.file_name}
+          src={attachment.cdn_url}
+          className="h-[70svh] w-full rounded-md border border-border bg-white"
+        />
+        <AttachmentPreviewActions attachment={attachment} />
+      </div>
+    );
+  }
+
+  if (kind === "txt") {
+    return (
+      <TextAttachmentPreview
+        key={attachment.uploadcare_uuid}
+        attachment={attachment}
+      />
+    );
+  }
+
+  if (kind === "docx") {
+    return (
+      <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-6 text-center">
+        <span className="mx-auto grid size-12 place-items-center rounded-md bg-primary/10 text-primary">
+          <File className="size-6" aria-hidden />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            {attachment.file_name}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            DOCX files cannot be previewed natively in the browser.
+          </p>
+        </div>
+        <AttachmentPreviewActions attachment={attachment} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-6 text-center">
+      <File className="mx-auto size-8 text-muted-foreground" aria-hidden />
+      <p className="text-sm font-medium text-muted-foreground">
+        Preview is not available for this file type.
+      </p>
+      <AttachmentPreviewActions attachment={attachment} />
+    </div>
+  );
+}
+
+function TextAttachmentPreview({
+  attachment,
+}: {
+  readonly attachment: IApiMissionAttachment;
+}) {
+  const [state, setState] = useState<{
+    readonly error: string | null;
+    readonly loading: boolean;
+    readonly text: string;
+    readonly truncated: boolean;
+  }>({
+    error: null,
+    loading: true,
+    text: "",
+    truncated: false,
+  });
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(attachment.cdn_url, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Could not load text preview.");
+        }
+
+        return response.text();
+      })
+      .then((text) => {
+        setState({
+          error: null,
+          loading: false,
+          text: text.slice(0, textPreviewLimit),
+          truncated: text.length > textPreviewLimit,
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setState({
+          error:
+            error instanceof Error
+              ? error.message
+              : "Could not load text preview.",
+          loading: false,
+          text: "",
+          truncated: false,
+        });
+      });
+
+    return () => controller.abort();
+  }, [attachment.cdn_url]);
+
+  if (state.loading) {
+    return (
+      <div className="grid min-h-52 place-items-center rounded-md border border-border bg-muted/30 text-sm font-medium text-muted-foreground">
+        Loading preview...
+      </div>
+    );
+  }
+
+  if (state.error) {
+    return (
+      <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-6 text-center">
+        <p className="text-sm font-medium text-muted-foreground">
+          {state.error}
+        </p>
+        <AttachmentPreviewActions attachment={attachment} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      <pre className="max-h-[70svh] overflow-auto rounded-md border border-border bg-muted/30 p-4 text-start text-xs leading-5 text-foreground">
+        {state.text}
+      </pre>
+      {state.truncated ? (
+        <p className="text-xs font-medium text-muted-foreground">
+          Preview truncated. Open the original file to view everything.
+        </p>
+      ) : null}
+      <AttachmentPreviewActions attachment={attachment} />
+    </div>
+  );
+}
+
+function AttachmentPreviewActions({
+  attachment,
+}: {
+  readonly attachment: IApiMissionAttachment;
+}) {
+  return (
+    <div className="flex justify-end">
+      <Button variant="outline" asChild>
+        <a
+          href={attachment.cdn_url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ExternalLink className="size-4" aria-hidden />
+          Open original
+        </a>
+      </Button>
+    </div>
   );
 }
 
@@ -551,6 +880,57 @@ function mergeMissionAttachments(
   }
 
   return [...attachments.values()];
+}
+
+function getAttachmentKind(attachment: IApiMissionAttachment): AttachmentKind {
+  const mimeType = attachment.mime_type.toLocaleLowerCase();
+  const fileName = attachment.file_name.toLocaleLowerCase();
+
+  if (mimeType === "application/pdf" || fileName.endsWith(".pdf")) {
+    return "pdf";
+  }
+
+  if (
+    mimeType === "image/png" ||
+    mimeType === "image/jpeg" ||
+    fileName.endsWith(".png") ||
+    fileName.endsWith(".jpg") ||
+    fileName.endsWith(".jpeg")
+  ) {
+    return "image";
+  }
+
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    fileName.endsWith(".docx")
+  ) {
+    return "docx";
+  }
+
+  if (mimeType === "text/plain" || fileName.endsWith(".txt")) {
+    return "txt";
+  }
+
+  return "file";
+}
+
+function formatFileSize(sizeBytes: number) {
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    return "Unknown size";
+  }
+
+  const units = ["B", "KB", "MB"];
+  let value = sizeBytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const digits = value >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${value.toFixed(digits)} ${units[unitIndex]}`;
 }
 
 function ClassCodeBadge({
