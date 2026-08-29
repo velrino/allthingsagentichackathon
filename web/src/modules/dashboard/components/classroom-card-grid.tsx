@@ -513,7 +513,7 @@ function ClassroomCard({
         </div>
       </CardContent>
 
-      <CardFooter className="justify-between rounded-b-lg border-t border-white/10 px-4 py-2.5 text-[11px] text-current">
+      <CardFooter className="flex-col items-stretch gap-2 rounded-b-lg border-t border-white/10 px-4 py-2.5 text-[11px] text-current">
         <span className="opacity-70">
           {classroom.isPreview
             ? "Layout preview"
@@ -522,14 +522,14 @@ function ClassroomCard({
         {onOpen ? (
           <button
             type="button"
-            className="flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 font-bold outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/70"
+            className="flex w-full cursor-pointer items-center justify-center gap-1 rounded-md px-1.5 py-1 font-bold outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/70"
             onClick={onOpen}
             aria-label={`Open ${classroom.name}`}
           >
             Open <ArrowUpRight className="size-3.5" aria-hidden />
           </button>
         ) : (
-          <span className="rounded-full border border-white/10 px-2 py-0.5 font-bold">
+          <span className="self-start rounded-full border border-white/10 px-2 py-0.5 font-bold">
             Demo
           </span>
         )}
