@@ -739,9 +739,64 @@ export function sessionReducer(session: Session, action: SessionAction): Session
 
       switch (decision.action) {
         case "next": {
+          const current = memory.progress[lesson.pod];
+          const hasAlternative =
+            current.queue.length > 1 || current.pool.length > 0;
+
+          // A generated mission currently has one question per visible stage.
+          // Once Mia has explained a missed answer, repeating that same question
+          // only loops over an answer the student has already seen. Record the
+          // remediation and advance, preserving the incorrect result as evidence.
+          if (!hasAlternative) {
+            const nextIndex = POD_ORDER.indexOf(lesson.pod) + 1;
+            const target = memory.returnTo ?? POD_ORDER[nextIndex] ?? null;
+            const progress = {
+              ...memory.progress,
+              [lesson.pod]: {
+                ...current,
+                status: "complete" as const,
+                queue: [],
+              },
+            };
+
+            if (target && progress[target].status === "locked") {
+              progress[target] = { ...progress[target], status: "ready" };
+            }
+
+            const nextMemory = appendLearningEvent(
+              { ...memory, progress, returnTo: null },
+              {
+                type: "adaptation",
+                stageId: lesson.pod,
+                questionId: lesson.question.id,
+                title: "Guided remediation completed",
+                detail:
+                  "Moving on after explaining the stage's only question; the incorrect answer remains recorded.",
+                outcome: "support",
+                occurredAt: action.now,
+              },
+            );
+
+            if (!target) {
+              return leaveSeat(
+                session,
+                nextMemory,
+                lesson.pod,
+                roamingLine(
+                  session.mission,
+                  nextMemory,
+                  lesson.pod,
+                  false,
+                ),
+              );
+            }
+
+            return continueSeated(session, nextMemory, target);
+          }
+
           const progress = requeueCurrent(
             session.mission,
-            memory.progress[lesson.pod],
+            current,
             bias,
           );
           const nextMemory: StudentMemory = { ...memory, progress: { ...memory.progress, [lesson.pod]: progress } };

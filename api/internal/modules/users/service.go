@@ -28,7 +28,7 @@ var ErrStudentQuestionNotFound = errors.New("student mission question not found"
 var ErrMissionRevisionNotFound = errors.New("published student mission revision not found")
 var ErrStudentTutorTurnLimit = errors.New("student tutor turn limit reached")
 
-const maxGeneratedTutorTurnsPerAttempt = 12
+const maxGeneratedTutorTurnsPerAttempt = 36
 
 type MissionReader interface {
 	GetByCode(context.Context, string) (mission.MissionDocument, bool, error)
