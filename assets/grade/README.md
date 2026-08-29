@@ -1,10 +1,23 @@
 # Grade Assets
 
-This folder stores grade-level educational assets used for testing and mission generation.
+This folder documents grade-level educational materials used for local testing and mission generation.
+
+## Local-only worksheet files
+
+The PDF files under `apps/assets/grade/5th/` are intentionally ignored by Git
+and are not distributed with this repository. They remain available in the
+author's local workspace for the recorded demo.
+
+To recreate the local setup, obtain the worksheets from the source pages
+listed in [References](#references), follow the source provider's terms, and
+save them at the documented local paths. The original page and download URLs
+are kept below for provenance.
 
 ## Grade 5
 
-Current Grade 5 worksheets were sourced from K5 Learning's free printable fifth grade worksheets.
+The local Grade 5 demo worksheets were obtained from K5 Learning's printable
+fifth-grade worksheet pages listed below. The PDFs themselves are not part of
+the repository.
 
 ## Ready-to-copy mission setups
 

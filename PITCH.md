@@ -9,7 +9,8 @@ Before recording:
 - Start with the student join modal on the left and the teacher dashboard on the right, matching `assets/pitch/01-1.png`.
 - Keep your Loom camera bubble visible at the bottom. During the introduction, join as **Bruce** with the class code shown on the dashboard and finish on the layout in `assets/pitch/01-2.png`.
 - Open `assets/grade/5th/math` in Finder, ready to select its three PDF worksheets.
-- Test mission generation before recording. If it takes more than a few seconds, trim the waiting time in Loom.
+- Test mission generation before recording. Keep the live generation in one take and use its waiting time to explain what Gemini is building.
+- Confirm that the generated preview shows Gemini, not the local fallback message visible in `assets/pitch/02-1.png` and `assets/pitch/02-2.png`.
 - Use one intentionally wrong answer during the student demo to reveal Emily's adaptive loop.
 - Keep the browser zoom high enough for the mission, tutor response, and teacher evidence to be readable.
 
@@ -31,11 +32,11 @@ But how does it actually work?
 
 Meet Emily, a fifth-grade math teacher. Past activities show that her class needs more help with place value, multiplying by ten, one hundred, and one thousand, and types of angles. ClassGame shows the score, the answers, and the feedback.
 
-*[Screen: click “Build tomorrow's mission.” Attach all three PDFs from `assets/grade/5th/math`, then generate the preview.]*
+*[Screen: click “Build tomorrow's mission.” Attach all three PDFs from `assets/grade/5th/math`, then generate the preview. Show a question and its choices as in `assets/pitch/02-1.png`. Open “Flow” as in `assets/pitch/02-2.png`, zoom in until the labels are readable, and briefly follow the map from top to bottom.]*
 
 Emily uses this result to build tomorrow's mission. She adds three real worksheets from her class.
 
-Gemini reads the needs and files. It creates three questions, common wrong choices, short explanations, and a clear lesson flow. Emily checks and edits everything before students see it.
+Gemini reads the files and creates three questions. In Preview, Emily checks each question and answer. Flow shows the lesson map: a quick check, guided practice, reflection, extra help when needed, and completion. She can edit everything before students see it.
 
 *[Screen: click “Approve and assign to class,” then switch to the student tab.]*
 
