@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultStudentSessionTimeout          = 8 * time.Second
+	defaultStudentSessionTimeout          = 12 * time.Second
 	defaultStudentSessionRateLimitRate    = 0.5
 	defaultStudentSessionRateLimitBurst   = 10
 	defaultStudentSessionRateLimitExpires = 5 * time.Minute

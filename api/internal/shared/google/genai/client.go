@@ -144,7 +144,6 @@ func (client *Client) GenerateStructured(
 	}
 	temperature := request.Temperature
 	responseSchema, responseJSONSchema := responseSchemaConfig(request.ResponseJSONSchema)
-	thinkingBudget := int32(0)
 
 	config := &googlegenai.GenerateContentConfig{
 		MaxOutputTokens:    maxOutputTokens,
@@ -157,9 +156,7 @@ func (client *Client) GenerateStructured(
 			Timeout: &client.options.RequestTimeout,
 		},
 		SystemInstruction: googlegenai.NewContentFromText(request.SystemInstruction, googlegenai.RoleUser),
-		ThinkingConfig: &googlegenai.ThinkingConfig{
-			ThinkingBudget: &thinkingBudget,
-		},
+		ThinkingConfig:    thinkingConfigForModel(model),
 	}
 
 	response, err := client.client.Models.GenerateContent(
@@ -187,6 +184,27 @@ func (client *Client) GenerateStructured(
 	}
 
 	return buildStructuredResult(model, client.Provider(), text, response), nil
+}
+
+func thinkingConfigForModel(model string) *googlegenai.ThinkingConfig {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if separator := strings.LastIndex(model, "/"); separator >= 0 {
+		model = model[separator+1:]
+	}
+
+	if strings.HasPrefix(model, "gemini-3") {
+		return &googlegenai.ThinkingConfig{
+			ThinkingLevel: googlegenai.ThinkingLevelLow,
+		}
+	}
+	if strings.HasPrefix(model, "gemini-2.5-flash") {
+		thinkingBudget := int32(0)
+		return &googlegenai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		}
+	}
+
+	return nil
 }
 
 func buildUserContents(request StructuredRequest) []*googlegenai.Content {

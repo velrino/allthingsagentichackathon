@@ -2075,6 +2075,13 @@ func buildFallbackTutorTurn(input BuildTutorTurnInput, reason string) TutorTurnB
 	}
 }
 
+// BuildObservedTutorTurn returns the deterministic, evidence-based tutor
+// response without spending a model request. It is used for feedback-only
+// events, which should adapt later turns instead of generating new content.
+func BuildObservedTutorTurn(input BuildTutorTurnInput, reason string) TutorTurnBlueprint {
+	return buildFallbackTutorTurn(normalizeTutorTurnInput(input), reason)
+}
+
 func fallbackTutorObservation(input BuildTutorTurnInput) string {
 	if input.Turn.Outcome == "incorrect" {
 		return "The recorded response was incorrect; Mia asked the student for an explicit explanation before teaching the next step."

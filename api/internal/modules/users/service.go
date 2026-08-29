@@ -451,7 +451,7 @@ func (service *Service) SaveStudentTutorTurn(
 	if existingTurn, exists := existingStudentTutorTurn(attempt.TutorTurns, input.EventID); exists {
 		return existingTurn, nil
 	}
-	if studentTutorTurnLimitReached(attempt.TutorTurns) {
+	if input.Type != "feedback" && studentTutorTurnLimitReached(attempt.TutorTurns) {
 		return StudentTutorTurn{}, ErrStudentTutorTurnLimit
 	}
 	missionDocument, err := service.missionForAttempt(
@@ -467,9 +467,12 @@ func (service *Service) SaveStudentTutorTurn(
 	}
 
 	retrievedChunks := retrieveMissionKnowledge(missionDocument, input, 5)
-	classContext, err := service.classTutorContext(ctx, user.Student.ClassID)
-	if err != nil {
-		return StudentTutorTurn{}, err
+	classContext := orchestrator.TutorClassContext{}
+	if input.Type != "feedback" {
+		classContext, err = service.classTutorContext(ctx, user.Student.ClassID)
+		if err != nil {
+			return StudentTutorTurn{}, err
+		}
 	}
 	turnInput := orchestrator.BuildTutorTurnInput{
 		Mission: orchestrator.TutorMissionContext{
@@ -508,9 +511,15 @@ func (service *Service) SaveStudentTutorTurn(
 		RetrievedChunks: retrievedChunks,
 	}
 
-	tutor, err := service.tutorTurnGenerator.BuildTutorTurn(ctx, turnInput)
-	if err != nil {
-		return StudentTutorTurn{}, err
+	tutor := orchestrator.BuildObservedTutorTurn(
+		turnInput,
+		"Feedback was recorded for the next tutor interaction without generating new AI content.",
+	)
+	if input.Type != "feedback" {
+		tutor, err = service.tutorTurnGenerator.BuildTutorTurn(ctx, turnInput)
+		if err != nil {
+			return StudentTutorTurn{}, err
+		}
 	}
 
 	return service.repository.AppendStudentTutorTurn(ctx, input, tutor)
@@ -1010,7 +1019,14 @@ func existingStudentTutorTurn(
 }
 
 func studentTutorTurnLimitReached(turns []StudentTutorTurn) bool {
-	return len(turns) >= maxGeneratedTutorTurnsPerAttempt
+	generatedTurns := 0
+	for _, turn := range turns {
+		if turn.Type != "feedback" {
+			generatedTurns++
+		}
+	}
+
+	return generatedTurns >= maxGeneratedTutorTurnsPerAttempt
 }
 
 func retrieveMissionKnowledge(

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultDashboardTimeout          = 8 * time.Second
+	defaultDashboardTimeout          = 15 * time.Second
 	defaultDashboardRateLimitRate    = 0.5
 	defaultDashboardRateLimitBurst   = 20
 	defaultDashboardRateLimitExpires = 5 * time.Minute

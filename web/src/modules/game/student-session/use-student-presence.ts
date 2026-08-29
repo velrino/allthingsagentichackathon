@@ -32,6 +32,7 @@ export function useStudentPresence(
   const enabled = options?.enabled ?? true;
   const onClassUnavailableRef = useRef(options?.onClassUnavailable);
   const onMissionUnavailableRef = useRef(options?.onMissionUnavailable);
+  const requestInFlightRef = useRef(false);
 
   useEffect(() => {
     onClassUnavailableRef.current = options?.onClassUnavailable;
@@ -53,6 +54,7 @@ export function useStudentPresence(
       if (
         cancelled ||
         sessionUnavailable ||
+        requestInFlightRef.current ||
         document.visibilityState !== "visible" ||
         !user?.isAnonymous ||
         !classSession ||
@@ -61,6 +63,7 @@ export function useStudentPresence(
         return;
       }
 
+      requestInFlightRef.current = true;
       try {
         const idToken = await user.getIdToken();
         if (!cancelled) {
@@ -99,6 +102,8 @@ export function useStudentPresence(
           }
         }
         // Other presence failures are best effort, so an offline game remains playable.
+      } finally {
+        requestInFlightRef.current = false;
       }
     }
 

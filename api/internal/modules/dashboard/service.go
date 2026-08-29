@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
@@ -99,29 +101,46 @@ func (service *Service) GetOverview(
 	}
 
 	var activeMission *mission.MissionDocument
+	var studentDocuments []studentUserDocument
+	var attempts []users.StudentMissionAttemptDocument
+	var synthesis users.ClassLearningSynthesisDocument
+	var synthesisExists bool
+
+	group, groupContext := errgroup.WithContext(ctx)
 	if service.missionReader != nil {
-		missionDocument, exists, err := service.missionReader.GetActive(ctx, identity, normalizedClassID)
-		if err != nil {
-			return DashboardOverview{}, err
-		}
-		if exists {
-			activeMission = &missionDocument
-		}
+		group.Go(func() error {
+			missionDocument, exists, err := service.missionReader.GetActive(groupContext, identity, normalizedClassID)
+			if err != nil {
+				return err
+			}
+			if exists {
+				activeMission = &missionDocument
+			}
+			return nil
+		})
+	}
+	group.Go(func() error {
+		var err error
+		studentDocuments, err = service.repository.ListStudentsByClassID(groupContext, normalizedClassID)
+		return err
+	})
+	group.Go(func() error {
+		var err error
+		attempts, err = service.repository.ListLearningAttemptsByClassID(groupContext, normalizedClassID)
+		return err
+	})
+	group.Go(func() error {
+		var err error
+		synthesis, synthesisExists, err = service.repository.GetClassLearningSynthesis(groupContext, normalizedClassID)
+		return err
+	})
+	if err := group.Wait(); err != nil {
+		return DashboardOverview{}, err
 	}
 
-	studentDocuments, err := service.repository.ListStudentsByClassID(ctx, normalizedClassID)
-	if err != nil {
-		return DashboardOverview{}, err
-	}
-	attempts, err := service.repository.ListLearningAttemptsByClassID(ctx, normalizedClassID)
-	if err != nil {
-		return DashboardOverview{}, err
-	}
 	students := buildStudentDashboardItems(studentDocuments, attempts, activeMission, time.Now())
 	classLearning := buildClassLearningSummary(students)
-	if synthesis, exists, err := service.repository.GetClassLearningSynthesis(ctx, normalizedClassID); err != nil {
-		return DashboardOverview{}, err
-	} else if exists {
+	if synthesisExists {
 		classLearning = applySemanticClassLearningSynthesis(classLearning, synthesis.Synthesis, students)
 	}
 
