@@ -70,18 +70,20 @@ import {
 
 type DashboardTab = "overview" | "mission" | "students" | "notebook";
 
+const defaultDashboardTab: DashboardTab = "mission";
+
 const hashByTab: Record<DashboardTab, string> = {
-  overview: "#overview",
   mission: "#mission-builder",
   students: "#students",
   notebook: "#notebook",
+  overview: "#overview",
 };
 
 const tabByHash: Record<string, DashboardTab> = {
-  "#overview": "overview",
   "#mission-builder": "mission",
   "#students": "students",
   "#notebook": "notebook",
+  "#overview": "overview",
 };
 
 export function DashboardPage({
@@ -89,7 +91,8 @@ export function DashboardPage({
 }: { readonly initialClassId?: string } = {}) {
   const router = useRouter();
   const auth = useTeacherAuth();
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [activeTab, setActiveTab] =
+    useState<DashboardTab>(defaultDashboardTab);
   const [overview, setOverview] =
     useState<IApiDashboardOverviewResponse | null>(null);
   const [teacherClasses, setTeacherClasses] = useState<IApiTeacherClass[]>([]);
@@ -113,7 +116,7 @@ export function DashboardPage({
 
   useEffect(() => {
     function syncTabFromHash() {
-      setActiveTab(tabByHash[window.location.hash] ?? "overview");
+      setActiveTab(tabByHash[window.location.hash] ?? defaultDashboardTab);
     }
 
     syncTabFromHash();
@@ -695,12 +698,40 @@ export function DashboardPage({
         >
           <div className="overflow-x-auto pb-1">
             <TabsList className="min-w-max">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="mission">Missions</TabsTrigger>
               <TabsTrigger value="students">Students</TabsTrigger>
               <TabsTrigger value="notebook">Notebook</TabsTrigger>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
             </TabsList>
           </div>
+
+          <TabsContent id="mission-builder" value="mission" className="mt-2">
+            <ClassMissionsTable
+              activeMissionId={activeMission?.id}
+              deletingMissionId={deletingMissionId}
+              missions={missions}
+              loading={missionsLoading}
+              onCreateMission={handleOpenMissionBuilder}
+              onDeleteMission={handleDeleteMission}
+              onEditMission={handleEditMission}
+            />
+          </TabsContent>
+
+          <TabsContent id="students" value="students" className="mt-2">
+            <StudentsTableSection
+              classLearning={overview?.class_learning}
+              students={students}
+              onStudentClick={setSelectedStudent}
+            />
+          </TabsContent>
+
+          <TabsContent id="notebook" value="notebook" className="mt-2">
+            <NotebookPanel
+              activeMission={activeMission}
+              students={students}
+              suggestions={suggestions}
+            />
+          </TabsContent>
 
           <TabsContent value="overview" className="mt-2 space-y-4">
             <SectionHeading
@@ -822,34 +853,6 @@ export function DashboardPage({
               generatedByAi={overview?.generated_by_ai ?? false}
               generatedByMock={overview?.generated_by_mock ?? false}
               teacherClass={selectedClass}
-            />
-          </TabsContent>
-
-          <TabsContent id="mission-builder" value="mission" className="mt-2">
-            <ClassMissionsTable
-              activeMissionId={activeMission?.id}
-              deletingMissionId={deletingMissionId}
-              missions={missions}
-              loading={missionsLoading}
-              onCreateMission={handleOpenMissionBuilder}
-              onDeleteMission={handleDeleteMission}
-              onEditMission={handleEditMission}
-            />
-          </TabsContent>
-
-          <TabsContent id="students" value="students" className="mt-2">
-            <StudentsTableSection
-              classLearning={overview?.class_learning}
-              students={students}
-              onStudentClick={setSelectedStudent}
-            />
-          </TabsContent>
-
-          <TabsContent id="notebook" value="notebook" className="mt-2">
-            <NotebookPanel
-              activeMission={activeMission}
-              students={students}
-              suggestions={suggestions}
             />
           </TabsContent>
         </Tabs>
@@ -1385,9 +1388,14 @@ function toTimestamp(value: string) {
 }
 
 function toDashboardTab(value: string): DashboardTab {
-  if (value === "mission" || value === "students" || value === "notebook") {
+  if (
+    value === "mission" ||
+    value === "students" ||
+    value === "notebook" ||
+    value === "overview"
+  ) {
     return value;
   }
 
-  return "overview";
+  return defaultDashboardTab;
 }
