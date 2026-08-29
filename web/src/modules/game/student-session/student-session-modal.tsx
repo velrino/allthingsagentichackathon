@@ -61,7 +61,7 @@ export function StudentSessionModal({
 
   return (
     <div className="pointer-events-auto fixed inset-0 z-50 grid place-items-center bg-[radial-gradient(ellipse_at_center,rgba(5,7,13,0.5)_0%,rgba(5,7,13,0.25)_55%,rgba(5,7,13,0.6)_100%)] px-4 py-[max(env(safe-area-inset-top),1rem)] backdrop-blur-[3px]">
-      <section className="glass w-full max-w-sm rounded-2xl p-5 text-white shadow-2xl shadow-black/40">
+      <section className="w-full max-w-sm rounded-2xl border border-slate-700 bg-[#090c18] p-5 text-white shadow-2xl shadow-black/40">
         <div className="text-center">
           <p className="font-display text-[0.68rem] font-semibold tracking-[0.22em] text-cyan-200 uppercase">
             ClassGame
