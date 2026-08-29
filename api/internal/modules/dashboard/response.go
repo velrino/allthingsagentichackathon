@@ -343,8 +343,8 @@ func toStudentResponses(students []StudentDashboardItem) []StudentDashboardRespo
 				Percentage:         student.Progress.Percentage,
 				Status:             student.Progress.Status,
 			},
-			Strengths:        student.Strengths,
-			ImprovementAreas: student.ImprovementAreas,
+			Strengths:        nonNilSlice(student.Strengths),
+			ImprovementAreas: nonNilSlice(student.ImprovementAreas),
 			LastActivityAt:   formatTime(student.LastActivityAt),
 			NotebookNotes:    student.NotebookNotes,
 			Session: StudentGameSessionResponse{
@@ -369,6 +369,7 @@ func toStudentLearningAttemptResponses(
 ) []StudentLearningAttemptResponse {
 	responses := make([]StudentLearningAttemptResponse, 0, len(attempts))
 	for _, attempt := range attempts {
+		attempt = normalizeStudentLearningAttemptCollections(attempt)
 		responses = append(responses, StudentLearningAttemptResponse{
 			ID:                attempt.ID,
 			OrganizationID:    attempt.OrganizationID,
@@ -396,6 +397,56 @@ func toStudentLearningAttemptResponses(
 	}
 
 	return responses
+}
+
+func normalizeStudentLearningAttemptCollections(
+	attempt users.StudentMissionAttemptDocument,
+) users.StudentMissionAttemptDocument {
+	attempt.Snapshot.Progress = nonNilSlice(attempt.Snapshot.Progress)
+	attempt.Snapshot.Notes = nonNilSlice(attempt.Snapshot.Notes)
+	attempt.Snapshot.Decisions = nonNilSlice(attempt.Snapshot.Decisions)
+	attempt.Snapshot.Events = nonNilSlice(attempt.Snapshot.Events)
+	attempt.Snapshot.Checkpoint.Lines = nonNilSlice(attempt.Snapshot.Checkpoint.Lines)
+	for index := range attempt.Snapshot.Progress {
+		attempt.Snapshot.Progress[index].Queue = nonNilSlice(attempt.Snapshot.Progress[index].Queue)
+		attempt.Snapshot.Progress[index].Pool = nonNilSlice(attempt.Snapshot.Progress[index].Pool)
+	}
+	for index := range attempt.Snapshot.Notes {
+		attempt.Snapshot.Notes[index].Evidence = nonNilSlice(attempt.Snapshot.Notes[index].Evidence)
+	}
+
+	attempt.TutorTurns = nonNilSlice(attempt.TutorTurns)
+	for index := range attempt.TutorTurns {
+		attempt.TutorTurns[index].Tutor.ExplanationSteps = nonNilSlice(
+			attempt.TutorTurns[index].Tutor.ExplanationSteps,
+		)
+		attempt.TutorTurns[index].Tutor.RetrievedChunkIDs = nonNilSlice(
+			attempt.TutorTurns[index].Tutor.RetrievedChunkIDs,
+		)
+		attempt.TutorTurns[index].Tutor.EvidenceEventIDs = nonNilSlice(
+			attempt.TutorTurns[index].Tutor.EvidenceEventIDs,
+		)
+	}
+
+	attempt.Trace.Strengths = nonNilSlice(attempt.Trace.Strengths)
+	attempt.Trace.ImprovementAreas = nonNilSlice(attempt.Trace.ImprovementAreas)
+	attempt.Trace.Flow.Nodes = nonNilSlice(attempt.Trace.Flow.Nodes)
+	attempt.Trace.Flow.Edges = nonNilSlice(attempt.Trace.Flow.Edges)
+	for index := range attempt.Trace.Flow.Nodes {
+		attempt.Trace.Flow.Nodes[index].EvidenceEventIDs = nonNilSlice(
+			attempt.Trace.Flow.Nodes[index].EvidenceEventIDs,
+		)
+	}
+
+	return attempt
+}
+
+func nonNilSlice[Value any](values []Value) []Value {
+	if values == nil {
+		return []Value{}
+	}
+
+	return values
 }
 
 func toClassLearningSummaryResponse(summary ClassLearningSummary) ClassLearningSummaryResponse {

@@ -4,12 +4,14 @@ import {
   BrainCircuit,
   CheckCircle2,
   History,
+  LoaderCircle,
   MessageCircleMore,
   Route,
   Sparkles,
   Target,
+  UserRound,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   IApiDashboardStudent,
@@ -18,13 +20,6 @@ import type {
   IApiStudentTutorTurn,
 } from "@/backend/api/api.interface";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Tabs,
   TabsContent,
   TabsList,
@@ -32,6 +27,7 @@ import {
 } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/date";
 
+import { DashboardModal } from "./dashboard-modal";
 import { MissionFlowPreview } from "./mission-flow-preview";
 
 type StudentLearningDetailProps = {
@@ -46,66 +42,104 @@ export function StudentLearningDetail({
   onOpenChange,
 }: StudentLearningDetailProps) {
   const [selectedAttemptId, setSelectedAttemptId] = useState(
-    student?.attempts[0]?.id ?? "",
+    safeList(student?.attempts)[0]?.id ?? "",
   );
+  const [activeTab, setActiveTab] = useState("conversation");
+  const attempts = useMemo(() => safeList(student?.attempts), [student]);
   const attempt = useMemo(
     () =>
-      student?.attempts.find((item) => item.id === selectedAttemptId) ??
-      student?.attempts[0] ??
+      attempts.find((item) => item.id === selectedAttemptId) ??
+      attempts[0] ??
       null,
-    [selectedAttemptId, student],
+    [attempts, selectedAttemptId],
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] overflow-hidden p-0 sm:max-w-6xl">
-        <DialogHeader className="border-b border-border px-5 py-5 pe-14 sm:px-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <DialogTitle className="text-xl">
-                {student?.student_name ?? "Student learning path"}
-              </DialogTitle>
-              <DialogDescription className="mt-2 max-w-3xl leading-6">
-                Observable answers, explicit explanations, feedback and tutor
-                adaptations. This view never invents or exposes private
-                chain-of-thought.
-              </DialogDescription>
-            </div>
-            {attempt ? <AttemptStatus attempt={attempt} /> : null}
+    <DashboardModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={student?.student_name ?? "Student learning path"}
+      description="Observable answers, explicit explanations, feedback, and tutor adaptations. This view never invents or exposes private chain-of-thought."
+      size="xl"
+    >
+      <section className="overflow-hidden rounded-lg border border-border">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase text-cyan-700">
+              Learning evidence
+            </p>
+            <h3 className="mt-2 text-xl font-semibold">
+              {attempt?.subject || "Student learning path"}
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {attempt
+                ? `Published revision ${attempt.published_revision} · ${attempt.trace_state || "live"}`
+                : "No mission attempt selected"}
+            </p>
           </div>
-        </DialogHeader>
-
-        <div className="max-h-[calc(92dvh-118px)] overflow-y-auto px-5 pb-6 sm:px-6">
-          {student && student.attempts.length > 1 ? (
-            <div className="sticky top-0 z-10 -mx-5 flex gap-2 overflow-x-auto border-b border-border bg-background px-5 py-3 sm:-mx-6 sm:px-6">
-              {student.attempts.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSelectedAttemptId(item.id)}
-                  className={`shrink-0 rounded-md border px-3 py-2 text-left text-xs transition ${
-                    attempt?.id === item.id
-                      ? "border-cyan-300 bg-cyan-50 text-cyan-950"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  <span className="block font-bold">
-                    Attempt {student.attempts.length - index}
-                  </span>
-                  <span className="mt-0.5 block">
-                    {item.subject || "Mission"} · rev. {item.published_revision}
-                  </span>
-                </button>
-              ))}
+          {attempt ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <LiveUpdateStatus attempt={attempt} />
+              <AttemptStatus attempt={attempt} />
             </div>
           ) : null}
+        </header>
 
+        {attempt && isInsightProcessing(attempt.trace_state) ? (
+          <div
+            className="flex items-center gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-violet-950 sm:px-6"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white shadow-sm">
+              <LoaderCircle
+                className="size-4 animate-spin text-violet-600"
+                aria-hidden
+              />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">
+                Emily is updating the learning report
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-violet-700">
+                New answers are already visible. The AI conclusion will appear
+                automatically.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {attempts.length > 1 ? (
+          <div className="flex gap-2 overflow-x-auto border-b border-border bg-muted/20 px-4 py-3 sm:px-6">
+            {attempts.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedAttemptId(item.id)}
+                className={`shrink-0 rounded-md border px-3 py-2 text-left text-xs transition ${
+                  attempt?.id === item.id
+                    ? "border-cyan-300 bg-cyan-50 text-cyan-950"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <span className="block font-bold">
+                  Attempt {attempts.length - index}
+                </span>
+                <span className="mt-0.5 block">
+                  {item.subject || "Mission"} · rev. {item.published_revision}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="p-4 sm:p-6">
           {attempt ? (
-            <Tabs defaultValue="summary" className="pt-5">
-              <TabsList className="grid w-full grid-cols-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
+                <TabsTrigger value="conversation">Conversation</TabsTrigger>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="flow">Learning flow</TabsTrigger>
-                <TabsTrigger value="evidence">Evidence</TabsTrigger>
                 <TabsTrigger value="memory">Memory</TabsTrigger>
               </TabsList>
 
@@ -129,7 +163,7 @@ export function StudentLearningDetail({
                     Evidence-based summary
                   </div>
                   <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    {attempt.trace.summary ||
+                    {attempt.trace?.summary ||
                       "Emily is collecting observable evidence for this attempt."}
                   </p>
                 </div>
@@ -139,13 +173,13 @@ export function StudentLearningDetail({
                     icon={CheckCircle2}
                     label="Strengths"
                     tone="emerald"
-                    values={attempt.trace.strengths}
+                    values={attempt.trace?.strengths}
                   />
                   <SignalPanel
                     icon={Target}
                     label="Areas to revisit"
                     tone="amber"
-                    values={attempt.trace.improvement_areas}
+                    values={attempt.trace?.improvement_areas}
                   />
                 </div>
 
@@ -162,13 +196,18 @@ export function StudentLearningDetail({
                 </div>
                 <MissionFlowPreview
                   emptyMessage="Learning events will appear here as the student works."
-                  flow={attempt.trace.flow}
+                  flow={attempt.trace?.flow}
                 />
               </TabsContent>
 
-              <TabsContent value="evidence" className="mt-5">
-                <EvidenceTimeline events={attempt.snapshot.events} />
-                <TutorTurnTimeline turns={attempt.tutor_turns} />
+              <TabsContent value="conversation" className="mt-5">
+                <LearningConversation
+                  active={activeTab === "conversation"}
+                  attempt={attempt}
+                  studentName={
+                    student?.student_name || attempt.student_name || "Student"
+                  }
+                />
               </TabsContent>
 
               <TabsContent value="memory" className="mt-5 grid gap-4">
@@ -178,7 +217,7 @@ export function StudentLearningDetail({
                     Next adaptive turn
                   </div>
                   <p className="mt-3 text-sm leading-6">
-                    {attempt.trace.next_adaptation ||
+                    {attempt.trace?.next_adaptation ||
                       "Retrieve this attempt before the next student interaction."}
                   </p>
                 </div>
@@ -186,15 +225,15 @@ export function StudentLearningDetail({
                 <div className="grid gap-3 sm:grid-cols-3">
                   <MemoryStat
                     label="Recorded events"
-                    value={String(attempt.snapshot.events.length)}
+                    value={String(safeList(attempt.snapshot?.events).length)}
                   />
                   <MemoryStat
                     label="Teacher notes"
-                    value={String(attempt.snapshot.notes.length)}
+                    value={String(safeList(attempt.snapshot?.notes).length)}
                   />
                   <MemoryStat
                     label="Tutor turns"
-                    value={String(attempt.tutor_turns.length)}
+                    value={String(safeList(attempt.tutor_turns).length)}
                   />
                 </div>
 
@@ -203,9 +242,9 @@ export function StudentLearningDetail({
                     Trace provenance
                   </p>
                   <p className="mt-2">
-                    {attempt.trace.generated_by_ai
+                    {attempt.trace?.generated_by_ai
                       ? `Generated by ${attempt.trace.model || "Gemini"} from ${attempt.trace.event_count} observable events.`
-                      : `Built directly from ${attempt.trace.event_count} observable events${attempt.trace.fallback_reason ? ` · ${attempt.trace.fallback_reason}` : ""}.`}
+                      : `Built directly from ${attempt.trace?.event_count ?? 0} observable events${attempt.trace?.fallback_reason ? ` · ${attempt.trace.fallback_reason}` : ""}.`}
                   </p>
                   <p className="mt-1">
                     Last activity:{" "}
@@ -232,8 +271,8 @@ export function StudentLearningDetail({
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </section>
+    </DashboardModal>
   );
 }
 
@@ -269,6 +308,52 @@ function AttemptStatus({
   );
 }
 
+function LiveUpdateStatus({
+  attempt,
+}: {
+  readonly attempt: IApiStudentLearningAttempt;
+}) {
+  const processing = isInsightProcessing(attempt.trace_state);
+  const failed = attempt.trace_state === "failed";
+  const active = !["completed", "abandoned", "paused"].includes(
+    attempt.status,
+  );
+  const ready = attempt.trace_state === "ready";
+  const label = processing
+    ? "Updating insights"
+    : failed
+      ? "Insight update failed"
+      : active
+        ? "Live updates"
+        : ready
+          ? "Insights ready"
+          : "Watching updates";
+  const tone = failed
+    ? "border-rose-200 bg-rose-50 text-rose-700"
+    : ready && !active
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-cyan-200 bg-cyan-50 text-cyan-700";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-bold ${tone}`}
+      aria-live="polite"
+    >
+      {processing ? (
+        <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+      ) : ready && !active ? (
+        <CheckCircle2 className="size-3.5" aria-hidden />
+      ) : (
+        <span
+          className={`size-2 rounded-full ${failed ? "bg-rose-500" : "animate-pulse bg-cyan-500"}`}
+          aria-hidden
+        />
+      )}
+      {label}
+    </span>
+  );
+}
+
 function SignalPanel({
   icon: Icon,
   label,
@@ -278,12 +363,13 @@ function SignalPanel({
   readonly icon: typeof CheckCircle2;
   readonly label: string;
   readonly tone: "amber" | "emerald";
-  readonly values: string[];
+  readonly values: readonly string[] | null | undefined;
 }) {
   const toneClass =
     tone === "emerald"
       ? "border-emerald-200 bg-emerald-50/60 text-emerald-950"
       : "border-amber-200 bg-amber-50/60 text-amber-950";
+  const safeValues = safeList(values);
 
   return (
     <div className={`rounded-lg border p-4 ${toneClass}`}>
@@ -292,7 +378,10 @@ function SignalPanel({
         {label}
       </div>
       <ul className="mt-3 grid gap-2 text-sm leading-6">
-        {(values.length > 0 ? values : ["More evidence is needed."]).map(
+        {(safeValues.length > 0
+          ? safeValues
+          : ["More evidence is needed."]
+        ).map(
           (value) => (
             <li key={value} className="flex gap-2">
               <span aria-hidden>•</span>
@@ -312,7 +401,7 @@ function AttemptProgress({
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-3">
-      {attempt.snapshot.progress.map((stage) => {
+      {safeList(attempt.snapshot?.progress).map((stage) => {
         const percentage =
           stage.required > 0
             ? Math.min(100, Math.round((stage.correct / stage.required) * 100))
@@ -344,117 +433,349 @@ function AttemptProgress({
   );
 }
 
-function EvidenceTimeline({
-  events,
+function LearningConversation({
+  active,
+  attempt,
+  studentName,
 }: {
-  readonly events: IApiStudentLearningEvent[];
+  readonly active: boolean;
+  readonly attempt: IApiStudentLearningAttempt;
+  readonly studentName: string;
 }) {
-  if (events.length === 0) {
-    return (
-      <div className="rounded-md border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
-        No observable events have been recorded yet.
-      </div>
-    );
-  }
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const previousVersionRef = useRef("");
+  const turns = [...safeList(attempt.tutor_turns)].sort(
+    (left, right) => left.sequence - right.sequence,
+  );
+  const canHavePendingTurn =
+    (attempt.trace_state || "live") === "live" &&
+    !["completed", "abandoned", "paused"].includes(attempt.status);
+  const pendingEvent = canHavePendingTurn
+    ? latestPendingEvent(attempt.snapshot?.events, turns)
+    : null;
+  const processingConclusion = isInsightProcessing(attempt.trace_state);
+  const conclusionReady = attempt.trace_state === "ready";
+  const conclusionFailed = attempt.trace_state === "failed";
+  const version = `${attempt.id}:${attempt.updated_at}:${turns.length}:${pendingEvent?.id ?? "none"}:${attempt.trace_state}`;
+  const hasMessages =
+    turns.length > 0 ||
+    pendingEvent !== null ||
+    processingConclusion ||
+    conclusionReady ||
+    conclusionFailed;
+
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+      viewport.scrollTo({
+        top: viewport.scrollHeight,
+        behavior: previousVersionRef.current ? "smooth" : "auto",
+      });
+      previousVersionRef.current = version;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, version]);
 
   return (
-    <ol className="grid gap-3">
-      {events.map((event) => (
-        <li key={event.id} className="flex gap-3 rounded-lg border border-border p-4">
-          <span
-            className={`mt-1 size-2.5 shrink-0 rounded-full ${eventTone(event.outcome)}`}
+    <section className="overflow-hidden rounded-lg border border-border bg-slate-50/70">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-4 py-3">
+        <div className="flex items-center gap-2">
+          <MessageCircleMore
+            className="size-4 text-violet-700"
             aria-hidden
           />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-semibold">{event.title}</p>
-              <span className="text-xs text-muted-foreground">
-                #{event.sequence} ·{" "}
-                {formatDate(event.occurred_at || null, {
-                  fallback: "time unavailable",
-                  preset: "time",
-                })}
-              </span>
-            </div>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {event.detail}
+          <div>
+            <h3 className="text-sm font-bold">Emily and {studentName}</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              New messages appear here automatically.
             </p>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold text-muted-foreground">
-              <span className="rounded bg-muted px-2 py-1">{event.type}</span>
-              <span className="rounded bg-muted px-2 py-1">{event.stage_id}</span>
-              {event.question_id ? (
-                <span className="rounded bg-muted px-2 py-1">
-                  {event.question_id}
-                </span>
-              ) : null}
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-700">
+          <span className="size-2 animate-pulse rounded-full bg-cyan-500" />
+          Live
+        </span>
+      </header>
+
+      <div
+        ref={viewportRef}
+        className="min-h-80 max-h-[52svh] overflow-y-auto overscroll-contain px-3 py-5 sm:px-5"
+        aria-live="polite"
+      >
+        {hasMessages ? (
+          <ol className="grid gap-6">
+            {turns.map((turn) => (
+              <TutorConversationTurn
+                key={turn.id}
+                studentName={studentName}
+                turn={turn}
+              />
+            ))}
+
+            {pendingEvent ? (
+              <li className="grid gap-3">
+                <EmilyMessage
+                  label="Emily asked"
+                  text={pendingEvent.title || "Current activity"}
+                />
+                <StudentMessage
+                  label={studentName}
+                  outcome={pendingEvent.outcome}
+                  text={pendingEvent.detail || "Answer submitted."}
+                  timestamp={pendingEvent.occurred_at}
+                />
+                <EmilyMessage
+                  conclusionLoading
+                  label="Emily is thinking"
+                  loading
+                  text="Reviewing the latest answer"
+                />
+              </li>
+            ) : null}
+
+            {processingConclusion ? (
+              <li>
+                <EmilyMessage
+                  conclusionLoading
+                  label="Emily · Mission report"
+                  loading
+                  text="Reviewing all answers"
+                />
+              </li>
+            ) : conclusionReady ? (
+              <li>
+                <EmilyMessage
+                  conclusion={
+                    attempt.trace?.summary ||
+                    "The observable learning report is ready."
+                  }
+                  label="Emily · Mission report"
+                  text="I finished the learning report."
+                />
+              </li>
+            ) : conclusionFailed ? (
+              <li>
+                <EmilyMessage
+                  conclusion="The live answers above are still available for review."
+                  label="Emily · Mission report"
+                  text="I could not finish the AI conclusion."
+                />
+              </li>
+            ) : null}
+          </ol>
+        ) : (
+          <div className="grid min-h-64 place-items-center text-center">
+            <div>
+              <MessageCircleMore
+                className="mx-auto size-6 text-muted-foreground"
+                aria-hidden
+              />
+              <p className="mt-3 text-sm font-semibold">No messages yet</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                The first answer will appear here while {studentName} plays.
+              </p>
             </div>
           </div>
-        </li>
-      ))}
-    </ol>
+        )}
+      </div>
+    </section>
   );
 }
 
-function TutorTurnTimeline({
-  turns,
+function TutorConversationTurn({
+  studentName,
+  turn,
 }: {
-  readonly turns: IApiStudentTutorTurn[];
+  readonly studentName: string;
+  readonly turn: IApiStudentTutorTurn;
 }) {
-  if (turns.length === 0) {
-    return null;
-  }
+  const response =
+    turn.explicit_reasoning ||
+    turn.student_response ||
+    turn.feedback ||
+    "No written response.";
 
   return (
-    <section className="mt-6">
-      <div className="mb-3 flex items-center gap-2">
-        <MessageCircleMore className="size-4 text-violet-700" aria-hidden />
-        <h3 className="text-sm font-bold">Adaptive tutor turns</h3>
-      </div>
-      <ol className="grid gap-3">
-        {turns.map((turn) => (
-          <li key={turn.id} className="rounded-lg border border-violet-200 bg-violet-50/40 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-semibold">
-                Turn {turn.sequence} · {turn.type}
-              </p>
-              <span className="text-xs text-muted-foreground">
-                {formatDate(turn.created_at, {
-                  fallback: "Not available",
-                  preset: "date-time",
-                  relative: true,
-                })}
+    <li className="grid gap-3">
+      {turn.prompt ? (
+        <EmilyMessage label="Emily asked" text={turn.prompt} />
+      ) : null}
+      <StudentMessage
+        label={studentName}
+        outcome={turn.outcome}
+        text={response}
+        timestamp={turn.created_at}
+      />
+      <EmilyMessage
+        conclusion={turn.tutor?.teacher_observation}
+        explanationSteps={turn.tutor?.explanation_steps}
+        label="Emily replied"
+        retrievedChunkIDs={turn.tutor?.retrieved_chunk_ids}
+        text={turn.tutor?.message || "No AI reply was recorded."}
+      />
+    </li>
+  );
+}
+
+function EmilyMessage({
+  conclusion,
+  conclusionLoading = false,
+  explanationSteps,
+  label,
+  loading = false,
+  retrievedChunkIDs,
+  text,
+}: {
+  readonly conclusion?: string | null;
+  readonly conclusionLoading?: boolean;
+  readonly explanationSteps?: readonly string[] | null;
+  readonly label: string;
+  readonly loading?: boolean;
+  readonly retrievedChunkIDs?: readonly string[] | null;
+  readonly text: string;
+}) {
+  return (
+    <div className="flex max-w-[92%] items-end gap-2 sm:max-w-[82%]">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-700">
+        <Sparkles className="size-4" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <p className="mb-1 text-xs font-semibold text-muted-foreground">
+          {label}
+        </p>
+        <div className="rounded-e-2xl rounded-tl-2xl border border-violet-200 bg-white px-4 py-3 shadow-sm">
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm font-medium text-violet-800">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              <span>{text}</span>
+              <span className="tracking-[0.18em]" aria-label="processing">
+                ...
               </span>
             </div>
-            <dl className="mt-3 grid gap-3 text-sm leading-6">
-              <div>
-                <dt className="font-semibold text-muted-foreground">Student evidence</dt>
-                <dd>{turn.explicit_reasoning || turn.student_response || "No written response."}</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-muted-foreground">Emily replied</dt>
-                <dd>{turn.tutor.message}</dd>
-              </div>
-              {turn.tutor.teacher_observation ? (
-                <div className="rounded-md border border-violet-200 bg-white/70 p-3">
-                  <dt className="font-semibold text-violet-800">Teacher-only observation</dt>
-                  <dd className="mt-1 text-violet-950">{turn.tutor.teacher_observation}</dd>
+          ) : (
+            <p className="text-sm leading-6 text-foreground">{text}</p>
+          )}
+
+          {safeList(explanationSteps).length > 0 ? (
+            <ol className="mt-3 grid gap-1.5 border-t border-violet-100 pt-3 text-xs leading-5 text-muted-foreground">
+              {safeList(explanationSteps).map((step, index) => (
+                <li key={`${index}:${step}`} className="flex gap-2">
+                  <span className="font-bold text-violet-600">{index + 1}.</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+
+          {conclusion || conclusionLoading ? (
+            <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-violet-700">
+                AI conclusion for the teacher
+              </p>
+              {conclusionLoading ? (
+                <div className="mt-1.5 flex items-center gap-2 text-sm text-violet-950">
+                  <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+                  <span className="tracking-[0.2em]" aria-label="processing">
+                    ...
+                  </span>
                 </div>
-              ) : null}
-            </dl>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-muted-foreground">
-              <span className="rounded bg-white px-2 py-1">{turn.outcome}</span>
-              <span className="rounded bg-white px-2 py-1">{turn.stage_id}</span>
-              {turn.tutor.retrieved_chunk_ids.map((chunkID) => (
-                <span key={chunkID} className="rounded bg-white px-2 py-1">
+              ) : (
+                <p className="mt-1.5 text-sm leading-6 text-violet-950">
+                  {conclusion}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {safeList(retrievedChunkIDs).length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {safeList(retrievedChunkIDs).map((chunkID) => (
+                <span
+                  key={chunkID}
+                  className="rounded bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-700"
+                >
                   RAG · {chunkID}
                 </span>
               ))}
             </div>
-          </li>
-        ))}
-      </ol>
-    </section>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
+}
+
+function StudentMessage({
+  label,
+  outcome,
+  text,
+  timestamp,
+}: {
+  readonly label: string;
+  readonly outcome: string;
+  readonly text: string;
+  readonly timestamp: number | string;
+}) {
+  return (
+    <div className="ml-auto flex max-w-[92%] flex-row-reverse items-end gap-2 sm:max-w-[82%]">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-cyan-100 text-cyan-700">
+        <UserRound className="size-4" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <div className="mb-1 flex items-center justify-end gap-2 text-xs text-muted-foreground">
+          <span>
+            {formatDate(timestamp, {
+              fallback: "now",
+              preset: "time",
+            })}
+          </span>
+          <span className="font-semibold">{label}</span>
+        </div>
+        <div className="rounded-s-2xl rounded-tr-2xl bg-cyan-700 px-4 py-3 text-white shadow-sm">
+          <p className="text-sm leading-6">{text}</p>
+          {outcome ? (
+            <span className="mt-2 inline-flex rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+              {outcome}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function latestPendingEvent(
+  events: readonly IApiStudentLearningEvent[] | null | undefined,
+  turns: readonly IApiStudentTutorTurn[],
+): IApiStudentLearningEvent | null {
+  const latestEvent = [...safeList(events)]
+    .filter((event) => ["answer", "reasoning", "feedback"].includes(event.type))
+    .sort((left, right) => left.sequence - right.sequence)
+    .at(-1);
+  if (!latestEvent) {
+    return null;
+  }
+
+  const coveredEventIDs = new Set(
+    turns.flatMap((turn) => safeList(turn.tutor?.evidence_event_ids)),
+  );
+  if (coveredEventIDs.has(latestEvent.id)) {
+    return null;
+  }
+
+  const latestTurnTimestamp = turns.reduce(
+    (latest, turn) => Math.max(latest, dateValue(turn.created_at)),
+    0,
+  );
+  return latestTurnTimestamp >= latestEvent.occurred_at ? null : latestEvent;
 }
 
 function MemoryStat({ label, value }: { readonly label: string; readonly value: string }) {
@@ -466,23 +787,29 @@ function MemoryStat({ label, value }: { readonly label: string; readonly value: 
   );
 }
 
-function eventTone(outcome: string) {
-  if (outcome === "correct" || outcome === "complete") {
-    return "bg-emerald-500";
-  }
-  if (outcome === "incorrect") {
-    return "bg-amber-500";
-  }
-  if (outcome === "support") {
-    return "bg-violet-500";
+function isInsightProcessing(traceState: string | null | undefined) {
+  return traceState === "pending" || traceState === "processing";
+}
+
+function dateValue(value: number | string) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
   }
 
-  return "bg-slate-400";
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function checkpointLabel(attempt: IApiStudentLearningAttempt) {
-  const checkpoint = attempt.snapshot.checkpoint;
-  const stage = checkpoint.stage_id?.replaceAll("-", " ") || "mission start";
-  const phase = checkpoint.phase?.replaceAll("-", " ") || "between questions";
-  return `${stage}, ${phase}${checkpoint.question_id ? ` (${checkpoint.question_id})` : ""}`;
+  const checkpoint = attempt.snapshot?.checkpoint;
+  const stage = checkpoint?.stage_id?.replaceAll("-", " ") || "mission start";
+  const phase =
+    checkpoint?.phase?.replaceAll("-", " ") || "between questions";
+  return `${stage}, ${phase}${checkpoint?.question_id ? ` (${checkpoint.question_id})` : ""}`;
+}
+
+function safeList<Value>(
+  values: readonly Value[] | null | undefined,
+): readonly Value[] {
+  return Array.isArray(values) ? values : [];
 }

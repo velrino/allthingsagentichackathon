@@ -135,11 +135,12 @@ function buildReactFlow(flow?: IApiMissionFlow | null): {
   nodes: MissionReactFlowNode[];
   edges: Edge[];
 } {
-  if (!flow?.nodes.length) {
+  const flowNodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
+  if (flowNodes.length === 0) {
     return { nodes: [], edges: [] };
   }
 
-  const nodes = flow.nodes.map<MissionReactFlowNode>((node) => ({
+  const nodes = flowNodes.map<MissionReactFlowNode>((node) => ({
     id: node.id,
     type: "default",
     position: {
@@ -152,7 +153,8 @@ function buildReactFlow(flow?: IApiMissionFlow | null): {
     style: nodeStyles[node.kind] ?? nodeStyles.activity,
   }));
   const nodeIds = new Set(nodes.map((node) => node.id));
-  const edges = flow.edges
+  const flowEdges = Array.isArray(flow?.edges) ? flow.edges : [];
+  const edges = flowEdges
     .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
     .map<Edge>((edge) => ({
       id: edge.id,
