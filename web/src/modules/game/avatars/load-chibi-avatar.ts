@@ -5,6 +5,7 @@ import { clone as cloneWithSkeleton } from "three/addons/utils/SkeletonUtils.js"
 
 import type { AvatarPreset } from "../types/avatar";
 import { bindChibiRig } from "./chibi-rig";
+import { recolorAvatar, type AvatarColors } from "./recolor-avatar";
 
 const ASSET_PATH = "/assets/avatars/chibi-band/chibi-band-avatar.glb";
 // Synced from the three package by `npm run sync:draco-decoder`.
@@ -73,9 +74,10 @@ function keepOnlyPreset(model: THREE.Object3D, preset: AvatarPreset) {
 
 /**
  * One chibi character, ready to drop into the scene. Forward is -Z at yaw 0,
- * like the rest of the game; the outer group owns position and yaw.
+ * like the rest of the game; the outer group owns position and yaw. Pass
+ * `colors` to repaint parts (hair, top, ...) for a look the preset doesn't ship.
  */
-export async function createChibiAvatar(preset: AvatarPreset, worldHeight: number) {
+export async function createChibiAvatar(preset: AvatarPreset, worldHeight: number, colors?: Partial<AvatarColors>) {
   const asset = await loadAsset();
   const source = asset.children.find((child) => child.name === "AvatarRig") ?? asset;
 
@@ -84,6 +86,10 @@ export async function createChibiAvatar(preset: AvatarPreset, worldHeight: numbe
 
   if (keepOnlyPreset(model, preset) === 0) {
     throw new Error(`Missing chibi avatar preset: ${preset.id}`);
+  }
+
+  if (colors && Object.keys(colors).length > 0) {
+    recolorAvatar(model, preset, colors);
   }
 
   model.name = `avatar-${preset.id}-model`;

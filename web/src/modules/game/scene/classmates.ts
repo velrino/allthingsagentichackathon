@@ -1,7 +1,8 @@
 import * as THREE from "three";
 
-import { getAvatarPreset, studentAvatarPresets } from "../avatars/avatar-presets";
+import { getAvatarPreset } from "../avatars/avatar-presets";
 import { animateChibi } from "../avatars/chibi-rig";
+import { classmateLooks, type AvatarLook } from "../avatars/classmate-looks";
 import { createChibiAvatar, disposeAvatar } from "../avatars/load-chibi-avatar";
 import type { ClassmateSeat } from "./desk-seats";
 
@@ -10,15 +11,14 @@ type Classmate = {
   readonly anchor: THREE.Group;
   /** Offsets the idle sway so the class doesn't nod in unison. */
   readonly phase: number;
-  presetId: string;
-  loadingPresetId: string;
+  look: AvatarLook | null;
   model: THREE.Object3D | null;
 };
 
 /**
- * The rest of the class, one per seat: the student presets the player isn't
- * using, cycling round if there are more seats than presets. When the player
- * picks a new character, the classmate wearing it swaps out.
+ * The rest of the class, one per seat: every look whose character the player
+ * isn't playing as, cycling round if there are more seats than looks. When
+ * the player picks a new character, the classmate wearing it swaps out.
  */
 export function createClassmates(room: THREE.Group, avatarHeight: number) {
   const classmates: Classmate[] = [];
@@ -34,13 +34,12 @@ export function createClassmates(room: THREE.Group, avatarHeight: number) {
     }
   };
 
-  const load = (classmate: Classmate, presetId: string) => {
-    classmate.presetId = presetId;
-    classmate.loadingPresetId = presetId;
+  const load = (classmate: Classmate, look: AvatarLook) => {
+    classmate.look = look;
 
-    void createChibiAvatar(getAvatarPreset(presetId), avatarHeight)
+    void createChibiAvatar(getAvatarPreset(look.presetId), avatarHeight, look.colors)
       .then((model) => {
-        if (disposed || classmate.presetId !== presetId) {
+        if (disposed || classmate.look !== look) {
           disposeAvatar(model);
           return;
         }
@@ -50,12 +49,7 @@ export function createClassmates(room: THREE.Group, avatarHeight: number) {
         classmate.model = model;
       })
       .catch((error: unknown) => {
-        console.warn(`Classmate "${presetId}" failed to load; leaving the chair empty.`, error);
-      })
-      .finally(() => {
-        if (classmate.loadingPresetId === presetId) {
-          classmate.loadingPresetId = "";
-        }
+        console.warn(`Classmate "${look.presetId}" failed to load; leaving the chair empty.`, error);
       });
   };
 
@@ -76,14 +70,14 @@ export function createClassmates(room: THREE.Group, avatarHeight: number) {
       lastSeatCount = seats.length;
       lastPlayerPresetId = resolvedPlayerId;
 
-      const pool = studentAvatarPresets.filter((preset) => preset.id !== resolvedPlayerId);
+      const pool = classmateLooks.filter((look) => look.presetId !== resolvedPlayerId);
       const wanted = pool.length > 0 ? seats.map((_, index) => pool[index % pool.length]) : [];
 
       while (classmates.length > wanted.length) {
         remove(classmates.pop()!);
       }
 
-      wanted.forEach((preset, index) => {
+      wanted.forEach((look, index) => {
         let classmate = classmates[index];
 
         if (!classmate) {
@@ -93,12 +87,12 @@ export function createClassmates(room: THREE.Group, avatarHeight: number) {
           anchor.position.copy(seat.position);
           anchor.rotation.y = seat.facingYaw;
           room.add(anchor);
-          classmate = { anchor, phase: index * 1.7, presetId: "", loadingPresetId: "", model: null };
+          classmate = { anchor, phase: index * 1.7, look: null, model: null };
           classmates.push(classmate);
         }
 
-        if (classmate.presetId !== preset.id) {
-          load(classmate, preset.id);
+        if (classmate.look !== look) {
+          load(classmate, look);
         }
       });
     },
