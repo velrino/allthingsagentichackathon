@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"strings"
 	"time"
@@ -53,6 +54,7 @@ type MissionRepository interface {
 		string,
 		teacherclass.TeacherSummary,
 		int64,
+		MissionDraftEdits,
 		time.Time,
 	) (MissionDocument, error)
 	SoftDelete(
@@ -113,11 +115,13 @@ func (service *Service) Approve(
 	identity sharedfirebase.Identity,
 	classID string,
 	missionID string,
-	expectedDraftRevision int64,
+	input ApproveMissionInput,
 ) (MissionDocument, error) {
 	if service.repository == nil || service.teacherClassService == nil {
 		return MissionDocument{}, errors.New("teacher class mission dependencies are not configured")
 	}
+	input = normalizeApproveInput(input)
+	expectedDraftRevision := input.ExpectedDraftRevision
 	if expectedDraftRevision <= 0 {
 		return MissionDocument{}, ErrMissionDraftRevisionRequired
 	}
@@ -160,14 +164,20 @@ func (service *Service) Approve(
 		!draftMission.HasUnpublishedChanges
 	if !alreadyPublished && attachmentsNeedTransfer(draftMission.Draft.Attachments) {
 		if service.attachmentEnqueuer == nil {
-			return MissionDocument{}, ErrMissionAttachmentQueue
-		}
-		if err := service.attachmentEnqueuer.Enqueue(ctx, missionattachment.Job{
-			ClassID:   teacherClass.ClassID,
-			MissionID: missionID,
-			Revision:  expectedDraftRevision,
-		}); err != nil {
-			return MissionDocument{}, fmt.Errorf("%w: enqueue mission attachments: %w", ErrMissionAttachmentQueue, err)
+			slog.Warn(
+				"mission attachment queue disabled; publishing without background transfer",
+				"class_id", teacherClass.ClassID,
+				"mission_id", missionID,
+				"revision", expectedDraftRevision,
+			)
+		} else {
+			if err := service.attachmentEnqueuer.Enqueue(ctx, missionattachment.Job{
+				ClassID:   teacherClass.ClassID,
+				MissionID: missionID,
+				Revision:  expectedDraftRevision,
+			}); err != nil {
+				return MissionDocument{}, fmt.Errorf("%w: enqueue mission attachments: %w", ErrMissionAttachmentQueue, err)
+			}
 		}
 	}
 
@@ -177,6 +187,7 @@ func (service *Service) Approve(
 		missionID,
 		teacher,
 		expectedDraftRevision,
+		input.DraftEdits,
 		time.Now(),
 	)
 	if err != nil {
@@ -286,6 +297,26 @@ func (service *Service) createDraft(
 	input.Subject = teacherClass.Subject
 	input.GradeLevel = teacherClass.GradeLevel
 
+	teacher, err := service.teacherClassService.TeacherFromIdentity(identity)
+	if err != nil {
+		return MissionDocument{}, err
+	}
+
+	if input.MissionID == "" {
+		reusableDraft, reusableDraftExists, err := service.reusableStandaloneDraft(
+			ctx,
+			teacherClass.ClassID,
+			teacher,
+		)
+		if err != nil {
+			return MissionDocument{}, err
+		}
+		if reusableDraftExists {
+			input.MissionID = reusableDraft.ID
+			input.ExpectedDraftRevision = reusableDraft.DraftRevision
+		}
+	}
+
 	if input.MissionID != "" {
 		existing, exists, err := service.repository.Get(ctx, teacherClass.ClassID, input.MissionID)
 		if err != nil {
@@ -300,11 +331,6 @@ func (service *Service) createDraft(
 		if existing.DraftRevision != input.ExpectedDraftRevision {
 			return MissionDocument{}, ErrMissionDraftConflict
 		}
-	}
-
-	teacher, err := service.teacherClassService.TeacherFromIdentity(identity)
-	if err != nil {
-		return MissionDocument{}, err
 	}
 
 	blueprint, err := service.orchestrator.BuildMission(ctx, orchestrator.BuildMissionInput{
@@ -343,6 +369,54 @@ func (service *Service) createDraft(
 	return draftView(mission), nil
 }
 
+func (service *Service) reusableStandaloneDraft(
+	ctx context.Context,
+	classID string,
+	teacher teacherclass.TeacherSummary,
+) (MissionDocument, bool, error) {
+	missions, err := service.repository.List(ctx, classID, missionListLimit)
+	if err != nil {
+		return MissionDocument{}, false, err
+	}
+
+	var reusableDraft MissionDocument
+	reusableDraftExists := false
+	deleteTimestamp := time.Now()
+	for _, mission := range missions {
+		if !standaloneDraftOwnedByTeacher(mission, teacher) {
+			continue
+		}
+		if !reusableDraftExists {
+			reusableDraft = mission
+			reusableDraftExists = true
+			continue
+		}
+
+		if _, err := service.repository.SoftDelete(ctx, classID, mission.ID, teacher, deleteTimestamp); err != nil {
+			return MissionDocument{}, false, err
+		}
+	}
+
+	return reusableDraft, reusableDraftExists, nil
+}
+
+func standaloneDraftOwnedByTeacher(
+	mission MissionDocument,
+	teacher teacherclass.TeacherSummary,
+) bool {
+	if mission.Status != StatusDraft && mission.Status != StatusPreview {
+		return false
+	}
+	if mission.Published != nil {
+		return false
+	}
+	if mission.Draft == nil {
+		return false
+	}
+
+	return mission.CreatedBy.ProviderUserID == teacher.ProviderUserID
+}
+
 func (service *Service) createWithGeneratedCode(
 	ctx context.Context,
 	input CreateMissionInput,
@@ -363,6 +437,82 @@ func (service *Service) createWithGeneratedCode(
 	}
 
 	return MissionDocument{}, ErrMissionCodeGeneration
+}
+
+func normalizeApproveInput(input ApproveMissionInput) ApproveMissionInput {
+	input.DraftEdits = normalizeDraftEdits(input.DraftEdits)
+	return input
+}
+
+func normalizeDraftEdits(edits MissionDraftEdits) MissionDraftEdits {
+	if !edits.HasChanges {
+		return MissionDraftEdits{}
+	}
+
+	edits.Title = normalizeText(edits.Title)
+	edits.Summary = normalizeText(edits.Summary)
+	edits.PreviewQuestions = normalizeEditedPreviewQuestions(edits.PreviewQuestions)
+	if edits.Title == "" || edits.Summary == "" || len(edits.PreviewQuestions) == 0 {
+		return MissionDraftEdits{}
+	}
+
+	return edits
+}
+
+func normalizeEditedPreviewQuestions(
+	questions []orchestrator.PreviewQuestion,
+) []orchestrator.PreviewQuestion {
+	normalized := make([]orchestrator.PreviewQuestion, 0, len(questions))
+	for index, question := range questions {
+		id := strings.TrimSpace(question.ID)
+		if id == "" {
+			id = fmt.Sprintf("question-%d", index+1)
+		}
+
+		prompt := normalizeText(question.Prompt)
+		expectedAnswer := normalizeText(question.ExpectedAnswer)
+		if prompt == "" || expectedAnswer == "" {
+			continue
+		}
+
+		answerType := strings.ToLower(normalizeText(question.AnswerType))
+		if answerType == "" {
+			answerType = "short_text"
+		}
+
+		normalized = append(normalized, orchestrator.PreviewQuestion{
+			ID:                 id,
+			StageID:            strings.TrimSpace(question.StageID),
+			Prompt:             prompt,
+			AnswerType:         answerType,
+			Options:            normalizeTextList(question.Options, 8),
+			ExpectedAnswer:     expectedAnswer,
+			ExplanationSteps:   normalizeTextList(question.ExplanationSteps, 8),
+			MisconceptionTraps: normalizeTextList(question.MisconceptionTraps, 8),
+		})
+	}
+
+	return normalized
+}
+
+func normalizeTextList(values []string, limit int) []string {
+	if limit <= 0 {
+		return []string{}
+	}
+
+	normalized := make([]string, 0, min(len(values), limit))
+	for _, value := range values {
+		if len(normalized) >= limit {
+			break
+		}
+		text := normalizeText(value)
+		if text == "" {
+			continue
+		}
+		normalized = append(normalized, text)
+	}
+
+	return normalized
 }
 
 func normalizeInput(input CreateMissionInput) CreateMissionInput {

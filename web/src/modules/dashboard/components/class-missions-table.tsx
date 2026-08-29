@@ -22,6 +22,11 @@ import {
 import { formatDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
+import {
+  missionHasPublishedRevision,
+  missionHasUnpublishedChanges,
+} from "../utils/mission-lifecycle";
+
 type ClassMissionsTableProps = {
   readonly activeMissionId?: string;
   readonly deletingMissionId?: string | null;
@@ -345,21 +350,6 @@ function MissionActions({
       </Button>
     </div>
   );
-}
-
-function missionHasUnpublishedChanges(mission: IApiTeacherClassMission) {
-  if (mission.has_unpublished_changes !== undefined) {
-    return mission.has_unpublished_changes;
-  }
-
-  return (
-    (mission.published_revision ?? 0) > 0 &&
-    (mission.draft_revision ?? 0) > (mission.published_revision ?? 0)
-  );
-}
-
-function missionHasPublishedRevision(mission: IApiTeacherClassMission) {
-  return (mission.published_revision ?? 0) > 0 || Boolean(mission.published_at);
 }
 
 function formatDuration(minutes: number) {

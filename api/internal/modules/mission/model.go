@@ -163,3 +163,15 @@ type CreateMissionInput struct {
 	PublishedAt           time.Time
 	Timestamp             time.Time
 }
+
+type ApproveMissionInput struct {
+	ExpectedDraftRevision int64
+	DraftEdits            MissionDraftEdits
+}
+
+type MissionDraftEdits struct {
+	Title            string
+	Summary          string
+	PreviewQuestions []orchestrator.PreviewQuestion
+	HasChanges       bool
+}

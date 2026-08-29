@@ -240,6 +240,7 @@ func (repository *Repository) Publish(
 	missionID string,
 	teacher teacherclass.TeacherSummary,
 	expectedDraftRevision int64,
+	draftEdits MissionDraftEdits,
 	timestamp time.Time,
 ) (MissionDocument, error) {
 	if expectedDraftRevision <= 0 {
@@ -277,6 +278,7 @@ func (repository *Repository) Publish(
 		if expectedDraftRevision > 0 && mission.DraftRevision != expectedDraftRevision {
 			return ErrMissionDraftConflict
 		}
+		applyDraftEdits(&mission, draftEdits, teacher, timestamp)
 
 		classSnapshot, err := tx.Get(classRef)
 		if status.Code(err) == codes.NotFound {
@@ -296,7 +298,8 @@ func (repository *Repository) Publish(
 		firstPublication := mission.Published == nil
 		alreadyPublished := mission.Published != nil &&
 			mission.PublishedRevision == mission.DraftRevision &&
-			!mission.HasUnpublishedChanges
+			!mission.HasUnpublishedChanges &&
+			!draftEdits.HasChanges
 		if alreadyPublished {
 			if err := tx.Set(classRef, map[string]any{
 				"active_mission_id": mission.ID,
@@ -358,6 +361,29 @@ func (repository *Repository) Publish(
 	}
 
 	return mission, nil
+}
+
+func applyDraftEdits(
+	mission *MissionDocument,
+	edits MissionDraftEdits,
+	teacher teacherclass.TeacherSummary,
+	timestamp time.Time,
+) {
+	if mission == nil || mission.Draft == nil || !edits.HasChanges {
+		return
+	}
+
+	draft := *mission.Draft
+	draft.Title = edits.Title
+	draft.Summary = edits.Summary
+	draft.PreviewQuestions = edits.PreviewQuestions
+	draft.UpdatedBy = teacher
+	draft.UpdatedAt = timestamp
+	mission.Draft = &draft
+	mission.HasUnpublishedChanges = true
+	mission.UpdatedBy = teacher
+	mission.UpdatedAt = timestamp
+	mission.applySnapshot(draft)
 }
 
 func (repository *Repository) GetPublishedRevision(

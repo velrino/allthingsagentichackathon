@@ -15,6 +15,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 
+	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
@@ -41,7 +42,7 @@ type GenerationLimiter interface {
 }
 
 type MissionService interface {
-	Approve(context.Context, sharedfirebase.Identity, string, string, int64) (MissionDocument, error)
+	Approve(context.Context, sharedfirebase.Identity, string, string, ApproveMissionInput) (MissionDocument, error)
 	Delete(context.Context, sharedfirebase.Identity, string, string) error
 	List(context.Context, sharedfirebase.Identity, string) ([]MissionDocument, error)
 	Preview(context.Context, sharedfirebase.Identity, CreateMissionInput) (MissionDocument, error)
@@ -79,7 +80,14 @@ type CreateMissionRequest struct {
 }
 
 type ApproveMissionRequest struct {
-	ExpectedDraftRevision int64 `json:"expected_draft_revision"`
+	ExpectedDraftRevision int64                       `json:"expected_draft_revision"`
+	Draft                 *ApproveMissionDraftRequest `json:"draft"`
+}
+
+type ApproveMissionDraftRequest struct {
+	Title            string                         `json:"title"`
+	Summary          string                         `json:"summary"`
+	PreviewQuestions []orchestrator.PreviewQuestion `json:"preview_questions"`
 }
 
 type MissionAttachmentRequest struct {
@@ -144,6 +152,9 @@ func (handler *Handler) PostMissionApprove(ctx *echo.Context) error {
 	if request.ExpectedDraftRevision <= 0 {
 		return jsonError(ctx, http.StatusBadRequest, "validation_failed", "expected_draft_revision must be greater than zero")
 	}
+	if err := request.Validate(); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
+	}
 
 	requestContext, cancel := context.WithTimeout(ctx.Request().Context(), handler.missionTimeout)
 	defer cancel()
@@ -158,7 +169,10 @@ func (handler *Handler) PostMissionApprove(ctx *echo.Context) error {
 		identity,
 		classID,
 		missionID,
-		request.ExpectedDraftRevision,
+		ApproveMissionInput{
+			ExpectedDraftRevision: request.ExpectedDraftRevision,
+			DraftEdits:            request.Draft.toInput(),
+		},
 	)
 	if err != nil {
 		return handler.serviceError(ctx, err)
@@ -364,6 +378,60 @@ func (handler *Handler) limitGeneration(
 	return jsonError(echoCtx, http.StatusTooManyRequests, "generation_rate_limited", "Too many mission previews. Wait a moment and try again.")
 }
 
+func (request ApproveMissionRequest) Validate() error {
+	if err := validation.ValidateStruct(&request,
+		validation.Field(&request.ExpectedDraftRevision,
+			validation.Required,
+			validation.Min(int64(1)),
+		),
+	); err != nil {
+		return err
+	}
+	if request.Draft == nil {
+		return nil
+	}
+
+	return request.Draft.Validate()
+}
+
+func (request *ApproveMissionDraftRequest) Validate() error {
+	if request == nil {
+		return nil
+	}
+	if err := validation.ValidateStruct(request,
+		validation.Field(&request.Title,
+			validation.Required,
+			validation.Length(2, 160),
+		),
+		validation.Field(&request.Summary,
+			validation.Required,
+			validation.Length(10, 2000),
+		),
+		validation.Field(&request.PreviewQuestions,
+			validation.Required,
+			validation.Length(1, 8),
+			validation.By(validatePreviewQuestions),
+		),
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (request *ApproveMissionDraftRequest) toInput() MissionDraftEdits {
+	if request == nil {
+		return MissionDraftEdits{}
+	}
+
+	return MissionDraftEdits{
+		Title:            request.Title,
+		Summary:          request.Summary,
+		PreviewQuestions: request.PreviewQuestions,
+		HasChanges:       true,
+	}
+}
+
 func (request CreateMissionRequest) Validate() error {
 	if err := validation.ValidateStruct(&request,
 		validation.Field(&request.MissionID,
@@ -441,6 +509,59 @@ func validateTargetStudentIDs(value any) error {
 	for _, studentID := range studentIDs {
 		if err := validation.Validate(studentID, validation.Required, validation.Length(1, 128)); err != nil {
 			return errors.New("target_student_ids contains an invalid student id")
+		}
+	}
+
+	return nil
+}
+
+func validatePreviewQuestions(value any) error {
+	questions, ok := value.([]orchestrator.PreviewQuestion)
+	if !ok {
+		return nil
+	}
+	for _, question := range questions {
+		if err := validation.Validate(question.ID, validation.Length(0, 128)); err != nil {
+			return errors.New("preview_questions contains an invalid id")
+		}
+		if err := validation.Validate(question.StageID, validation.Length(0, 128)); err != nil {
+			return errors.New("preview_questions contains an invalid stage_id")
+		}
+		if err := validation.Validate(question.Prompt, validation.Required, validation.Length(2, 1000)); err != nil {
+			return errors.New("preview_questions contains an invalid prompt")
+		}
+		if err := validation.Validate(question.AnswerType, validation.Length(0, 80)); err != nil {
+			return errors.New("preview_questions contains an invalid answer_type")
+		}
+		if err := validatePreviewQuestionTextList(question.Options, 8, 240, "options"); err != nil {
+			return err
+		}
+		if err := validation.Validate(question.ExpectedAnswer, validation.Required, validation.Length(1, 1000)); err != nil {
+			return errors.New("preview_questions contains an invalid expected_answer")
+		}
+		if err := validatePreviewQuestionTextList(question.ExplanationSteps, 8, 400, "explanation_steps"); err != nil {
+			return err
+		}
+		if err := validatePreviewQuestionTextList(question.MisconceptionTraps, 8, 400, "misconception_traps"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validatePreviewQuestionTextList(
+	values []string,
+	maxItems int,
+	maxLength int,
+	field string,
+) error {
+	if len(values) > maxItems {
+		return errors.New("preview_questions contains too many " + field)
+	}
+	for _, value := range values {
+		if err := validation.Validate(value, validation.Length(0, maxLength)); err != nil {
+			return errors.New("preview_questions contains an invalid " + field + " item")
 		}
 	}
 

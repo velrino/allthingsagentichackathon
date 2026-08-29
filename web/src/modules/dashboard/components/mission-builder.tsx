@@ -1,12 +1,20 @@
 "use client";
 
-import { ExternalLink, File, FileText, FileType2, X } from "lucide-react";
+import {
+  ExternalLink,
+  File,
+  FileText,
+  FileType2,
+  LoaderCircle,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import type {
   IApiCreateTeacherClassMissionRequest,
   IApiDashboardStudent,
   IApiMissionAttachment,
+  IApiMissionPreviewQuestion,
   IApiTeacherClass,
   IApiTeacherClassMission,
 } from "@/backend/api/api.interface";
@@ -17,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { DashboardModal } from "./dashboard-modal";
 import { MissionFlowPreview } from "./mission-flow-preview";
 import { MissionFileUploader } from "../upload/mission-file-uploader";
+import { missionHasPublishedRevision } from "../utils/mission-lifecycle";
 
 export type MissionBuilderForm = IApiCreateTeacherClassMissionRequest & {
   class_id: string;
@@ -66,25 +75,29 @@ export function MissionBuilder({
   >(() => new Set());
   const [previewAttachment, setPreviewAttachment] =
     useState<IApiMissionAttachment | null>(null);
+  const [editableMission, setEditableMission] =
+    useState<IApiTeacherClassMission | null>(() => previewMission);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const visibleMission = previewMission;
+  const previewDraft = editableMission ?? visibleMission;
   const guardrailBlocked = Boolean(
-    visibleMission?.education_guardrail &&
-    !visibleMission.education_guardrail.allowed &&
-    visibleMission.education_guardrail.reason.trim(),
+    previewDraft?.education_guardrail &&
+    !previewDraft.education_guardrail.allowed &&
+    previewDraft.education_guardrail.reason.trim(),
+  );
+  const canShowApprove = Boolean(
+    previewDraft &&
+    !guardrailBlocked &&
+    (previewDraft.status === "preview" || previewDraft.has_unpublished_changes),
   );
   const canApprove = Boolean(
-    visibleMission &&
-    !guardrailBlocked &&
-    (visibleMission.status === "preview" ||
-      visibleMission.has_unpublished_changes),
+    previewDraft && canShowApprove && previewMissionCanBeApproved(previewDraft),
   );
-  const missionCode = visibleMission?.mission_code;
+  const missionCode = previewDraft?.mission_code;
   const hasLiveRevision = Boolean(
-    (visibleMission?.published_revision ?? 0) > 0 ||
-    visibleMission?.published_at,
+    previewDraft && missionHasPublishedRevision(previewDraft),
   );
   const editingMission = Boolean(form.mission_id);
   const busy = processing || approving || uploading;
@@ -168,6 +181,16 @@ export function MissionBuilder({
     }
 
     onOpenChange(nextOpen);
+  }
+
+  function updateEditableMission(
+    updater: (mission: IApiTeacherClassMission) => IApiTeacherClassMission,
+  ) {
+    setEditableMission((current) => {
+      const sourceMission = current ?? visibleMission;
+
+      return sourceMission ? updater(sourceMission) : current;
+    });
   }
 
   return (
@@ -407,20 +430,36 @@ export function MissionBuilder({
           )}
         >
           <div className="min-h-0 overflow-hidden lg:w-[520px]">
-            <aside className="rounded-lg border border-border">
+            <aside className="relative rounded-lg border border-border">
+              {processing && previewDraft ? <PreviewLoadingOverlay /> : null}
               <header className="border-b border-border px-4 py-4 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold uppercase text-cyan-700">
-                      Student preview
+                      Preview
                     </p>
-                    <h3 className="mt-2 text-lg font-semibold">
-                      {visibleMission?.title ?? "Waiting for Emily"}
-                    </h3>
+                    {previewDraft ? (
+                      <EditablePreviewField
+                        ariaLabel="Mission title"
+                        disabled={busy}
+                        value={previewDraft.title}
+                        onChange={(title) =>
+                          updateEditableMission((mission) => ({
+                            ...mission,
+                            title,
+                          }))
+                        }
+                        className="mt-2 text-lg font-semibold leading-7 text-foreground"
+                      />
+                    ) : (
+                      <h3 className="mt-2 text-lg font-semibold">
+                        Waiting for Emily
+                      </h3>
+                    )}
                   </div>
-                  {visibleMission ? (
+                  {previewDraft ? (
                     <span className="rounded-md bg-muted px-2 py-1 text-xs font-bold uppercase text-muted-foreground">
-                      {visibleMission.status}
+                      {previewDraft.status}
                     </span>
                   ) : null}
                 </div>
@@ -430,16 +469,16 @@ export function MissionBuilder({
                 {missionCode ? (
                   <ClassCodeBadge label="Mission code" value={missionCode} />
                 ) : null}
-                {visibleMission ? (
+                {previewDraft ? (
                   <>
-                    {visibleMission.education_guardrail &&
-                    !visibleMission.education_guardrail.allowed ? (
+                    {previewDraft.education_guardrail &&
+                    !previewDraft.education_guardrail.allowed ? (
                       <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
-                        {visibleMission.education_guardrail.reason}
+                        {previewDraft.education_guardrail.reason}
                       </p>
-                    ) : visibleMission.education_guardrail?.attachment_notes ? (
+                    ) : previewDraft.education_guardrail?.attachment_notes ? (
                       <p className="rounded-md border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-semibold leading-5 text-cyan-800">
-                        {visibleMission.education_guardrail.attachment_notes}
+                        {previewDraft.education_guardrail.attachment_notes}
                       </p>
                     ) : null}
 
@@ -450,72 +489,57 @@ export function MissionBuilder({
                       </TabsList>
 
                       <TabsContent value="preview" className="mt-3 grid gap-4">
-                        <p className="text-sm leading-6 text-muted-foreground">
-                          {visibleMission.summary}
-                        </p>
-
-                        <div className="grid gap-2">
-                          {visibleMission.preview_questions.map(
-                            (question, index) => (
-                              <article
-                                key={question.id}
-                                className="rounded-md border border-border p-3"
-                              >
-                                <p className="text-xs font-bold uppercase text-muted-foreground">
-                                  Question {index + 1}
-                                </p>
-                                <h4 className="mt-2 font-semibold text-foreground">
-                                  {question.prompt}
-                                </h4>
-                                {question.options.length > 0 ? (
-                                  <div className="mt-3 grid gap-2">
-                                    {question.options.map((option) => (
-                                      <span
-                                        key={option}
-                                        className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
-                                      >
-                                        {option}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : null}
-                                <p className="mt-3 text-sm font-semibold text-emerald-700">
-                                  {question.expected_answer}
-                                </p>
-                              </article>
-                            ),
-                          )}
-                        </div>
+                        <EditableMissionPreview
+                          disabled={busy}
+                          mission={previewDraft}
+                          onMissionChange={updateEditableMission}
+                        />
                       </TabsContent>
 
                       <TabsContent value="flow" className="mt-3">
                         <MissionFlowPreview
-                          flow={visibleMission.mission_flow}
+                          flow={previewDraft.mission_flow}
                         />
                       </TabsContent>
                     </Tabs>
 
-                    {visibleMission.orchestration.generated_by_mock ? (
+                    {previewDraft.orchestration.generated_by_mock ? (
                       <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
                         Local fallback generated this preview.
                       </p>
                     ) : null}
 
-                    {canApprove ? (
-                      <Button
-                        type="button"
-                        disabled={approving}
-                        onClick={() => onApprove(visibleMission)}
-                        className="bg-emerald-600 text-white hover:bg-emerald-500"
-                      >
-                        {approving
-                          ? "Publishing..."
-                          : hasLiveRevision
-                            ? "Approve and publish changes"
-                            : "Approve and assign to class"}
-                      </Button>
+                    {canShowApprove ? (
+                      <div className="grid gap-2">
+                        {!canApprove ? (
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Title, summary, prompt, and expected answer are
+                            required before approval.
+                          </p>
+                        ) : null}
+                        <Button
+                          type="button"
+                          disabled={!canApprove || approving || processing}
+                          onClick={() => {
+                            if (!previewDraft) {
+                              return;
+                            }
+
+                            void onApprove(previewDraft);
+                          }}
+                          className="bg-emerald-600 text-white hover:bg-emerald-500"
+                        >
+                          {approving
+                            ? "Publishing..."
+                            : hasLiveRevision
+                              ? "Approve and publish changes"
+                              : "Approve and assign to class"}
+                        </Button>
+                      </div>
                     ) : null}
                   </>
+                ) : processing ? (
+                  <PreviewLoadingState />
                 ) : (
                   <p className="text-sm leading-6 text-muted-foreground">
                     The preview will appear here after Emily processes the
@@ -536,6 +560,210 @@ export function MissionBuilder({
         }}
       />
     </DashboardModal>
+  );
+}
+
+type EditableMissionPreviewProps = {
+  readonly disabled: boolean;
+  readonly mission: IApiTeacherClassMission;
+  readonly onMissionChange: (
+    updater: (mission: IApiTeacherClassMission) => IApiTeacherClassMission,
+  ) => void;
+};
+
+function EditableMissionPreview({
+  disabled,
+  mission,
+  onMissionChange,
+}: EditableMissionPreviewProps) {
+  function updateQuestion(
+    questionId: string,
+    updater: (
+      question: IApiMissionPreviewQuestion,
+    ) => IApiMissionPreviewQuestion,
+  ) {
+    onMissionChange((current) => ({
+      ...current,
+      preview_questions: current.preview_questions.map((question) =>
+        question.id === questionId ? updater(question) : question,
+      ),
+    }));
+  }
+
+  return (
+    <div className="grid gap-4">
+      <p className="text-xs font-medium text-muted-foreground">
+        Click any text field to adjust the preview before approving.
+      </p>
+
+      <label className="grid gap-2 text-sm font-medium text-foreground">
+        Summary
+        <EditablePreviewField
+          ariaLabel="Mission summary"
+          disabled={disabled}
+          minRows={4}
+          value={mission.summary}
+          onChange={(summary) =>
+            onMissionChange((current) => ({
+              ...current,
+              summary,
+            }))
+          }
+          className="text-sm leading-6 text-muted-foreground"
+        />
+      </label>
+
+      <div className="grid gap-2">
+        {mission.preview_questions.map((question, index) => (
+          <article
+            key={question.id}
+            className="rounded-md border border-border p-3"
+          >
+            <p className="text-xs font-bold uppercase text-muted-foreground">
+              Question {index + 1}
+            </p>
+
+            <label className="mt-3 grid gap-2 text-sm font-medium text-foreground">
+              Prompt
+              <EditablePreviewField
+                ariaLabel={`Question ${index + 1} prompt`}
+                disabled={disabled}
+                minRows={3}
+                value={question.prompt}
+                onChange={(prompt) =>
+                  updateQuestion(question.id, (current) => ({
+                    ...current,
+                    prompt,
+                  }))
+                }
+                className="font-semibold text-foreground"
+              />
+            </label>
+
+            {question.options.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {question.options.map((option, optionIndex) => (
+                  <input
+                    key={`${question.id}:option:${optionIndex}`}
+                    aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
+                    disabled={disabled}
+                    value={option}
+                    onChange={(event) =>
+                      updateQuestion(question.id, (current) => ({
+                        ...current,
+                        options: current.options.map((currentOption, index) =>
+                          index === optionIndex
+                            ? event.target.value
+                            : currentOption,
+                        ),
+                      }))
+                    }
+                    className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            <label className="mt-3 grid gap-2 text-sm font-medium text-emerald-700">
+              Expected answer
+              <EditablePreviewField
+                ariaLabel={`Question ${index + 1} expected answer`}
+                disabled={disabled}
+                minRows={2}
+                value={question.expected_answer}
+                onChange={(expectedAnswer) =>
+                  updateQuestion(question.id, (current) => ({
+                    ...current,
+                    expected_answer: expectedAnswer,
+                  }))
+                }
+                className="font-semibold text-emerald-700"
+              />
+            </label>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EditablePreviewField({
+  ariaLabel,
+  className,
+  disabled,
+  minRows = 1,
+  onChange,
+  value,
+}: {
+  readonly ariaLabel: string;
+  readonly className?: string;
+  readonly disabled: boolean;
+  readonly minRows?: number;
+  readonly onChange: (value: string) => void;
+  readonly value: string;
+}) {
+  return (
+    <textarea
+      aria-label={ariaLabel}
+      disabled={disabled}
+      rows={minRows}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className={cn(
+        "w-full resize-none rounded-md border border-transparent bg-transparent p-0 outline-none transition focus:border-ring focus:bg-background focus:px-3 focus:py-2 focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70",
+        className,
+      )}
+    />
+  );
+}
+
+function PreviewLoadingState() {
+  return (
+    <div className="grid min-h-72 place-items-center rounded-md border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
+      <div className="grid justify-items-center gap-3">
+        <LoaderCircle
+          className="size-7 animate-spin text-primary"
+          aria-hidden
+        />
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            Generating preview...
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Emily is reading the prompt and attachments.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewLoadingOverlay() {
+  return (
+    <div className="absolute inset-0 z-10 grid place-items-center rounded-lg bg-background/80 backdrop-blur-sm">
+      <div className="grid justify-items-center gap-3 rounded-md border border-border bg-background px-5 py-4 shadow-lg">
+        <LoaderCircle
+          className="size-6 animate-spin text-primary"
+          aria-hidden
+        />
+        <p className="text-sm font-semibold text-foreground">
+          Updating preview...
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function previewMissionCanBeApproved(mission: IApiTeacherClassMission) {
+  return (
+    mission.title.trim().length >= 2 &&
+    mission.summary.trim().length >= 10 &&
+    mission.preview_questions.length > 0 &&
+    mission.preview_questions.every(
+      (question) =>
+        question.prompt.trim().length >= 2 &&
+        question.expected_answer.trim().length > 0,
+    )
   );
 }
 

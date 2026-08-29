@@ -535,8 +535,15 @@ export interface IApiTeacherClassMissionResponse {
   mission: IApiTeacherClassMission;
 }
 
+export interface IApiApproveTeacherClassMissionDraft {
+  title: string;
+  summary: string;
+  preview_questions: IApiMissionPreviewQuestion[];
+}
+
 export interface IApiApproveTeacherClassMissionRequest {
   expected_draft_revision?: number;
+  draft?: IApiApproveTeacherClassMissionDraft;
 }
 
 export interface IApiTeacherClassMissionsResponse {

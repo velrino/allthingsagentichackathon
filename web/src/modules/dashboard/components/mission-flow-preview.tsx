@@ -27,7 +27,12 @@ const nodeBaseStyle: CSSProperties = {
   boxShadow: "0 12px 28px rgba(15, 23, 42, 0.16)",
   fontFamily: "var(--font-geist-sans)",
   padding: 0,
-  width: 190,
+  width: 215,
+};
+
+const nodePositionScale = {
+  x: 1.55,
+  y: 1.45,
 };
 
 const nodeStyles: Record<string, CSSProperties> = {
@@ -108,18 +113,18 @@ export function MissionFlowPreview({
   }
 
   return (
-    <div className="h-[520px] overflow-hidden rounded-md border border-border bg-slate-50">
+    <div className="h-[560px] overflow-hidden rounded-md border border-border bg-slate-50">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         fitView
-        fitViewOptions={{ padding: 0.25 }}
+        fitViewOptions={{ padding: 0.32 }}
         nodesConnectable={false}
         nodesDraggable={false}
         elementsSelectable={false}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#cbd5e1" gap={18} />
+        <Background color="#cbd5e1" gap={22} />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
@@ -137,7 +142,10 @@ function buildReactFlow(flow?: IApiMissionFlow | null): {
   const nodes = flow.nodes.map<MissionReactFlowNode>((node) => ({
     id: node.id,
     type: "default",
-    position: node.position,
+    position: {
+      x: node.position.x * nodePositionScale.x,
+      y: node.position.y * nodePositionScale.y,
+    },
     data: {
       label: <MissionFlowNodeCard node={node} />,
     },

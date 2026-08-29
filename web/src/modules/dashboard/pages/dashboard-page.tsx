@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
 import type {
+  IApiApproveTeacherClassMissionRequest,
   IApiDashboardOverviewResponse,
   IApiDashboardStudent,
   IApiClassLearningSummary,
@@ -39,6 +40,7 @@ import {
   MissionBuilder,
   type MissionBuilderForm,
 } from "../components/mission-builder";
+import { missionIsStandaloneDraft } from "../utils/mission-lifecycle";
 import { AnalyticsCard } from "../components/analytics/analytics-card";
 import {
   buildClassGlance,
@@ -500,9 +502,7 @@ export function DashboardPage({
         token,
         mission.class_id,
         mission.id,
-        {
-          expected_draft_revision: mission.draft_revision,
-        },
+        buildApproveMissionRequest(mission),
       );
       setPreviewMission(response.mission);
       setMissions((current) => upsertClassMission(current, response.mission));
@@ -1342,11 +1342,39 @@ function upsertClassMission(
 ) {
   return [
     mission,
-    ...missions.filter((current) => current.id !== mission.id),
+    ...missions.filter(
+      (current) =>
+        current.id !== mission.id &&
+        !shouldDropStandaloneDraftAfterUpsert(current, mission),
+    ),
   ].sort(
     (left, right) =>
       toTimestamp(right.updated_at) - toTimestamp(left.updated_at),
   );
+}
+
+function shouldDropStandaloneDraftAfterUpsert(
+  current: IApiTeacherClassMission,
+  incoming: IApiTeacherClassMission,
+) {
+  return (
+    current.class_id === incoming.class_id &&
+    missionIsStandaloneDraft(incoming) &&
+    missionIsStandaloneDraft(current)
+  );
+}
+
+function buildApproveMissionRequest(
+  mission: IApiTeacherClassMission,
+): IApiApproveTeacherClassMissionRequest {
+  return {
+    expected_draft_revision: mission.draft_revision,
+    draft: {
+      title: mission.title,
+      summary: mission.summary,
+      preview_questions: mission.preview_questions,
+    },
+  };
 }
 
 function toTimestamp(value: string) {
