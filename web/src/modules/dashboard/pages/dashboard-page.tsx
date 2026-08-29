@@ -942,13 +942,6 @@ function ActiveMissionCard({
                 : "Create a class first. Each class gets its own code, assignments, students, and notebook."}
             </CardDescription>
           </div>
-          {classCode ? (
-            <ClassCodeBadge value={classCode} />
-          ) : (
-            <Button variant="outline" asChild>
-              <Link href="/dashboard/classes">Create class</Link>
-            </Button>
-          )}
         </div>
       </CardHeader>
 
@@ -1288,11 +1281,11 @@ function ClassCodeBadge({
 }) {
   if (compact) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm">
-        <span className="text-[11px] font-bold uppercase text-emerald-700">
+      <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm">
+        <span className="text-[11px] font-bold uppercase text-primary">
           Code
         </span>
-        <span className="font-mono text-base font-black text-emerald-900">
+        <span className="font-mono text-base font-black text-[#3f20c8]">
           {value}
         </span>
       </div>
@@ -1300,11 +1293,11 @@ function ClassCodeBadge({
   }
 
   return (
-    <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-      <span className="block text-xs font-bold uppercase text-emerald-700">
+    <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm">
+      <span className="block text-xs font-bold uppercase text-primary">
         Class code
       </span>
-      <span className="mt-1 block font-mono text-lg font-black text-emerald-900">
+      <span className="mt-1 block font-mono text-lg font-black text-[#3f20c8]">
         {value}
       </span>
     </div>

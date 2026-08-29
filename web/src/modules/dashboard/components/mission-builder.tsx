@@ -561,11 +561,11 @@ function ClassCodeBadge({
   readonly value: string;
 }) {
   return (
-    <div className="w-fit rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-      <span className="block text-xs font-bold uppercase text-emerald-700">
+    <div className="w-fit rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm">
+      <span className="block text-xs font-bold uppercase text-primary">
         {label}
       </span>
-      <span className="mt-1 block font-mono text-base font-black text-emerald-900">
+      <span className="mt-1 block font-mono text-base font-black text-[#3f20c8]">
         {value}
       </span>
     </div>
