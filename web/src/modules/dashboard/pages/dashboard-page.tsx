@@ -97,7 +97,6 @@ export function DashboardPage({
   const [missions, setMissions] = useState<IApiTeacherClassMission[]>([]);
   const [missionsLoading, setMissionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [approving, setApproving] = useState(false);
   const [deletingMissionId, setDeletingMissionId] = useState<string | null>(
@@ -132,7 +131,6 @@ export function DashboardPage({
 
     Promise.resolve()
       .then(async () => {
-        setLoading(true);
         setError(null);
 
         const token = await user.getIdToken();
@@ -162,7 +160,6 @@ export function DashboardPage({
       })
       .finally(() => {
         if (!cancelled) {
-          setLoading(false);
         }
       });
 
@@ -185,7 +182,6 @@ export function DashboardPage({
 
     Promise.resolve()
       .then(async () => {
-        setLoading(true);
         setError(null);
 
         const token = await user.getIdToken();
@@ -218,7 +214,6 @@ export function DashboardPage({
       })
       .finally(() => {
         if (!cancelled) {
-          setLoading(false);
         }
       });
 
@@ -885,12 +880,6 @@ export function DashboardPage({
             }
           }}
         />
-
-        {loading ? (
-          <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-xl">
-            Loading dashboard...
-          </div>
-        ) : null}
       </Main>
     </DashboardShell>
   );
