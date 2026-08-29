@@ -7,7 +7,7 @@ import {
   TUTOR_NAME,
   type Misconception,
   type Question,
-} from "../content/algebra-mission";
+} from "../content/mission";
 import {
   getMissionMisconception,
   stageLabel,

@@ -8,7 +8,7 @@ import {
   type Explanation,
   type Question,
   type Visual,
-} from "../content/algebra-mission";
+} from "../content/mission";
 import { stageLabel, type GameMission } from "../content/game-mission";
 import { shuffledMoves, type Lesson } from "../state/session-reducer";
 import type { PodProgress } from "../state/student-memory";

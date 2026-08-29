@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { getAvatarPreset, teacherAvatarPresetId } from "../avatars/avatar-presets";
-import { TUTOR_NAME } from "../content/algebra-mission";
+import { TUTOR_NAME } from "../content/mission";
 import { stageLabel, type GameMission } from "../content/game-mission";
 import type { PodProgress } from "../state/student-memory";
 import { POD_ORDER, type MovementRef, type PodId, type PodStatus } from "../types/game";
@@ -47,12 +47,12 @@ export function PodDots({ mission, progress, className = "" }: { readonly missio
 const pill =
   "pointer-events-auto font-display inline-flex h-12 select-none items-center justify-center gap-2 rounded-full px-5 text-center text-[0.95rem] font-semibold tracking-tight transition active:translate-y-px disabled:opacity-60";
 
-function sitLabel(mission: GameMission, status: PodStatus, pod: PodId) {
+function sitLabel(status: PodStatus) {
   if (status === "complete") {
     return "Mission complete";
   }
 
-  return `Sit down · ${stageLabel(mission, pod)}`;
+  return "Start mission";
 }
 
 /**
@@ -143,7 +143,7 @@ export function GameHud({
             <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M5 4v6M19 4v6M5 10h14v4H5zM7 14v6M17 14v6" />
             </svg>
-            {sitLabel(mission, stageStatus, tutorPod)}
+            {sitLabel(stageStatus)}
           </button>
         ) : null}
 

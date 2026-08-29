@@ -1,4 +1,4 @@
-import type { NoteKind } from "../content/algebra-mission";
+import type { NoteKind } from "../content/mission";
 import { FALLBACK_GAME_MISSION, type GameMission } from "../content/game-mission";
 import { POD_ORDER, type ExplanationStyle, type PodId, type PodStatus } from "../types/game";
 

@@ -3,7 +3,7 @@
 import Image from "next/image";
 
 import { getAvatarPortraitPath, getAvatarPreset, studentAvatarPresets, teacherAvatarPresetId } from "../avatars/avatar-presets";
-import { TUTOR_NAME } from "../content/algebra-mission";
+import { TUTOR_NAME } from "../content/mission";
 import type { AvatarPreset } from "../types/avatar";
 
 export function AvatarPortrait({ preset, className = "" }: { readonly preset: AvatarPreset; readonly className?: string }) {

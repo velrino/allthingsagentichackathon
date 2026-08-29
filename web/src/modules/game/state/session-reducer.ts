@@ -6,7 +6,7 @@ import {
   roamingLine,
   type Decision,
 } from "../agent/mock-tutor";
-import type { EquationStep, Misconception, Question, StepMove } from "../content/algebra-mission";
+import type { EquationStep, Misconception, Question, StepMove } from "../content/mission";
 import {
   FALLBACK_GAME_MISSION,
   getMissionMisconception,

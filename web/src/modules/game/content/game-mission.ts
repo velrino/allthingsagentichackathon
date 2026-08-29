@@ -2,15 +2,11 @@ import type { IApiStudentMission } from "@/backend/api/api.interface";
 
 import {
   MISCONCEPTIONS,
-  MISSION_GOAL,
-  MISSION_ID,
-  MISSION_SUBJECT,
-  MISSION_TITLE,
   POD_PLANS,
   QUESTIONS,
   type Misconception,
   type Question,
-} from "./algebra-mission";
+} from "./mission";
 import { POD_ORDER, type PodId } from "../types/game";
 
 export type GameStage = {
@@ -40,12 +36,12 @@ export type GameMission = {
 };
 
 export const FALLBACK_GAME_MISSION: GameMission = {
-  id: MISSION_ID,
+  id: "fallback-mission",
   publishedRevision: 0,
-  title: MISSION_TITLE,
-  subject: MISSION_SUBJECT,
+  title: "Class mission",
+  subject: "Classroom learning",
   gradeLevel: "",
-  learningGoal: MISSION_GOAL,
+  learningGoal: "Complete the mission from your teacher.",
   stages: {
     fractions: {
       slot: "fractions",
@@ -157,7 +153,7 @@ export function buildGameMission(source: IApiStudentMission | undefined): GameMi
   return {
     id: source.id,
     publishedRevision: source.published_revision,
-    title: source.title || "Class mission",
+    title: source.mission_name || source.title || "Class mission",
     subject: source.subject || "Classroom learning",
     gradeLevel: source.grade_level,
     learningGoal: source.learning_goal,

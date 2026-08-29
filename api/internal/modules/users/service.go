@@ -754,6 +754,7 @@ func studentSessionMissionFromDocument(document mission.MissionDocument) Student
 		ID:                document.ID,
 		MissionCode:       document.MissionCode,
 		PublishedRevision: document.PublishedRevision,
+		MissionName:       document.MissionName,
 		Title:             document.Title,
 		Subject:           document.Subject,
 		GradeLevel:        document.GradeLevel,

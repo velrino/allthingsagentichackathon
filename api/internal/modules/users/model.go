@@ -236,6 +236,7 @@ type StudentSessionMission struct {
 	ID                string                         `json:"id"`
 	MissionCode       string                         `json:"mission_code"`
 	PublishedRevision int64                          `json:"published_revision"`
+	MissionName       string                         `json:"mission_name"`
 	Title             string                         `json:"title"`
 	Subject           string                         `json:"subject"`
 	GradeLevel        string                         `json:"grade_level"`

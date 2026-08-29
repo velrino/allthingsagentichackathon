@@ -13,10 +13,16 @@ export const studentSessionReadyEvent = "classgame:student-session-ready";
 
 export function useStudentPresence(
   presence: Omit<IApiStudentPresence, "mission_id" | "subject">,
+  options?: { readonly enabled?: boolean },
 ) {
   const { stage_id, stage_name, status } = presence;
+  const enabled = options?.enabled ?? true;
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     let cancelled = false;
 
     async function reportPresence() {
@@ -63,5 +69,5 @@ export function useStudentPresence(
       document.removeEventListener("visibilitychange", reportWhenVisible);
       window.removeEventListener(studentSessionReadyEvent, reportPresence);
     };
-  }, [stage_id, stage_name, status]);
+  }, [enabled, stage_id, stage_name, status]);
 }

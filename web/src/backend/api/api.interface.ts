@@ -200,6 +200,7 @@ export interface IApiStudentMission {
   id: string;
   mission_code: string;
   published_revision: number;
+  mission_name: string;
   title: string;
   subject: string;
   grade_level: string;

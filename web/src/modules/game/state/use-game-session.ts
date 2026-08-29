@@ -26,7 +26,7 @@ import {
   storeAvatarPresetId,
   subscribeStoredAvatarPresetId,
 } from "../avatars/avatar-storage";
-import type { Question } from "../content/algebra-mission";
+import type { Question } from "../content/mission";
 import {
   buildGameMission,
   slotForStageID,

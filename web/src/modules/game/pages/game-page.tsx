@@ -30,14 +30,14 @@ export function GamePage() {
     stage_id: sourceStageID(session.mission, session.tutorPod),
     stage_name: stageLabel(session.mission, session.tutorPod),
     status: presenceStatus,
-  });
+  }, { enabled: session.hydrated });
 
   return (
     <StudentSessionGate>
       <main className="relative isolate h-dvh overflow-hidden bg-[#05070d] text-white">
         <GameCanvas movementRef={movementRef} directiveRef={directiveRef} onReport={handlers.onReport} />
 
-        {seatedLesson ? (
+        {session.hydrated && seatedLesson ? (
           <Chalkboard
             mission={session.mission}
             lesson={seatedLesson}
@@ -50,7 +50,7 @@ export function GamePage() {
             onFeedback={handlers.feedback}
             onContinue={handlers.continue}
           />
-        ) : (
+        ) : session.hydrated ? (
           <GameHud
             mission={session.mission}
             movementRef={movementRef}
@@ -62,7 +62,7 @@ export function GamePage() {
             onSelectAvatar={handlers.selectAvatar}
             onSit={handlers.sit}
           />
-        )}
+        ) : null}
       </main>
     </StudentSessionGate>
   );
