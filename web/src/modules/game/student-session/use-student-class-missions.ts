@@ -38,6 +38,9 @@ type StudentClassMissionsOptions = {
   readonly onMissionUnavailable?: () => void;
 };
 
+const INITIAL_MISSION_RETRY_MS = 1_000;
+const MAX_MISSION_RETRY_MS = 15_000;
+
 export function useStudentClassMissions(
   options: StudentClassMissionsOptions = {},
 ) {
@@ -111,34 +114,63 @@ export function useStudentClassMissions(
         // The API validation still protects restored sessions if rules lag deployment.
       },
     );
-    const unsubscribeMissions = onSnapshot(
-      collection(
-        database,
-        "student_class_missions",
-        classSession.classId,
-        "missions",
-      ),
-      (snapshot) => {
-        const next = snapshot.docs
-          .map((mission) => studentClassMissionFromData(mission.id, mission.data()))
-          .filter((mission): mission is StudentClassMission => mission !== null)
-          .sort((left, right) => right.publishedAt - left.publishedAt);
-        setMissionScope(scope);
-        setMissions(next);
-        setMissionsReady(true);
-        const activeMissionID = activeMissionIDRef.current;
-        if (
-          activeMissionID &&
-          readStudentClassSession()?.classId === classSession.classId &&
-          !next.some((mission) => mission.id === activeMissionID)
-        ) {
-          onMissionUnavailableRef.current?.();
-        }
-      },
-      () => {
-        setMissionsReady(false);
-      },
-    );
+    let missionRetryDelay = INITIAL_MISSION_RETRY_MS;
+    let missionRetryTimer: number | undefined;
+    let missionListenerStopped = false;
+    let unsubscribeMissions: () => void = () => undefined;
+    const subscribeToMissions = () => {
+      unsubscribeMissions();
+      unsubscribeMissions = onSnapshot(
+        collection(
+          database,
+          "student_class_missions",
+          classSession.classId,
+          "missions",
+        ),
+        (snapshot) => {
+          missionRetryDelay = INITIAL_MISSION_RETRY_MS;
+          const next = snapshot.docs
+            .map((mission) =>
+              studentClassMissionFromData(mission.id, mission.data()),
+            )
+            .filter(
+              (mission): mission is StudentClassMission => mission !== null,
+            )
+            .sort((left, right) => right.publishedAt - left.publishedAt);
+          setMissionScope(scope);
+          setMissions(next);
+          setMissionsReady(true);
+          const activeMissionID = activeMissionIDRef.current;
+          if (
+            activeMissionID &&
+            readStudentClassSession()?.classId === classSession.classId &&
+            !next.some((mission) => mission.id === activeMissionID)
+          ) {
+            onMissionUnavailableRef.current?.();
+          }
+        },
+        (error) => {
+          if (missionListenerStopped) {
+            return;
+          }
+
+          setMissionsReady(false);
+          console.warn(
+            "Student mission updates disconnected; retrying.",
+            error,
+          );
+          missionRetryTimer = window.setTimeout(
+            subscribeToMissions,
+            missionRetryDelay,
+          );
+          missionRetryDelay = Math.min(
+            missionRetryDelay * 2,
+            MAX_MISSION_RETRY_MS,
+          );
+        },
+      );
+    };
+    subscribeToMissions();
     const unsubscribeCompletions = onSnapshot(
       collection(
         database,
@@ -173,6 +205,8 @@ export function useStudentClassMissions(
     );
 
     return () => {
+      missionListenerStopped = true;
+      window.clearTimeout(missionRetryTimer);
       unsubscribeClass();
       unsubscribeMissions();
       unsubscribeCompletions();
