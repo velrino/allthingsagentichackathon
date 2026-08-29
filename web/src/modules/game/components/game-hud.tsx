@@ -2,11 +2,19 @@
 
 import { useState } from "react";
 
-import { getAvatarPreset, teacherAvatarPresetId } from "../avatars/avatar-presets";
+import {
+  getAvatarPreset,
+  teacherAvatarPresetId,
+} from "../avatars/avatar-presets";
 import { TUTOR_NAME } from "../content/mission";
 import { stageLabel, type GameMission } from "../content/game-mission";
 import type { PodProgress } from "../state/student-memory";
-import { POD_ORDER, type MovementRef, type PodId, type PodStatus } from "../types/game";
+import {
+  POD_ORDER,
+  type MovementRef,
+  type PodId,
+  type PodStatus,
+} from "../types/game";
 import { AvatarPicker, AvatarPortrait } from "./avatar-picker";
 import { MovementPad } from "./movement-pad";
 
@@ -30,9 +38,21 @@ const SEGMENT_CLASS: Record<PodStatus, string> = {
 };
 
 /** Three short bars: the mission at a glance. Also used on the chalkboard header. */
-export function PodDots({ mission, progress, className = "" }: { readonly mission?: GameMission; readonly progress: Record<PodId, PodProgress>; readonly className?: string }) {
+export function PodDots({
+  mission,
+  progress,
+  className = "",
+}: {
+  readonly mission?: GameMission;
+  readonly progress: Record<PodId, PodProgress>;
+  readonly className?: string;
+}) {
   return (
-    <div className={`flex items-center gap-1 ${className}`} aria-label="Mission progress" role="img">
+    <div
+      className={`flex items-center gap-1 ${className}`}
+      aria-label="Mission progress"
+      role="img"
+    >
       {POD_ORDER.map((podId) => (
         <span
           key={podId}
@@ -52,7 +72,7 @@ function sitLabel(status: PodStatus) {
     return "Mission complete";
   }
 
-  return "Start mission";
+  return "START";
 }
 
 /**
@@ -75,7 +95,8 @@ export function GameHud({
   const avatar = getAvatarPreset(avatarPresetId);
   const tutorAvatar = getAvatarPreset(teacherAvatarPresetId);
   const stageStatus = progress[tutorPod].status;
-  const canSit = nearSeat && (stageStatus === "ready" || stageStatus === "review");
+  const canSit =
+    nearSeat && (stageStatus === "ready" || stageStatus === "review");
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 select-none text-white">
@@ -83,9 +104,12 @@ export function GameHud({
       <div className="glass animate-rise absolute top-[max(env(safe-area-inset-top),0.75rem)] left-3 flex h-12 items-center gap-2.5 rounded-2xl px-3 sm:h-auto sm:gap-3 sm:px-3.5 sm:py-2.5 sm:left-5">
         <PodDots mission={mission} progress={progress} />
         <div className="font-display leading-none">
-          <p className="text-[0.56rem] font-semibold tracking-[0.12em] text-cyan-200/90 uppercase sm:text-[0.62rem] sm:tracking-[0.2em]">{mission.title}</p>
+          <p className="text-[0.56rem] font-semibold tracking-[0.12em] text-cyan-200/90 uppercase sm:text-[0.62rem] sm:tracking-[0.2em]">
+            {mission.title}
+          </p>
           <p className="mt-1 hidden text-xs font-medium text-slate-300 sm:block">
-            Next up · <span className="text-white">{stageLabel(mission, tutorPod)}</span>
+            Next up ·{" "}
+            <span className="text-white">{stageLabel(mission, tutorPod)}</span>
           </p>
         </div>
       </div>
@@ -100,8 +124,19 @@ export function GameHud({
           className="glass animate-rise pointer-events-auto flex h-12 items-center gap-2 rounded-full px-1.5 text-slate-100 transition hover:bg-white/10 active:translate-y-px sm:pr-3.5"
         >
           <AvatarPortrait preset={avatar} className="size-9" />
-          <span className="font-display hidden text-sm font-semibold sm:inline">{avatar.label}</span>
-          <svg viewBox="0 0 24 24" className={`hidden size-4 text-slate-400 transition sm:block ${pickerOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <span className="font-display hidden text-sm font-semibold sm:inline">
+            {avatar.label}
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            className={`hidden size-4 text-slate-400 transition sm:block ${pickerOpen ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
             <path d="m6 9 6 6 6-6" />
           </svg>
         </button>
@@ -122,10 +157,17 @@ export function GameHud({
       {tutorLine ? (
         <div className="absolute bottom-[calc(190px+4rem+env(safe-area-inset-bottom))] left-3 right-3 sm:right-auto sm:bottom-7 sm:left-6 sm:max-w-md">
           <div className="glass animate-rise flex items-start gap-3 rounded-2xl px-4 py-3">
-            <AvatarPortrait preset={tutorAvatar} className="mt-0.5 size-10 shrink-0 shadow-[0_0_18px_rgba(103,232,249,0.45)]" />
+            <AvatarPortrait
+              preset={tutorAvatar}
+              className="mt-0.5 size-10 shrink-0 shadow-[0_0_18px_rgba(103,232,249,0.45)]"
+            />
             <div className="min-w-0">
-              <p className="font-display text-[0.62rem] font-semibold tracking-[0.2em] text-cyan-200/90 uppercase">{TUTOR_NAME}</p>
-              <p className="mt-0.5 text-[0.95rem] leading-snug text-slate-100">{tutorLine}</p>
+              <p className="font-display text-[0.62rem] font-semibold tracking-[0.2em] text-cyan-200/90 uppercase">
+                {TUTOR_NAME}
+              </p>
+              <p className="mt-0.5 text-[0.95rem] leading-snug text-slate-100">
+                {tutorLine}
+              </p>
             </div>
           </div>
         </div>
@@ -140,13 +182,9 @@ export function GameHud({
             onClick={() => canSit && onSit()}
             className={`${pill} w-full max-w-[18rem] animate-rise sm:w-auto sm:max-w-none ${canSit ? "cta hover:brightness-105" : "glass text-slate-200"}`}
           >
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M5 4v6M19 4v6M5 10h14v4H5zM7 14v6M17 14v6" />
-            </svg>
             {sitLabel(stageStatus)}
           </button>
         ) : null}
-
       </div>
 
       {/* Controls hint, fades on its own */}
