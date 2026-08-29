@@ -8,6 +8,7 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
+import { LoaderCircle } from "lucide-react";
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 
 import type {
@@ -16,14 +17,26 @@ import type {
 } from "@/backend/api/api.interface";
 import { cn } from "@/lib/utils";
 
+type MissionFlowPendingNode = {
+  readonly label: string;
+  readonly description: string;
+};
+
 type MissionFlowPreviewProps = {
   /** Overrides the canvas box (default 560px tall) — e.g. `h-auto flex-1` to fill a flex column. */
   readonly className?: string;
   readonly emptyMessage?: string;
   readonly flow?: IApiMissionFlow | null;
+  /** Appends a spinner node after the last node, for paths still being recorded. */
+  readonly pending?: MissionFlowPendingNode;
 };
 
 type MissionReactFlowNode = Node<{ label: ReactNode }>;
+
+const pendingNodeId = "flow-pending";
+
+/** Backend spacing between stacked nodes (before nodePositionScale is applied). */
+const stackedNodeGap = 135;
 
 const nodeBaseStyle: CSSProperties = {
   borderRadius: 14,
@@ -41,8 +54,9 @@ const nodePositionScale = {
 const nodeStyles: Record<string, CSSProperties> = {
   start: {
     ...nodeBaseStyle,
-    background: "#ecfeff",
-    border: "1px solid #67e8f9",
+    background: "var(--primary)",
+    border: "1px solid var(--primary)",
+    color: "var(--primary-foreground)",
   },
   setup: {
     ...nodeBaseStyle,
@@ -101,12 +115,30 @@ const nodeStyles: Record<string, CSSProperties> = {
   },
 };
 
+/** Background/border/text colors for a node kind, so legends outside the canvas match the cards inside it. */
+export function getMissionFlowKindStyle(kind: string): CSSProperties {
+  const { background, border, color } = nodeStyles[kind] ?? nodeStyles.activity;
+  return { background, border, color };
+}
+
 export function MissionFlowPreview({
   className,
   emptyMessage = "Generate a preview to see Emily's mission flow.",
   flow,
+  pending,
 }: MissionFlowPreviewProps) {
-  const { nodes, edges } = useMemo(() => buildReactFlow(flow), [flow]);
+  const pendingLabel = pending?.label;
+  const pendingDescription = pending?.description;
+  const { nodes, edges } = useMemo(
+    () =>
+      buildReactFlow(
+        flow,
+        pendingLabel
+          ? { label: pendingLabel, description: pendingDescription ?? "" }
+          : undefined,
+      ),
+    [flow, pendingLabel, pendingDescription],
+  );
 
   if (nodes.length === 0) {
     return (
@@ -140,12 +172,15 @@ export function MissionFlowPreview({
   );
 }
 
-function buildReactFlow(flow?: IApiMissionFlow | null): {
+function buildReactFlow(
+  flow: IApiMissionFlow | null | undefined,
+  pending: MissionFlowPendingNode | undefined,
+): {
   nodes: MissionReactFlowNode[];
   edges: Edge[];
 } {
   const flowNodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
-  if (flowNodes.length === 0) {
+  if (flowNodes.length === 0 && !pending) {
     return { nodes: [], edges: [] };
   }
 
@@ -182,23 +217,81 @@ function buildReactFlow(flow?: IApiMissionFlow | null): {
       markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8" },
     }));
 
+  if (pending) {
+    const anchor = flowNodes.reduce<IApiMissionFlowNode | null>(
+      (lowest, node) =>
+        lowest && lowest.position.y >= node.position.y ? lowest : node,
+      null,
+    );
+    nodes.push({
+      id: pendingNodeId,
+      type: "default",
+      position: {
+        x: (anchor?.position.x ?? 0) * nodePositionScale.x,
+        y: ((anchor?.position.y ?? -stackedNodeGap) + stackedNodeGap) * nodePositionScale.y,
+      },
+      data: { label: <PendingFlowNodeCard pending={pending} /> },
+      style: {
+        ...nodeBaseStyle,
+        background: "#ffffff",
+        border: "1px dashed var(--primary)",
+        boxShadow: "none",
+      },
+    });
+    if (anchor) {
+      edges.push({
+        id: `${anchor.id}-to-${pendingNodeId}`,
+        source: anchor.id,
+        target: pendingNodeId,
+        type: "smoothstep",
+        animated: true,
+        style: { stroke: "var(--primary)", strokeWidth: 1.5, strokeDasharray: "6 4" },
+        markerEnd: { type: MarkerType.ArrowClosed, color: "var(--primary)" },
+      });
+    }
+  }
+
   return { nodes, edges };
 }
 
+function PendingFlowNodeCard({ pending }: { readonly pending: MissionFlowPendingNode }) {
+  return (
+    <div className="grid gap-1.5 p-3 text-left" role="status" aria-live="polite">
+      <span className="flex items-center gap-1.5 text-[0.62rem] font-black tracking-[0.16em] text-primary uppercase">
+        <LoaderCircle className="size-3 animate-spin" aria-hidden />
+        Recording
+      </span>
+      <span className="text-sm font-bold leading-5 text-slate-950">{pending.label}</span>
+      {pending.description ? (
+        <span className="text-xs leading-5 text-slate-600">{pending.description}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function MissionFlowNodeCard({ node }: { readonly node: IApiMissionFlowNode }) {
+  // The start card sits on a solid primary background, so its text flips to white.
+  const onPrimary = node.kind === "start";
+
   return (
     <div className="grid gap-1.5 p-3 text-left">
-      <span className="text-[0.62rem] font-black tracking-[0.16em] text-slate-500 uppercase">
+      <span
+        className={`text-[0.62rem] font-black tracking-[0.16em] uppercase ${onPrimary ? "text-white/70" : "text-slate-500"}`}
+      >
         {node.kind}
       </span>
-      <span className="text-sm font-bold leading-5 text-slate-950">
+      <span
+        className={`text-sm font-bold leading-5 ${onPrimary ? "text-white" : "text-slate-950"}`}
+      >
         {node.label}
       </span>
-      <span className="text-xs leading-5 text-slate-600">
+      <span
+        className={`text-xs leading-5 ${onPrimary ? "text-white/80" : "text-slate-600"}`}
+      >
         {node.description}
       </span>
       {node.evidence_event_ids?.length ? (
-        <span className="mt-1 w-fit rounded-full bg-white/80 px-2 py-0.5 text-[0.62rem] font-bold text-violet-700">
+        <span className="mt-1 w-fit rounded-full bg-white/80 px-2 py-0.5 text-[0.62rem] font-bold text-primary">
           {node.evidence_event_ids.length} evidence {node.evidence_event_ids.length === 1 ? "event" : "events"}
         </span>
       ) : null}

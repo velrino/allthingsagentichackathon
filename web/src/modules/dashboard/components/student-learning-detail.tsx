@@ -12,7 +12,13 @@ import {
   Target,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import type {
   IApiDashboardStudent,
@@ -31,7 +37,10 @@ import {
 } from "@/modules/game/avatars/avatar-presets";
 
 import { DashboardModal } from "./dashboard-modal";
-import { MissionFlowPreview } from "./mission-flow-preview";
+import {
+  MissionFlowPreview,
+  getMissionFlowKindStyle,
+} from "./mission-flow-preview";
 
 type StudentLearningDetailProps = {
   readonly open: boolean;
@@ -91,13 +100,13 @@ export function StudentLearningDetail({
                   <Route aria-hidden />
                   <span className="hidden sm:inline">Learning flow</span>
                 </TabsTrigger>
-                <TabsTrigger value="summary" aria-label="Summary">
-                  <BrainCircuit aria-hidden />
-                  <span className="hidden sm:inline">Summary</span>
-                </TabsTrigger>
                 <TabsTrigger value="memory" aria-label="Memory">
                   <Sparkles aria-hidden />
                   <span className="hidden sm:inline">Memory</span>
+                </TabsTrigger>
+                <TabsTrigger value="summary" aria-label="Summary">
+                  <BrainCircuit aria-hidden />
+                  <span className="hidden sm:inline">Summary</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -172,17 +181,11 @@ export function StudentLearningDetail({
             value="flow"
             className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-6"
           >
-            <div className="flex shrink-0 items-start gap-3 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">
-              <Route className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <p className="leading-6">
-                Nodes come from captured interactions. Gemini organizes the
-                completed path and connects support, retries and mastery.
-              </p>
-            </div>
-            <MissionFlowPreview
-              className="h-auto min-h-0 flex-1"
-              emptyMessage="Learning events will appear here as the student works."
-              flow={attempt.trace?.flow}
+            <LearningFlowPanel
+              attempt={attempt}
+              studentName={
+                student?.student_name || attempt.student_name || "Student"
+              }
             />
           </TabsContent>
 
@@ -293,6 +296,93 @@ function AttemptSwitcher({
   );
 }
 
+/**
+ * The backend always ships a flow, but until the student answers it is just the fixed
+ * start/memory bookends. Only draw it once at least one node is backed by a recorded event.
+ */
+function LearningFlowPanel({
+  attempt,
+  studentName,
+}: {
+  readonly attempt: IApiStudentLearningAttempt;
+  readonly studentName: string;
+}) {
+  const flow = attempt.trace?.flow;
+  const nodes = safeList(flow?.nodes);
+  const evidenceNodeCount = nodes.filter(
+    (node) => safeList(node.evidence_event_ids).length > 0,
+  ).length;
+  const kinds = [...new Set(nodes.map((node) => node.kind))];
+
+  if (evidenceNodeCount === 0) {
+    // Only the start bookend is real so far; the memory bookend would just be filler.
+    const startNode = nodes.find((node) => node.kind === "start") ?? {
+      id: "attempt-start",
+      kind: "start",
+      label: "Mission attempt starts",
+      description: `Emily begins collecting ${studentName}'s observable answers, feedback, and progress.`,
+      evidence_event_ids: [],
+      position: { x: 0, y: 0 },
+    };
+
+    return (
+      <>
+        <FlowProvenance kinds={[startNode.kind]}>
+          Waiting for {studentName}&apos;s first recorded answer. Only captured
+          evidence, nothing inferred.
+        </FlowProvenance>
+        <MissionFlowPreview
+          className="h-auto min-h-0 flex-1"
+          flow={{ nodes: [startNode], edges: [] }}
+          pending={{
+            label: "Listening for the first answer",
+            description: `The path fills in as ${studentName} answers inside the mission.`,
+          }}
+        />
+      </>
+    );
+  }
+
+  const provenance = attempt.trace?.generated_by_ai
+    ? `${attempt.trace.model || "Gemini"} organized ${attempt.trace.event_count} recorded interactions into this path.`
+    : `Drawn live from ${evidenceNodeCount} recorded ${evidenceNodeCount === 1 ? "interaction" : "interactions"}. Only captured evidence, nothing inferred.`;
+
+  return (
+    <>
+      <FlowProvenance kinds={kinds}>{provenance}</FlowProvenance>
+      <MissionFlowPreview className="h-auto min-h-0 flex-1" flow={flow} />
+    </>
+  );
+}
+
+function FlowProvenance({
+  children,
+  kinds,
+}: {
+  readonly children: ReactNode;
+  readonly kinds: readonly string[];
+}) {
+  return (
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm">
+      <p className="flex items-center gap-2 leading-6 text-muted-foreground">
+        <Route className="size-4 shrink-0 text-cyan-700" aria-hidden />
+        <span>{children}</span>
+      </p>
+      <ul className="flex flex-wrap gap-1.5" aria-label="Node types">
+        {kinds.map((kind) => (
+          <li
+            key={kind}
+            style={getMissionFlowKindStyle(kind)}
+            className="rounded-full px-2 py-0.5 text-[0.62rem] font-black tracking-[0.12em] text-slate-700 uppercase"
+          >
+            {kind}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function AttemptStatus({
   attempt,
 }: {
@@ -311,7 +401,7 @@ function AttemptStatus({
             ? "bg-rose-100 text-rose-800"
             : paused
               ? "bg-amber-100 text-amber-800"
-              : "bg-cyan-100 text-cyan-800"
+              : "bg-primary/10 text-primary"
       }`}
     >
       {completed
@@ -347,7 +437,7 @@ function LiveUpdateStatus({
     ? "border-rose-200 bg-rose-50 text-rose-700"
     : ready && !active
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : "border-cyan-200 bg-cyan-50 text-cyan-700";
+      : "border-primary/20 bg-primary/10 text-primary";
 
   return (
     <span
@@ -360,7 +450,7 @@ function LiveUpdateStatus({
         <CheckCircle2 className="size-3.5" aria-hidden />
       ) : (
         <span
-          className={`size-2 rounded-full ${failed ? "bg-rose-500" : "animate-pulse bg-cyan-500"}`}
+          className={`size-2 rounded-full ${failed ? "bg-rose-500" : "animate-pulse bg-primary"}`}
           aria-hidden
         />
       )}
