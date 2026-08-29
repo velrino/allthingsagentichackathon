@@ -22,6 +22,10 @@ func (config Config) Validate() error {
 			validation.Required,
 			validation.In("development", "production"),
 		),
+		"FIREBASE_BOOTSTRAP_TIMEOUT_SECONDS": validation.Validate(config.FirebaseBootstrapTimeoutSeconds,
+			validation.Required,
+			validation.Min(1),
+		),
 		"FIREBASE_PROJECT_ID": validation.Validate(config.FirebaseProjectID,
 			validation.Required,
 		),
@@ -71,6 +75,15 @@ func (config Config) Validate() error {
 		),
 		"AUTH_STUDENT_PROVIDERS": validation.Validate(config.AuthStudentProviders,
 			validation.Required,
+		),
+		"DEMO_TEACHER_EMAIL": validation.Validate(config.DemoTeacherEmail,
+			validation.By(validateRequiredWhenEnabled(config.FirebaseBootstrapEnabled)),
+		),
+		"DEMO_TEACHER_PASSWORD": validation.Validate(config.DemoTeacherPassword,
+			validation.By(validateMinimumLengthWhenEnabled(config.FirebaseBootstrapEnabled, 6)),
+		),
+		"DEMO_TEACHER_DISPLAY_NAME": validation.Validate(config.DemoTeacherDisplayName,
+			validation.By(validateRequiredWhenEnabled(config.FirebaseBootstrapEnabled)),
 		),
 		"GENAI_BACKEND": validation.Validate(config.GenAIBackend,
 			validation.By(validateGenAIBackend(config.GenAIEnabled)),
@@ -182,6 +195,24 @@ func validateRequiredWhenEnabled(enabled bool) validation.RuleFunc {
 		}
 		if strings.TrimSpace(text) == "" {
 			return fmt.Errorf("is required when its feature is enabled")
+		}
+
+		return nil
+	}
+}
+
+func validateMinimumLengthWhenEnabled(enabled bool, minimum int) validation.RuleFunc {
+	return func(value any) error {
+		if !enabled {
+			return nil
+		}
+
+		text, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("must be a string")
+		}
+		if len(text) < minimum {
+			return fmt.Errorf("must contain at least %d characters when its feature is enabled", minimum)
 		}
 
 		return nil

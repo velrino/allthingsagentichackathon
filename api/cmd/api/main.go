@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"classgame-api/internal/app"
+	"classgame-api/internal/bootstrap"
 	"classgame-api/internal/config"
 	"classgame-api/internal/modules/dashboard"
 	healthcheck "classgame-api/internal/modules/health-check"
@@ -21,6 +22,7 @@ import (
 	"classgame-api/internal/modules/missionattachment"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/tenant"
 	"classgame-api/internal/modules/users"
 	"classgame-api/internal/shared/cloudtasksqueue"
 	sharedgoogle "classgame-api/internal/shared/google"
@@ -74,6 +76,34 @@ func run() error {
 			slog.Error("firebase disconnect failed", "error", err)
 		}
 	}()
+	if cfg.FirebaseBootstrapEnabled {
+		bootstrapContext, cancel := context.WithTimeout(
+			context.Background(),
+			time.Duration(cfg.FirebaseBootstrapTimeoutSeconds)*time.Second,
+		)
+		bootstrapResult, bootstrapErr := bootstrap.Ensure(
+			bootstrapContext,
+			firebaseConnection.AuthClient(),
+			firebaseConnection.FirestoreClient(),
+			bootstrap.Options{
+				TeacherEmail:       cfg.DemoTeacherEmail,
+				TeacherPassword:    cfg.DemoTeacherPassword,
+				TeacherDisplayName: cfg.DemoTeacherDisplayName,
+				Hierarchy:          tenant.DefaultHierarchy(),
+			},
+		)
+		cancel()
+		if bootstrapErr != nil {
+			return fmt.Errorf("bootstrap firebase data: %w", bootstrapErr)
+		}
+		slog.Info("firebase bootstrap complete",
+			"teacher_uid", bootstrapResult.TeacherUID,
+			"teacher_created", bootstrapResult.TeacherCreated,
+			"tenant_created", bootstrapResult.TenantCreated,
+			"district_created", bootstrapResult.DistrictCreated,
+			"school_created", bootstrapResult.SchoolCreated,
+		)
+	}
 
 	redisConnection, err := sharedredis.Connect(context.Background(), sharedredis.Options{
 		URL:         cfg.RedisURL,

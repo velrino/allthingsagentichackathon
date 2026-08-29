@@ -14,6 +14,12 @@ Tenant env vars are optional for local development. If unset, the API uses
 `default-org`, `default-district` and `default-school` via
 `DEFAULT_ORGANIZATION_ID`, `DEFAULT_DISTRICT_ID` and `DEFAULT_SCHOOL_ID`.
 
+On every startup, the API idempotently ensures the configured tenant hierarchy
+exists in Firestore and that the public hackathon demo teacher exists in
+Firebase Auth. Existing records and accounts are left untouched. Configure this
+with `FIREBASE_BOOTSTRAP_ENABLED`, `DEMO_TEACHER_*`, and the `DEFAULT_*` IDs and
+names from `.env.example`. Disable the bootstrap for a non-demo deployment.
+
 With hot reload:
 
 ```bash
@@ -46,6 +52,7 @@ curl http://localhost:4004/
 - `internal/modules/orchestrator` turns a teacher request into a mission blueprint and falls back locally if GenAI is disabled or unavailable.
 - `internal/modules/teacher-class-student` defines the per-class student thinking summary that future tutor turns will write.
 - `internal/modules/tenant` centralizes the current tenant scope. Today every teacher defaults to one configured organization/district/school, while stored records already carry those IDs for future school or district reporting.
+- `internal/bootstrap` recreates the minimum tenant, district, school, and demo Firebase Auth account after an empty-database startup without overwriting existing data.
 - Firebase Admin connects to project `allthingsagentichackatho-ee359`.
 - Firestore is the durable database.
 - Redis uses the same Secret Manager value as Unshatter for now.
@@ -115,6 +122,15 @@ subcollections. The repository still reads legacy mission subcollections for
 existing demo data, but new writes go to `/missions/{mission_id}`.
 
 ```txt
+tenants/{organization_id}
+  tenant_id, organization_id, name, status, created_at, updated_at
+
+districts/{district_id}
+  tenant_id, organization_id, district_id, name, status, created_at, updated_at
+
+schools/{school_id}
+  tenant_id, organization_id, district_id, school_id, name, status, created_at, updated_at
+
 teachers/{firebase_uid}
   organization_id, district_id, school_id
   identity, profile, roles, activity, created_at, updated_at

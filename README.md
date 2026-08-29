@@ -174,8 +174,20 @@ and `school_id`. For the hackathon/demo all teachers default to one configured
 tenant (`DEFAULT_ORGANIZATION_ID`, `DEFAULT_DISTRICT_ID`,
 `DEFAULT_SCHOOL_ID`), but the records are already shaped so a future school or
 district sale can query by organization/school without moving data.
+The API startup is idempotent: it creates only missing `tenants`, `districts`,
+and `schools` hierarchy documents and ensures the public demo teacher exists in
+Firebase Auth. Existing tenant records are preserved.
 
 ```txt
+tenants/{organization_id}
+  tenant_id, organization_id, name, status, created_at, updated_at
+
+districts/{district_id}
+  tenant_id, organization_id, district_id, name, status, created_at, updated_at
+
+schools/{school_id}
+  tenant_id, organization_id, district_id, school_id, name, status, created_at, updated_at
+
 users/{firebase_uid}                                    # anonymous student
   identity, profile, roles ["student"], is_guest
   student: { organization_id, district_id, school_id,

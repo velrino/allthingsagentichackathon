@@ -6,9 +6,12 @@ import (
 )
 
 const (
-	defaultOrganizationID = "default-org"
-	defaultDistrictID     = "default-district"
-	defaultSchoolID       = "default-school"
+	DefaultOrganizationID   = "default-org"
+	DefaultDistrictID       = "default-district"
+	DefaultSchoolID         = "default-school"
+	DefaultOrganizationName = "ClassGame"
+	DefaultDistrictName     = "ClassGame District"
+	DefaultSchoolName       = "ClassGame School"
 )
 
 type Scope struct {
@@ -17,12 +20,37 @@ type Scope struct {
 	SchoolID       string `firestore:"school_id" json:"school_id"`
 }
 
+type Hierarchy struct {
+	Scope            Scope
+	OrganizationName string
+	DistrictName     string
+	SchoolName       string
+}
+
 func DefaultScope() Scope {
 	return Scope{
-		OrganizationID: envString("DEFAULT_ORGANIZATION_ID", defaultOrganizationID),
-		DistrictID:     envString("DEFAULT_DISTRICT_ID", defaultDistrictID),
-		SchoolID:       envString("DEFAULT_SCHOOL_ID", defaultSchoolID),
+		OrganizationID: envString("DEFAULT_ORGANIZATION_ID", DefaultOrganizationID),
+		DistrictID:     envString("DEFAULT_DISTRICT_ID", DefaultDistrictID),
+		SchoolID:       envString("DEFAULT_SCHOOL_ID", DefaultSchoolID),
 	}
+}
+
+func DefaultHierarchy() Hierarchy {
+	return Hierarchy{
+		Scope:            DefaultScope(),
+		OrganizationName: envString("DEFAULT_ORGANIZATION_NAME", DefaultOrganizationName),
+		DistrictName:     envString("DEFAULT_DISTRICT_NAME", DefaultDistrictName),
+		SchoolName:       envString("DEFAULT_SCHOOL_NAME", DefaultSchoolName),
+	}
+}
+
+func NormalizeHierarchy(hierarchy Hierarchy) Hierarchy {
+	hierarchy.Scope = NormalizeScope(hierarchy.Scope)
+	hierarchy.OrganizationName = firstNonEmpty(hierarchy.OrganizationName, DefaultOrganizationName)
+	hierarchy.DistrictName = firstNonEmpty(hierarchy.DistrictName, DefaultDistrictName)
+	hierarchy.SchoolName = firstNonEmpty(hierarchy.SchoolName, DefaultSchoolName)
+
+	return hierarchy
 }
 
 func NormalizeScope(scope Scope) Scope {

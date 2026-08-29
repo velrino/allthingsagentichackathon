@@ -1,6 +1,6 @@
-// Command firebase-demo-teacher makes sure the shared demo teacher exists in
-// Firebase Auth with the password the login page pre-fills. Run it after a
-// reset, or whenever the account drifts:
+// Command firebase-demo-teacher manually creates or re-keys the shared demo
+// teacher with the password the login page pre-fills. Normal API startup now
+// creates the account when missing; use this command only when it drifts:
 //
 //	go run ./cmd/firebase-demo-teacher --project allthingsagentichackatho-ee359 \
 //	  --credentials-file /path/to/service-account.json --password '...'
@@ -21,12 +21,14 @@ import (
 	firebaseadmin "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"google.golang.org/api/option"
+
+	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
 const (
 	expectedProjectID = "allthingsagentichackatho-ee359"
 	defaultEmail      = "velrino@gmail.com"
-	defaultName       = "Demo Teacher"
+	defaultName       = "Emily"
 )
 
 func main() {
@@ -77,24 +79,20 @@ func run() error {
 		return fmt.Errorf("create Firebase Auth client: %w", err)
 	}
 
-	existing, err := client.GetUserByEmail(ctx, email)
-	switch {
-	case err == nil:
-		params := (&auth.UserToUpdate{}).Password(password).DisplayName(displayName).EmailVerified(true).Disabled(false)
-		user, err := client.UpdateUser(ctx, existing.UID, params)
-		if err != nil {
-			return fmt.Errorf("update demo teacher: %w", err)
-		}
-		fmt.Printf("Updated %s (uid %s); providers: %s\n", user.Email, user.UID, providerList(user))
-	case auth.IsUserNotFound(err):
-		params := (&auth.UserToCreate{}).Email(email).Password(password).DisplayName(displayName).EmailVerified(true)
-		user, err := client.CreateUser(ctx, params)
-		if err != nil {
-			return fmt.Errorf("create demo teacher: %w", err)
-		}
-		fmt.Printf("Created %s (uid %s)\n", user.Email, user.UID)
-	default:
-		return fmt.Errorf("look up demo teacher: %w", err)
+	result, err := sharedfirebase.EnsureEmailPasswordUser(ctx, client, sharedfirebase.EmailPasswordUserInput{
+		Email:          email,
+		Password:       password,
+		DisplayName:    displayName,
+		EmailVerified:  true,
+		UpdateExisting: true,
+	})
+	if err != nil {
+		return fmt.Errorf("ensure demo teacher: %w", err)
+	}
+	if result.Created {
+		fmt.Printf("Created %s (uid %s)\n", result.User.Email, result.User.UID)
+	} else {
+		fmt.Printf("Updated %s (uid %s); providers: %s\n", result.User.Email, result.User.UID, providerList(result.User))
 	}
 
 	return nil
