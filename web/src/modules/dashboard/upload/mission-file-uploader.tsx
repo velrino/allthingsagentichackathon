@@ -2,16 +2,18 @@
 
 import * as UC from "@uploadcare/file-uploader";
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
   useSyncExternalStore,
-  type CSSProperties,
+  type DragEvent,
 } from "react";
 
-import "@uploadcare/file-uploader/web/uc-basic.min.css";
+import "@uploadcare/file-uploader/web/uc-file-uploader-regular.min.css";
 
 import type { IApiMissionAttachment } from "@/backend/api/api.interface";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 UC.defineComponents(UC);
@@ -31,17 +33,6 @@ const allowedMimeTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/plain",
 ]);
-const uploadButtonStyle = {
-  "--uc-font-family": "inherit",
-  "--uc-primary-foreground-light": "var(--primary-foreground)",
-  "--uc-primary-light": "var(--primary)",
-  "--uc-primary-hover-light": "color-mix(in srgb, var(--primary) 90%, black)",
-  "--uc-radius": "0.375rem",
-  "--uc-simple-btn": "var(--primary)",
-  "--uc-simple-btn-foreground": "var(--primary-foreground)",
-  "--uc-simple-btn-hover": "color-mix(in srgb, var(--primary) 90%, black)",
-  "--uc-simple-btn-padding": "0.5rem 1rem",
-} as CSSProperties;
 const subscribeToClientEnvironment = () => () => {};
 
 type MissionFileUploaderProps = {
@@ -71,6 +62,71 @@ export function MissionFileUploader({
   const publicKey =
     process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY?.trim() ||
     DEFAULT_UPLOADCARE_PUBLIC_KEY;
+
+  const openFilePicker = useCallback(() => {
+    try {
+      contextProviderRef.current?.getAPI().openSystemDialog();
+    } catch {
+      onErrorChange("File uploader is still loading. Try again.");
+    }
+  }, [onErrorChange]);
+
+  const handleDragOver = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      if (disabled || resolvedMaxFiles === 0) {
+        return;
+      }
+
+      event.preventDefault();
+    },
+    [disabled, resolvedMaxFiles],
+  );
+
+  const handleDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      if (disabled || resolvedMaxFiles === 0) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const files = Array.from(event.dataTransfer.files).slice(
+        0,
+        resolvedMaxFiles,
+      );
+      if (files.length === 0) {
+        return;
+      }
+
+      const unsupportedFile = files.find((file) => !isAllowedLocalFile(file));
+      if (unsupportedFile) {
+        onErrorChange(`${unsupportedFile.name}: ${ACCEPTED_FILE_ERROR}`);
+        return;
+      }
+
+      const oversizedFile = files.find(
+        (file) => file.size > MAX_FILE_SIZE_BYTES,
+      );
+      if (oversizedFile) {
+        onErrorChange(`${oversizedFile.name}: file is larger than 20 MB.`);
+        return;
+      }
+
+      try {
+        const api = contextProviderRef.current?.getAPI();
+        files.forEach((file) => {
+          api?.addFileFromObject(file, {
+            fileName: file.name,
+            source: "drop-area",
+          });
+        });
+        api?.uploadAll();
+      } catch {
+        onErrorChange("File uploader is still loading. Try again.");
+      }
+    },
+    [disabled, onErrorChange, resolvedMaxFiles],
+  );
 
   useEffect(() => {
     if (!isClient) {
@@ -125,6 +181,8 @@ export function MissionFileUploader({
   return (
     <div
       aria-disabled={disabled}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       className={cn(
         "flex min-h-24 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-input bg-background px-4 py-5 text-center transition focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20",
         disabled && "pointer-events-none opacity-60",
@@ -147,11 +205,14 @@ export function MissionFileUploader({
             confirmUpload={false}
             store={false}
           ></uc-config>
-          <uc-simple-btn
+          <uc-file-uploader-regular
             ctx-name={contextName}
             class="uc-light"
-            style={uploadButtonStyle}
-          ></uc-simple-btn>
+            headless
+          ></uc-file-uploader-regular>
+          <Button type="button" onClick={openFilePicker}>
+            Upload files
+          </Button>
           <p className="text-xs font-medium text-muted-foreground">
             Drop files here
           </p>
@@ -167,6 +228,16 @@ export function MissionFileUploader({
 function isAllowedFileEntry(entry: UC.OutputFileEntry<"success">) {
   const mimeType = entry.mimeType.toLocaleLowerCase();
   const fileName = getFileEntryName(entry).toLocaleLowerCase();
+
+  return (
+    allowedMimeTypes.has(mimeType) ||
+    allowedFileExtensions.some((extension) => fileName.endsWith(extension))
+  );
+}
+
+function isAllowedLocalFile(file: File) {
+  const mimeType = file.type.toLocaleLowerCase();
+  const fileName = file.name.toLocaleLowerCase();
 
   return (
     allowedMimeTypes.has(mimeType) ||
