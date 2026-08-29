@@ -11,22 +11,30 @@ import { formatDate } from "@/lib/date";
 
 type ClassesTableProps = {
   readonly teacherClasses: IApiTeacherClass[];
-  readonly onBuildMission: (teacherClass: IApiTeacherClass) => void;
+  readonly onEditClass: (teacherClass: IApiTeacherClass) => void;
   readonly onOpenClass: (teacherClass: IApiTeacherClass) => void;
 };
 
-export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: ClassesTableProps) {
+export function ClassesTable({
+  onEditClass,
+  onOpenClass,
+  teacherClasses,
+}: ClassesTableProps) {
   const columns = useMemo<ColumnDef<IApiTeacherClass>[]>(
     () => [
       {
         accessorKey: "class_name",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Class" />,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Class" />
+        ),
         cell: ({ row }) => (
           <div className="min-w-0">
             <p className="truncate font-medium text-foreground">
               {row.original.class_name || row.original.class_code}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{statusLabel(row.original.status)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {statusLabel(row.original.status)}
+            </p>
           </div>
         ),
         meta: {
@@ -35,7 +43,9 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
       },
       {
         accessorKey: "class_code",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Code" />,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Code" />
+        ),
         cell: ({ row }) => (
           <span className="rounded-md bg-emerald-50 px-2.5 py-1 font-mono text-xs font-bold text-emerald-800">
             {row.original.class_code}
@@ -48,8 +58,14 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
       },
       {
         accessorKey: "subject",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Subject" />,
-        cell: ({ row }) => <span className="text-muted-foreground">{row.original.subject || "Not set"}</span>,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Subject" />
+        ),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.subject || "Not set"}
+          </span>
+        ),
         meta: {
           className: "ps-1",
           tdClassName: "ps-4",
@@ -57,8 +73,14 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
       },
       {
         accessorKey: "grade_level",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Grade" />,
-        cell: ({ row }) => <span className="text-muted-foreground">{row.original.grade_level || "Not set"}</span>,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Grade" />
+        ),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.grade_level || "Not set"}
+          </span>
+        ),
         meta: {
           className: "ps-1",
           tdClassName: "ps-4",
@@ -66,7 +88,9 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
       },
       {
         accessorKey: "mission_count",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Missions" />,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Missions" />
+        ),
         cell: ({ row }) => (
           <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
             {row.original.mission_count}
@@ -79,7 +103,9 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
       },
       {
         accessorKey: "updated_at",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Updated" />
+        ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {formatDate(row.original.updated_at, {
@@ -106,7 +132,7 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
               aria-label={`Edit ${row.original.class_name || row.original.class_code}`}
               onClick={(event) => {
                 event.stopPropagation();
-                onOpenClass(row.original);
+                onEditClass(row.original);
               }}
             >
               <Pencil className="size-4" aria-hidden />
@@ -115,14 +141,14 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
             <Button
               type="button"
               size="sm"
-              aria-label={`Build mission for ${row.original.class_name || row.original.class_code}`}
+              aria-label={`Open ${row.original.class_name || row.original.class_code}`}
               onClick={(event) => {
                 event.stopPropagation();
-                onBuildMission(row.original);
+                onOpenClass(row.original);
               }}
             >
               <ClipboardList className="size-4" aria-hidden />
-              Mission
+              Open
             </Button>
           </div>
         ),
@@ -131,7 +157,7 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
         },
       },
     ],
-    [onBuildMission, onOpenClass],
+    [onEditClass, onOpenClass],
   );
 
   return (
@@ -150,7 +176,6 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
       }
       minWidthClassName="min-w-[900px]"
       searchPlaceholder="Filter classes..."
-      onRowClick={onOpenClass}
     />
   );
 }

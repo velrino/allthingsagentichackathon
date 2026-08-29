@@ -79,6 +79,7 @@ export function DataTable<TData>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+  const shouldShowPagination = table.getPageCount() > 1;
 
   return (
     <div className={cn("flex flex-1 flex-col gap-4 max-sm:has-[div[role='toolbar']]:mb-16", className)}>
@@ -108,7 +109,7 @@ export function DataTable<TData>({
                 <TableRow
                   key={row.id}
                   className={onRowClick ? "cursor-pointer" : undefined}
-                  onClick={() => onRowClick?.(row.original)}
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
@@ -130,7 +131,9 @@ export function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} className="mt-auto" />
+      {shouldShowPagination ? (
+        <DataTablePagination table={table} className="mt-auto" />
+      ) : null}
     </div>
   );
 }

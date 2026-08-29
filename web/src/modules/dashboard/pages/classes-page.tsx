@@ -1,20 +1,18 @@
 "use client";
 
 import { BookOpenCheck, ClipboardList, Gamepad2, Plus, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
 import type {
-  IApiDashboardStudent,
   IApiTeacherClass,
-  IApiTeacherClassMission,
   IApiUpsertTeacherClassRequest,
 } from "@/backend/api/api.interface";
 import { Main } from "@/components/layout/main";
 import { Button } from "@/components/ui/button";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
-import { MissionBuilder, type MissionBuilderForm } from "../components/mission-builder";
 import { ClassFormModal } from "../components/class-form-modal";
 import { ClassesTable } from "../components/classes-table";
 import { DashboardShell } from "../components/dashboard-shell";
@@ -22,20 +20,14 @@ import { MetricCard } from "../components/metric-card";
 import { rememberSelectedClass, sortTeacherClasses, upsertTeacherClass } from "../utils/teacher-class-state";
 
 export function ClassesPage() {
+  const router = useRouter();
   const auth = useTeacherAuth();
   const [teacherClasses, setTeacherClasses] = useState<IApiTeacherClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<IApiTeacherClass | null>(null);
-  const [missionClass, setMissionClass] = useState<IApiTeacherClass | null>(null);
-  const [missionStudents, setMissionStudents] = useState<IApiDashboardStudent[]>([]);
-  const [previewMission, setPreviewMission] = useState<IApiTeacherClassMission | null>(null);
   const [classFormOpen, setClassFormOpen] = useState(false);
-  const [missionBuilderOpen, setMissionBuilderOpen] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [classFormError, setClassFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [approving, setApproving] = useState(false);
-  const [draftVersion, setDraftVersion] = useState(0);
 
   useEffect(() => {
     if (auth.status !== "signed_in" || !auth.user) {
@@ -89,10 +81,15 @@ export function ClassesPage() {
     setClassFormOpen(true);
   }
 
-  function handleOpenClass(teacherClass: IApiTeacherClass) {
+  function handleEditClass(teacherClass: IApiTeacherClass) {
     setSelectedClass(teacherClass);
     setClassFormError(null);
     setClassFormOpen(true);
+  }
+
+  function handleOpenClass(teacherClass: IApiTeacherClass) {
+    rememberSelectedClass(teacherClass.class_id);
+    router.push(`/dashboard/class/${encodeURIComponent(teacherClass.class_id)}`);
   }
 
   async function handleSubmitClass(value: IApiUpsertTeacherClassRequest) {
@@ -112,93 +109,6 @@ export function ClassesPage() {
       setClassFormError(caughtError instanceof Error ? caughtError.message : "Could not save class.");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleBuildMission(teacherClass: IApiTeacherClass) {
-    if (!auth.user) {
-      return;
-    }
-
-    rememberSelectedClass(teacherClass.class_id);
-    setMissionClass(teacherClass);
-    setMissionStudents([]);
-    setPreviewMission(null);
-    setMissionBuilderOpen(true);
-
-    try {
-      const token = await auth.user.getIdToken();
-      const response = await API.dashboard.overview(token, {
-        class_id: teacherClass.class_id,
-      });
-      setMissionStudents(response.students);
-    } catch (caughtError) {
-      setPageError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not load students for this class.",
-      );
-    }
-  }
-
-  async function handleProcessMission(value: MissionBuilderForm) {
-    if (!auth.user) {
-      return;
-    }
-
-    setProcessing(true);
-    setPageError(null);
-    try {
-      const token = await auth.user.getIdToken();
-      const response = await API.teacherClassMissions.preview(token, value.class_id, {
-        mission_id: value.mission_id,
-        expected_draft_revision: value.expected_draft_revision,
-        class_name: value.class_name,
-        mission_name: value.mission_name,
-        subject: value.subject,
-        grade_level: value.grade_level,
-        learning_goal: value.learning_goal,
-        teacher_prompt: value.teacher_prompt,
-        audience_type: value.audience_type,
-        target_student_ids: value.target_student_ids,
-        attachments: value.attachments,
-      });
-      setPreviewMission(response.mission);
-      setDraftVersion((current) => current + 1);
-    } catch (caughtError) {
-      setPageError(caughtError instanceof Error ? caughtError.message : "Could not process class mission.");
-    } finally {
-      setProcessing(false);
-    }
-  }
-
-  async function handleApproveMission(mission: IApiTeacherClassMission) {
-    if (!auth.user) {
-      return;
-    }
-
-    setApproving(true);
-    setPageError(null);
-    try {
-      const token = await auth.user.getIdToken();
-      const response = await API.teacherClassMissions.approve(
-        token,
-        mission.class_id,
-        mission.id,
-        { expected_draft_revision: mission.draft_revision },
-      );
-      setPreviewMission(response.mission);
-
-      const classesResponse = await API.teacherClasses.list(token);
-      const nextClasses = sortTeacherClasses(classesResponse.teacher_classes);
-      setTeacherClasses(nextClasses);
-      setMissionClass(nextClasses.find((teacherClass) => teacherClass.class_id === mission.class_id) ?? missionClass);
-      rememberSelectedClass(mission.class_id);
-      setMissionBuilderOpen(false);
-    } catch (caughtError) {
-      setPageError(caughtError instanceof Error ? caughtError.message : "Could not publish class mission.");
-    } finally {
-      setApproving(false);
     }
   }
 
@@ -257,7 +167,7 @@ export function ClassesPage() {
 
         <ClassesTable
           teacherClasses={teacherClasses}
-          onBuildMission={handleBuildMission}
+          onEditClass={handleEditClass}
           onOpenClass={handleOpenClass}
         />
 
@@ -270,22 +180,6 @@ export function ClassesPage() {
           onOpenChange={setClassFormOpen}
           onSubmit={handleSubmitClass}
         />
-
-        {missionClass ? (
-          <MissionBuilder
-            key={`classes:${missionClass.class_id}:${draftVersion}:${missionBuilderOpen ? "open" : "closed"}`}
-            approving={approving}
-            classId={missionClass.class_id}
-            open={missionBuilderOpen}
-            previewMission={previewMission}
-            processing={processing}
-            students={missionStudents}
-            teacherClass={missionClass}
-            onApprove={handleApproveMission}
-            onOpenChange={setMissionBuilderOpen}
-            onProcess={handleProcessMission}
-          />
-        ) : null}
       </Main>
     </DashboardShell>
   );
