@@ -152,7 +152,7 @@ func (service *Service) TeacherFromIdentity(identity sharedfirebase.Identity) (T
 }
 
 func (service *Service) teacher(identity sharedfirebase.Identity) (TeacherSummary, error) {
-	if identity.AuthMethod != sharedfirebase.AuthMethodGoogle {
+	if !sharedfirebase.IsTeacherAuthMethod(identity.AuthMethod) {
 		return TeacherSummary{}, ErrTeacherRequiresGoogleAuth
 	}
 

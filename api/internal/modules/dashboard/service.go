@@ -130,7 +130,7 @@ func (service *Service) GetOverview(
 }
 
 func (service *Service) teacher(ctx context.Context, identity sharedfirebase.Identity) (TeacherSummary, error) {
-	if identity.AuthMethod != sharedfirebase.AuthMethodGoogle {
+	if !sharedfirebase.IsTeacherAuthMethod(identity.AuthMethod) {
 		return TeacherSummary{}, ErrTeacherRequiresGoogleAuth
 	}
 

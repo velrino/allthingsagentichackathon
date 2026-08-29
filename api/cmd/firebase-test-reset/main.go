@@ -19,6 +19,8 @@ import (
 const (
 	authDeleteBatchSize = 1000
 	expectedProjectID   = "allthingsagentichackatho-ee359"
+	// The shared demo teacher the jury signs in with; a reset must not take it down.
+	demoTeacherEmail = "velrino@gmail.com"
 )
 
 func main() {
@@ -35,8 +37,10 @@ func run() error {
 	var skipAuth bool
 	var skipFirestore bool
 	var yes bool
+	var keepEmails string
 
 	flag.StringVar(&projectID, "project", "", "Firebase project ID to clean")
+	flag.StringVar(&keepEmails, "keep-emails", demoTeacherEmail, "Comma-separated emails of Firebase Auth users to keep")
 	flag.StringVar(&credentialsFile, "credentials-file", "", "Firebase service account JSON path")
 	flag.BoolVar(&dryRun, "dry-run", false, "List what would be deleted")
 	flag.BoolVar(&skipAuth, "skip-auth", false, "Do not delete Firebase Authentication users")
@@ -87,14 +91,15 @@ func run() error {
 			return fmt.Errorf("create Firebase Auth client: %w", err)
 		}
 
-		deleted, err := resetAuth(ctx, authClient, dryRun)
+		keep := parseEmailSet(keepEmails)
+		deleted, kept, err := resetAuth(ctx, authClient, keep, dryRun)
 		if err != nil {
 			return err
 		}
 		if dryRun {
-			fmt.Printf("Firebase Auth users found: %d\n", deleted)
+			fmt.Printf("Firebase Auth users found: %d (kept: %d)\n", deleted, kept)
 		} else {
-			fmt.Printf("Firebase Auth users deleted: %d\n", deleted)
+			fmt.Printf("Firebase Auth users deleted: %d (kept: %d)\n", deleted, kept)
 		}
 	}
 
@@ -215,14 +220,27 @@ func resetDocument(
 	return total, nil
 }
 
-func resetAuth(ctx context.Context, client authUserManager, dryRun bool) (int, error) {
-	uids, err := listAuthUserIDs(ctx, client)
+// parseEmailSet lower-cases and trims a comma-separated list, dropping blanks.
+func parseEmailSet(list string) map[string]struct{} {
+	set := map[string]struct{}{}
+	for _, email := range strings.Split(list, ",") {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email != "" {
+			set[email] = struct{}{}
+		}
+	}
+	return set
+}
+
+// resetAuth deletes every user except those whose email is in keep. Returns (deleted or found, kept).
+func resetAuth(ctx context.Context, client authUserManager, keep map[string]struct{}, dryRun bool) (int, int, error) {
+	uids, kept, err := listAuthUserIDs(ctx, client, keep)
 	if err != nil {
-		return 0, err
+		return 0, kept, err
 	}
 
 	if dryRun || len(uids) == 0 {
-		return len(uids), nil
+		return len(uids), kept, nil
 	}
 
 	var deleted int
@@ -231,7 +249,7 @@ func resetAuth(ctx context.Context, client authUserManager, dryRun bool) (int, e
 		end := min(start+authDeleteBatchSize, len(uids))
 		result, err := client.DeleteUsers(ctx, uids[start:end])
 		if err != nil {
-			return deleted, fmt.Errorf("delete Firebase Auth users batch %d-%d: %w", start, end-1, err)
+			return deleted, kept, fmt.Errorf("delete Firebase Auth users batch %d-%d: %w", start, end-1, err)
 		}
 
 		deleted += result.SuccessCount
@@ -239,10 +257,10 @@ func resetAuth(ctx context.Context, client authUserManager, dryRun bool) (int, e
 	}
 
 	if failed > 0 {
-		return deleted, fmt.Errorf("failed to delete %d Firebase Auth users", failed)
+		return deleted, kept, fmt.Errorf("failed to delete %d Firebase Auth users", failed)
 	}
 
-	return deleted, nil
+	return deleted, kept, nil
 }
 
 type authUserManager interface {
@@ -250,9 +268,11 @@ type authUserManager interface {
 	Users(context.Context, string) *auth.UserIterator
 }
 
-func listAuthUserIDs(ctx context.Context, client authUserManager) ([]string, error) {
+// listAuthUserIDs returns the UIDs to delete and how many users were kept because their email is in keep.
+func listAuthUserIDs(ctx context.Context, client authUserManager, keep map[string]struct{}) ([]string, int, error) {
 	userIterator := client.Users(ctx, "")
 	uids := []string{}
+	kept := 0
 
 	for {
 		user, err := userIterator.Next()
@@ -260,11 +280,16 @@ func listAuthUserIDs(ctx context.Context, client authUserManager) ([]string, err
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("list Firebase Auth users: %w", err)
+			return nil, kept, fmt.Errorf("list Firebase Auth users: %w", err)
+		}
+
+		if _, keepUser := keep[strings.ToLower(user.Email)]; keepUser {
+			kept++
+			continue
 		}
 
 		uids = append(uids, user.UID)
 	}
 
-	return uids, nil
+	return uids, kept, nil
 }

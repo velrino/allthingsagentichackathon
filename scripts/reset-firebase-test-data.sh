@@ -30,6 +30,9 @@ Options:
 Safety:
   This script refuses projects other than allthingsagentichackatho-ee359 unless
   ALLOW_OTHER_FIREBASE_PROJECT=1 is set.
+  The demo teacher (velrino@gmail.com) is never deleted; see --keep-emails in
+  api/cmd/firebase-test-reset. Recreate or re-key it with
+  api/cmd/firebase-demo-teacher.
 EOF
 }
 

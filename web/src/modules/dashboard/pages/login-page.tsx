@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
+import { DEMO_TEACHER } from "../auth/demo-account";
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import { GoogleIdentityButton } from "../components/google-identity-button";
 
@@ -10,8 +11,11 @@ export function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = safeNextPath(searchParams.get("next"));
-  const { error, signInWithGoogleIdToken, reportSignInError, status } = useTeacherAuth();
+  const { error, signInWithGoogleIdToken, signInWithEmail, reportSignInError, status } = useTeacherAuth();
   const [exchanging, setExchanging] = useState(false);
+  // Pre-filled with the shared demo teacher; still editable for anyone with their own account.
+  const [email, setEmail] = useState<string>(DEMO_TEACHER.email);
+  const [password, setPassword] = useState<string>(DEMO_TEACHER.password);
 
   useEffect(() => {
     if (status === "signed_in") {
@@ -32,6 +36,22 @@ export function LoginPage() {
       }
     },
     [nextPath, router, signInWithGoogleIdToken],
+  );
+
+  const handleEmailSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setExchanging(true);
+      try {
+        const user = await signInWithEmail(email, password);
+        if (user) {
+          router.replace(nextPath);
+        }
+      } finally {
+        setExchanging(false);
+      }
+    },
+    [email, nextPath, password, router, signInWithEmail],
   );
 
   const handleLoadError = useCallback(() => {
@@ -69,14 +89,50 @@ export function LoginPage() {
             Teachers use Google. Students enter from the game.
           </p>
 
-          <div className="mt-8">
-            <GoogleIdentityButton onCredential={handleCredential} onLoadError={handleLoadError} disabled={busy} />
-            {busy ? (
-              <p className="mt-3 text-xs text-slate-500" role="status">
-                {status === "checking" ? "Checking your session..." : "Signing in..."}
-              </p>
-            ) : null}
+          <form className="mt-6 space-y-3 text-left" onSubmit={handleEmailSubmit} noValidate>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</span>
+              <input
+                type="email"
+                name="email"
+                autoComplete="username"
+                inputMode="email"
+                spellCheck={false}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={busy}
+                className="mt-1 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Password</span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={busy}
+                className="mt-1 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy || email.trim() === "" || password === ""}
+              className="h-11 w-full rounded-md bg-primary text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy ? (status === "checking" ? "Checking your session..." : "Signing in...") : "Sign in"}
+            </button>
+            <p className="text-center text-xs text-slate-500">Demo teacher account for the hackathon jury — already filled in.</p>
+          </form>
+
+          <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" />
+            or
+            <span className="h-px flex-1 bg-slate-200" />
           </div>
+
+          <GoogleIdentityButton onCredential={handleCredential} onLoadError={handleLoadError} disabled={busy} />
 
           {error ? (
             <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">

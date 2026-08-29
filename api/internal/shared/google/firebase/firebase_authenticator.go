@@ -29,6 +29,12 @@ const (
 	AuthMethodUnknown   AuthMethod = "unknown"
 )
 
+// IsTeacherAuthMethod reports whether a sign-in method is accepted for teachers:
+// Google, or email + password (the shared demo account). Students are anonymous.
+func IsTeacherAuthMethod(method AuthMethod) bool {
+	return method == AuthMethodGoogle || method == AuthMethodEmail
+}
+
 type Identity struct {
 	Provider       IdentityProvider
 	ProviderUserID string
