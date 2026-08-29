@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "firebase/auth";
-import { LogOut, SearchIcon } from "lucide-react";
+import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils";
 
 import {
   dashboardSidebarData,
-  dashboardTopNav,
   type DashboardNavItem,
 } from "../data/sidebar-data";
 import { rememberSelectedClass } from "../utils/teacher-class-state";
@@ -89,11 +88,7 @@ export function DashboardShell({
           onSignOut={onSignOut}
         />
         <SidebarInset className="@container/content">
-          <DashboardHeader
-            activeHash={activeHash}
-            pathname={pathname}
-            user={user}
-          />
+          <DashboardHeader user={user} />
           {children}
         </SidebarInset>
       </SidebarProvider>
@@ -256,64 +251,14 @@ function DashboardSidebarItem({
   );
 }
 
-function DashboardHeader({
-  activeHash,
-  pathname,
-  user,
-}: {
-  readonly activeHash: string;
-  readonly pathname: string;
-  readonly user: User;
-}) {
+function DashboardHeader({ user }: { readonly user: User }) {
   return (
     <header className="z-50 h-16">
       <div className="relative flex h-full items-center gap-3 p-4 sm:gap-4">
         <SidebarTrigger className="max-md:scale-125" />
         <Separator orientation="vertical" className="h-6" />
 
-        <nav className="hidden items-center space-x-4 lg:flex xl:space-x-6">
-          {dashboardTopNav.map((link) => {
-            const href = resolveScopedDashboardURL(link.href, pathname);
-
-            return (
-              <Link
-                key={link.title}
-                href={link.disabled ? "#" : href}
-                aria-disabled={link.disabled}
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-primary",
-                  !isActiveDashboardRoute(href, pathname, activeHash) &&
-                    "text-muted-foreground",
-                  link.disabled && "pointer-events-none opacity-50",
-                )}
-                onClick={(event) => {
-                  if (link.disabled) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                {link.title}
-              </Link>
-            );
-          })}
-        </nav>
-
         <div className="ml-auto flex min-w-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="group relative h-8 w-full flex-1 justify-start rounded-md bg-muted/25 text-sm font-normal text-muted-foreground shadow-none hover:bg-accent sm:w-40 sm:pr-12 md:flex-none lg:w-52 xl:w-64"
-            aria-keyshortcuts="Meta+K Control+K"
-          >
-            <SearchIcon
-              aria-hidden
-              className="absolute left-1.5 top-1/2 size-4 -translate-y-1/2"
-            />
-            <span className="ml-4 truncate">Search class notes</span>
-            <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 select-none group-hover:bg-accent sm:flex">
-              <span className="text-xs">⌘</span>K
-            </kbd>
-          </Button>
           <TeacherAvatar user={user} />
         </div>
       </div>
