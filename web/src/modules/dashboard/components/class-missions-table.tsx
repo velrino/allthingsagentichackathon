@@ -148,6 +148,7 @@ export function ClassMissionsTable({
                         {formatDate(mission.updated_at, {
                           fallback: "Not updated",
                           preset: "date",
+                          relative: true,
                         })}
                       </TableCell>
                       <TableCell className="pe-6">
@@ -216,6 +217,7 @@ function MissionMobileRow({
           {formatDate(mission.updated_at, {
             fallback: "Not updated",
             preset: "date",
+            relative: true,
           })}
         </span>
       </div>

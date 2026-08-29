@@ -77,6 +77,7 @@ export function RecentPlayersTable({
                     : formatDate(student.last_activity_at, {
                         fallback: "Never",
                         preset: "date-time",
+                        relative: true,
                       })}
                 </TableCell>
               </TableRow>

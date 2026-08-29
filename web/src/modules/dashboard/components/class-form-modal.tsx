@@ -178,6 +178,7 @@ export function ClassFormModal({
                   value={formatDate(teacherClass.updated_at, {
                     fallback: "Never",
                     preset: "date-time",
+                    relative: true,
                   })}
                 />
               </div>

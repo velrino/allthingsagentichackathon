@@ -1,11 +1,14 @@
+import { DateTime } from "luxon";
+
 export type DateFormatPreset = "date" | "date-time" | "day-month" | "time";
 
 type DateValue = Date | number | string | null | undefined;
 
 type FormatDateOptions = {
   readonly fallback?: string;
-  readonly locale?: Intl.LocalesArgument;
+  readonly locale?: string;
   readonly preset?: DateFormatPreset;
+  readonly relative?: boolean;
 };
 
 const formatOptions: Record<DateFormatPreset, Intl.DateTimeFormatOptions> = {
@@ -29,28 +32,34 @@ const formatOptions: Record<DateFormatPreset, Intl.DateTimeFormatOptions> = {
   },
 };
 
-const formatterCache = new Map<string, Intl.DateTimeFormat>();
-
 export function formatDate(value: DateValue, options: FormatDateOptions = {}) {
   const fallback = options.fallback ?? "Never";
   if (value === null || value === undefined || value === "") {
     return fallback;
   }
 
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = toDateTime(value);
+  if (!date.isValid) {
     return fallback;
   }
 
   const locale = options.locale ?? "en";
-  const preset = options.preset ?? "date-time";
-  const cacheKey = JSON.stringify([locale, preset]);
-  let formatter = formatterCache.get(cacheKey);
-
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, formatOptions[preset]);
-    formatterCache.set(cacheKey, formatter);
+  const localizedDate = date.setLocale(locale);
+  if (options.relative) {
+    return localizedDate.toRelative() ?? fallback;
   }
 
-  return formatter.format(date);
+  const preset = options.preset ?? "date-time";
+  return localizedDate.toLocaleString(formatOptions[preset]);
+}
+
+function toDateTime(value: Exclude<DateValue, null | undefined>) {
+  if (value instanceof Date) {
+    return DateTime.fromJSDate(value);
+  }
+  if (typeof value === "number") {
+    return DateTime.fromMillis(value);
+  }
+
+  return DateTime.fromISO(value);
 }

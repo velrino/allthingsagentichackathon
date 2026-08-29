@@ -85,6 +85,7 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
             {formatDate(row.original.updated_at, {
               fallback: "Never",
               preset: "date-time",
+              relative: true,
             })}
           </span>
         ),

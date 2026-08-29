@@ -516,6 +516,7 @@ function ClassroomCard({
               : `Updated ${formatDate(classroom.updatedAt, {
                   fallback: "recently",
                   preset: "day-month",
+                  relative: true,
                 })}`}
           </span>
         </div>

@@ -212,6 +212,7 @@ export function StudentLearningDetail({
                     {formatDate(attempt.last_activity_at, {
                       fallback: "Not available",
                       preset: "date-time",
+                      relative: true,
                     })}
                   </p>
                   <p className="mt-1">
@@ -420,6 +421,7 @@ function TutorTurnTimeline({
                 {formatDate(turn.created_at, {
                   fallback: "Not available",
                   preset: "date-time",
+                  relative: true,
                 })}
               </span>
             </div>

@@ -25,6 +25,7 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
               {formatDate(row.original.last_activity_at, {
                 fallback: "No mission",
                 preset: "date-time",
+                relative: true,
               })}
             </p>
           </div>
