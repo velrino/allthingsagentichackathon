@@ -34,6 +34,7 @@ type StudentProfileResponse struct {
 	DistrictID     string `json:"district_id"`
 	SchoolID       string `json:"school_id"`
 	ClassID        string `json:"class_id"`
+	ClassCode      string `json:"class_code"`
 	MissionID      string `json:"mission_id"`
 	MissionCode    string `json:"mission_code"`
 	StudentName    string `json:"student_name"`
@@ -110,6 +111,7 @@ func ToResponse(user UserDocument) UserResponse {
 			DistrictID:     user.Student.DistrictID,
 			SchoolID:       user.Student.SchoolID,
 			ClassID:        user.Student.ClassID,
+			ClassCode:      user.Student.ClassCode,
 			MissionID:      user.Student.MissionID,
 			MissionCode:    user.Student.MissionCode,
 			StudentName:    user.Student.StudentName,

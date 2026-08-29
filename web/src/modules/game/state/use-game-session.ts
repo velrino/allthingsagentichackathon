@@ -115,9 +115,10 @@ export function useGameSession() {
     sessionRef.current = session;
   }, [session]);
 
-  // The session gate dispatches this event only after anonymous auth and the
-  // published mission payload are ready. The newer of Firestore and the local
-  // checkpoint wins, so an offline click made just before refresh is not lost.
+  // The class gate and mission picker dispatch this after anonymous auth state
+  // changes. Hydration runs only when a selected published mission exists. The
+  // newer of Firestore and the local checkpoint wins, so an offline click made
+  // just before refresh is not lost.
   useEffect(() => {
     let cancelled = false;
 
@@ -623,6 +624,17 @@ export function useGameSession() {
       },
       continue: () => dispatch({ type: "continue", now: Date.now() }),
       selectAvatar: (presetId: string) => storeAvatarPresetId(presetId),
+      leaveMission: () => {
+        hydrationRef.current += 1;
+        tutorRequestRef.current += 1;
+        revisionRef.current = 0;
+        tokenRef.current = "";
+        attemptReadyRef.current = false;
+        skipLocalSaveRef.current = false;
+        setLearningSyncReady(false);
+        setReport(idleReport);
+        dispatch({ type: "leave-mission" });
+      },
       reset: () => {
         const missionSession = readStudentMissionSession();
         const recoveryID = missionSession

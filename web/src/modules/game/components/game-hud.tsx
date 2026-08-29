@@ -9,6 +9,7 @@ import {
 import { TUTOR_NAME } from "../content/mission";
 import { stageLabel, type GameMission } from "../content/game-mission";
 import type { PodProgress } from "../state/student-memory";
+import type { StudentClassMission } from "../student-session/use-student-class-missions";
 import {
   POD_ORDER,
   type MovementRef,
@@ -17,9 +18,18 @@ import {
 } from "../types/game";
 import { AvatarPicker, AvatarPortrait } from "./avatar-picker";
 import { MovementPad } from "./movement-pad";
+import { MissionPicker } from "./mission-picker";
 
 type GameHudProps = {
   readonly mission: GameMission;
+  readonly missionActive: boolean;
+  readonly className: string;
+  readonly missions: readonly StudentClassMission[];
+  readonly completedMissionKeys: ReadonlySet<string>;
+  readonly pendingMissionCount: number;
+  readonly missionsReady: boolean;
+  readonly startingMissionID: string;
+  readonly missionStartError: string | null;
   readonly movementRef: MovementRef;
   readonly progress: Record<PodId, PodProgress>;
   readonly tutorPod: PodId;
@@ -27,7 +37,8 @@ type GameHudProps = {
   readonly nearSeat: boolean;
   readonly avatarPresetId: string;
   readonly onSelectAvatar: (presetId: string) => void;
-  readonly onSit: () => void;
+  readonly onSelectMission: (missionID: string) => Promise<boolean>;
+  readonly onEndSession: () => void;
 };
 
 const SEGMENT_CLASS: Record<PodStatus, string> = {
@@ -67,14 +78,6 @@ export function PodDots({
 const pill =
   "pointer-events-auto font-display inline-flex h-12 select-none items-center justify-center gap-2 rounded-full px-5 text-center text-[0.95rem] font-semibold tracking-tight transition active:translate-y-px disabled:opacity-60";
 
-function sitLabel(status: PodStatus) {
-  if (status === "complete") {
-    return "Mission complete";
-  }
-
-  return "START";
-}
-
 /**
  * Roaming HUD. Four things, in the corners, and nothing in the middle:
  * where you are in the mission, the tutor's notebook, what Emily is saying,
@@ -82,6 +85,14 @@ function sitLabel(status: PodStatus) {
  */
 export function GameHud({
   mission,
+  missionActive,
+  className,
+  missions,
+  completedMissionKeys,
+  pendingMissionCount,
+  missionsReady,
+  startingMissionID,
+  missionStartError,
   movementRef,
   progress,
   tutorPod,
@@ -89,27 +100,43 @@ export function GameHud({
   nearSeat,
   avatarPresetId,
   onSelectAvatar,
-  onSit,
+  onSelectMission,
+  onEndSession,
 }: GameHudProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [missionPickerOpen, setMissionPickerOpen] = useState(false);
   const avatar = getAvatarPreset(avatarPresetId);
   const tutorAvatar = getAvatarPreset(teacherAvatarPresetId);
-  const stageStatus = progress[tutorPod].status;
-  const canSit =
-    nearSeat && (stageStatus === "ready" || stageStatus === "review");
+  const canChooseMission = nearSeat && pendingMissionCount > 0;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 select-none text-white">
       {/* Mission chip */}
       <div className="glass animate-rise absolute top-[max(env(safe-area-inset-top),0.75rem)] left-3 flex h-12 items-center gap-2.5 rounded-2xl px-3 sm:h-auto sm:gap-3 sm:px-3.5 sm:py-2.5 sm:left-5">
-        <PodDots mission={mission} progress={progress} />
+        {missionActive ? (
+          <PodDots mission={mission} progress={progress} />
+        ) : null}
         <div className="font-display leading-none">
           <p className="text-[0.56rem] font-semibold tracking-[0.12em] text-cyan-200/90 uppercase sm:text-[0.62rem] sm:tracking-[0.2em]">
-            {mission.title}
+            {missionActive ? mission.title : className || "Your class"}
           </p>
           <p className="mt-1 hidden text-xs font-medium text-slate-300 sm:block">
-            Next up ·{" "}
-            <span className="text-white">{stageLabel(mission, tutorPod)}</span>
+            {missionActive ? (
+              <>
+                Next up ·{" "}
+                <span className="text-white">
+                  {stageLabel(mission, tutorPod)}
+                </span>
+              </>
+            ) : missionsReady ? (
+              <span className="text-white">
+                {pendingMissionCount === 0
+                  ? "Waiting for a new mission"
+                  : `${pendingMissionCount} mission${pendingMissionCount === 1 ? "" : "s"} ready`}
+              </span>
+            ) : (
+              "Loading missions…"
+            )}
           </p>
         </div>
       </div>
@@ -120,7 +147,7 @@ export function GameHud({
           type="button"
           onClick={() => setPickerOpen((open) => !open)}
           aria-expanded={pickerOpen}
-          aria-label={`Change character (currently ${avatar.label})`}
+          aria-label={`Open player menu (currently ${avatar.label})`}
           className="glass animate-rise pointer-events-auto flex h-12 items-center gap-2 rounded-full px-1.5 text-slate-100 transition hover:bg-white/10 active:translate-y-px sm:pr-3.5"
         >
           <AvatarPortrait preset={avatar} className="size-9" />
@@ -150,11 +177,12 @@ export function GameHud({
             setPickerOpen(false);
           }}
           onClose={() => setPickerOpen(false)}
+          onLogout={onEndSession}
         />
       ) : null}
 
       {/* The teacher speaks */}
-      {tutorLine ? (
+      {missionActive && tutorLine ? (
         <div className="absolute bottom-[calc(190px+4rem+env(safe-area-inset-bottom))] left-3 right-3 sm:right-auto sm:bottom-7 sm:left-6 sm:max-w-md">
           <div className="glass animate-rise flex items-start gap-3 rounded-2xl px-4 py-3">
             <AvatarPortrait
@@ -175,14 +203,14 @@ export function GameHud({
 
       {/* The one action */}
       <div className="absolute inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 flex justify-center sm:inset-x-auto sm:right-6 sm:bottom-7 sm:items-end">
-        {nearSeat ? (
+        {nearSeat && pendingMissionCount > 0 ? (
           <button
             type="button"
-            disabled={!canSit}
-            onClick={() => canSit && onSit()}
-            className={`${pill} w-full max-w-[18rem] animate-rise sm:w-auto sm:max-w-none ${canSit ? "cta hover:brightness-105" : "glass text-slate-200"}`}
+            disabled={!canChooseMission}
+            onClick={() => canChooseMission && setMissionPickerOpen(true)}
+            className={`${pill} w-full max-w-[18rem] animate-rise sm:w-auto sm:max-w-none ${canChooseMission ? "cta hover:brightness-105" : "glass text-slate-200"}`}
           >
-            {sitLabel(stageStatus)}
+            START
           </button>
         ) : null}
       </div>
@@ -198,6 +226,18 @@ export function GameHud({
       <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 h-[190px] sm:hidden">
         <MovementPad movementRef={movementRef} />
       </div>
+
+      <MissionPicker
+        open={missionPickerOpen}
+        className={className}
+        missions={missions}
+        completedMissionKeys={completedMissionKeys}
+        missionsReady={missionsReady}
+        startingMissionID={startingMissionID}
+        error={missionStartError}
+        onOpenChange={setMissionPickerOpen}
+        onSelect={onSelectMission}
+      />
     </div>
   );
 }

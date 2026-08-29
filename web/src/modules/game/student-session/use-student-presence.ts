@@ -1,22 +1,42 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
 import type { IApiStudentPresence } from "@/backend/api/api.interface";
 import { getStudentFirebaseAuth } from "@/shared/firebase/client";
 
-import { readStudentMissionSession } from "./student-mission-session";
+import { studentSessionErrorScope } from "./student-entry-messages";
+import {
+  readStudentClassSession,
+  readStudentMissionSession,
+} from "./student-mission-session";
 
 const heartbeatIntervalMilliseconds = 15_000;
 export const studentSessionReadyEvent = "classgame:student-session-ready";
+export const studentClassUnavailableEvent =
+  "classgame:student-class-unavailable";
 
 export function useStudentPresence(
-  presence: Omit<IApiStudentPresence, "mission_id" | "subject">,
-  options?: { readonly enabled?: boolean },
+  presence: Omit<
+    IApiStudentPresence,
+    "mission_id" | "class_code" | "subject"
+  >,
+  options?: {
+    readonly enabled?: boolean;
+    readonly onClassUnavailable?: () => void;
+    readonly onMissionUnavailable?: () => void;
+  },
 ) {
   const { stage_id, stage_name, status } = presence;
   const enabled = options?.enabled ?? true;
+  const onClassUnavailableRef = useRef(options?.onClassUnavailable);
+  const onMissionUnavailableRef = useRef(options?.onMissionUnavailable);
+
+  useEffect(() => {
+    onClassUnavailableRef.current = options?.onClassUnavailable;
+    onMissionUnavailableRef.current = options?.onMissionUnavailable;
+  }, [options?.onClassUnavailable, options?.onMissionUnavailable]);
 
   useEffect(() => {
     if (!enabled) {
@@ -24,14 +44,18 @@ export function useStudentPresence(
     }
 
     let cancelled = false;
+    let sessionUnavailable = false;
 
     async function reportPresence() {
       const user = getStudentFirebaseAuth().currentUser;
+      const classSession = readStudentClassSession();
       const missionSession = readStudentMissionSession();
       if (
         cancelled ||
+        sessionUnavailable ||
         document.visibilityState !== "visible" ||
         !user?.isAnonymous ||
+        !classSession ||
         !missionSession
       ) {
         return;
@@ -42,14 +66,39 @@ export function useStudentPresence(
         if (!cancelled) {
           await API.users.studentPresence(idToken, {
             mission_id: missionSession.missionId,
+            class_code: classSession.classCode,
             stage_id,
             stage_name,
             status,
             subject: missionSession.subject,
           });
         }
-      } catch {
-        // Presence is best effort; the game remains playable if the API is offline.
+      } catch (error) {
+        const scope = studentSessionErrorScope(error);
+        if (!cancelled && scope) {
+          const currentClassSession = readStudentClassSession();
+          const currentMissionSession = readStudentMissionSession();
+          if (
+            scope === "class" &&
+            currentClassSession?.classCode !== classSession.classCode
+          ) {
+            return;
+          }
+          if (
+            scope === "mission" &&
+            currentMissionSession?.missionId !== missionSession.missionId
+          ) {
+            return;
+          }
+          sessionUnavailable = true;
+          if (scope === "class") {
+            window.dispatchEvent(new Event(studentClassUnavailableEvent));
+            onClassUnavailableRef.current?.();
+          } else {
+            onMissionUnavailableRef.current?.();
+          }
+        }
+        // Other presence failures are best effort, so an offline game remains playable.
       }
     }
 

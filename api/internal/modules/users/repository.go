@@ -18,10 +18,12 @@ import (
 )
 
 const (
-	usersCollectionName           = "users"
-	studentAttemptsCollectionName = "student_mission_attempts"
-	classLearningCollectionName   = "class_learning_summaries"
-	maxTutorTurnsPerAttempt       = 80
+	usersCollectionName              = "users"
+	studentAttemptsCollectionName    = "student_mission_attempts"
+	studentCompletionsCollectionName = "student_mission_completions"
+	studentCompletionsSubcollection  = "missions"
+	classLearningCollectionName      = "class_learning_summaries"
+	maxTutorTurnsPerAttempt          = 80
 )
 
 type Repository struct {
@@ -45,7 +47,10 @@ func (repository *Repository) UpsertStudent(
 		now := input.Timestamp
 		createdAt := now
 		firstSeenAt := now
-		loginCount := int64(1)
+		loginCount := int64(0)
+		if input.IncrementLogin {
+			loginCount = 1
+		}
 		currentGame := StudentGameSession{}
 		learningMemory := StudentLearningMemory{}
 
@@ -63,18 +68,31 @@ func (repository *Repository) UpsertStudent(
 			if !existing.Activity.FirstSeenAt.IsZero() {
 				firstSeenAt = existing.Activity.FirstSeenAt
 			}
-			loginCount = existing.Activity.LoginCount + 1
-			currentGame = existing.Activity.CurrentGame
-			learningMemory = existing.Student.LearningMemory
+			loginCount = existing.Activity.LoginCount
+			if input.IncrementLogin {
+				loginCount++
+			}
+			if existing.Student.ClassID == input.ClassID {
+				currentGame = existing.Activity.CurrentGame
+				learningMemory = existing.Student.LearningMemory
+			}
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read user: %w", err)
 		}
+		if loginCount <= 0 {
+			loginCount = 1
+		}
 
-		revisionChanged := currentGame.PublishedRevision > 0 &&
+		if input.MissionID == "" {
+			currentGame = StudentGameSession{}
+		}
+		revisionChanged := input.MissionID != "" && currentGame.PublishedRevision > 0 &&
 			currentGame.PublishedRevision != input.MissionPublishedRevision
-		startNewRevision := currentGame.MissionID == input.MissionID &&
+		startNewRevision := input.MissionID != "" && currentGame.MissionID == input.MissionID &&
 			revisionChanged && currentGame.Status == "completed"
-		if currentGame.MissionID == input.MissionID && !startNewRevision {
+		if input.MissionID == "" {
+			// Joining a class with no previously selected mission keeps the student in the lobby.
+		} else if currentGame.MissionID == input.MissionID && !startNewRevision {
 			if currentGame.AttemptID == "" {
 				currentGame.AttemptID = learningAttemptID(ref.ID, input.MissionID, input.MissionPublishedRevision)
 			}
@@ -235,6 +253,9 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 			if err := existingSnapshot.DataTo(&existing); err != nil {
 				return fmt.Errorf("decode learning attempt: %w", err)
 			}
+			if existing.ID == "" {
+				existing.ID = attemptID
+			}
 			if !existing.CreatedAt.IsZero() {
 				createdAt = existing.CreatedAt
 			}
@@ -248,7 +269,11 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 			tutorTurns = existing.TutorTurns
 			if existing.Status == "completed" {
 				attempt = existing
-				return nil
+				return tx.Set(
+					repository.studentMissionCompletionRef(user.ID, existing.ID),
+					studentMissionCompletionMap(existing),
+					firestore.MergeAll,
+				)
 			}
 			if existing.Snapshot.Revision >= input.Snapshot.Revision {
 				attempt = existing
@@ -316,6 +341,15 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 		if err := tx.Set(attemptRef, learningAttemptFirestoreMap(attempt), firestore.MergeAll); err != nil {
 			return fmt.Errorf("write learning attempt: %w", err)
 		}
+		if attempt.Status == "completed" {
+			if err := tx.Set(
+				repository.studentMissionCompletionRef(user.ID, attempt.ID),
+				studentMissionCompletionMap(attempt),
+				firestore.MergeAll,
+			); err != nil {
+				return fmt.Errorf("write student mission completion: %w", err)
+			}
+		}
 		return tx.Set(userRef, map[string]any{
 			"activity": map[string]any{
 				"last_seen_at": user.Activity.LastSeenAt,
@@ -329,6 +363,28 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 	}
 
 	return attempt, user, nil
+}
+
+func (repository *Repository) studentMissionCompletionRef(
+	studentID string,
+	attemptID string,
+) *firestore.DocumentRef {
+	return repository.client.Collection(studentCompletionsCollectionName).
+		Doc(studentID).
+		Collection(studentCompletionsSubcollection).
+		Doc(attemptID)
+}
+
+func studentMissionCompletionMap(attempt StudentMissionAttemptDocument) map[string]any {
+	return map[string]any{
+		"student_id":         attempt.StudentID,
+		"class_id":           attempt.ClassID,
+		"mission_id":         attempt.MissionID,
+		"published_revision": attempt.PublishedRevision,
+		"status":             "completed",
+		"completed_at":       attempt.CompletedAt,
+		"updated_at":         attempt.UpdatedAt,
+	}
 }
 
 func (repository *Repository) GetCurrentStudentLearningAttempt(
@@ -799,6 +855,7 @@ func buildStudentUserDocument(input buildStudentUserDocumentInput) UserDocument 
 			DistrictID:     scope.DistrictID,
 			SchoolID:       scope.SchoolID,
 			ClassID:        input.Input.ClassID,
+			ClassCode:      input.Input.ClassCode,
 			MissionID:      input.Input.MissionID,
 			MissionCode:    input.Input.MissionCode,
 			StudentName:    input.Input.StudentName,
@@ -846,6 +903,7 @@ func (user UserDocument) firestoreMap() map[string]any {
 			"district_id":     user.Student.DistrictID,
 			"school_id":       user.Student.SchoolID,
 			"class_id":        user.Student.ClassID,
+			"class_code":      user.Student.ClassCode,
 			"mission_id":      user.Student.MissionID,
 			"mission_code":    user.Student.MissionCode,
 			"student_name":    user.Student.StudentName,

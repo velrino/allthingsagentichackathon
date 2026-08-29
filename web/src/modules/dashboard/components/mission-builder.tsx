@@ -12,7 +12,6 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import type {
   IApiCreateTeacherClassMissionRequest,
-  IApiDashboardStudent,
   IApiMissionAttachment,
   IApiMissionPreviewQuestion,
   IApiTeacherClass,
@@ -45,7 +44,6 @@ type MissionBuilderProps = {
   readonly open: boolean;
   readonly previewMission: IApiTeacherClassMission | null;
   readonly processing: boolean;
-  readonly students: IApiDashboardStudent[];
   readonly teacherClass: IApiTeacherClass | null;
   readonly onApprove: (mission: IApiTeacherClassMission) => Promise<void>;
   readonly onOpenChange: (open: boolean) => void;
@@ -62,7 +60,6 @@ export function MissionBuilder({
   open,
   previewMission,
   processing,
-  students,
   teacherClass,
 }: MissionBuilderProps) {
   const [form, setForm] = useState<MissionBuilderDraft>(() =>
@@ -96,7 +93,6 @@ export function MissionBuilder({
   const canApprove = Boolean(
     previewDraft && canShowApprove && previewMissionCanBeApproved(previewDraft),
   );
-  const missionCode = previewDraft?.mission_code;
   const hasLiveRevision = Boolean(
     previewDraft && missionHasPublishedRevision(previewDraft),
   );
@@ -107,10 +103,7 @@ export function MissionBuilder({
     teacherClass?.class_name.trim() && teacherClass.subject.trim(),
   );
   const remainingFileSlots = Math.max(0, 5 - persistedAttachments.length);
-  const canSubmit =
-    !busy &&
-    classDetailsReady &&
-    (form.audience_type === "all" || form.target_student_ids.length > 0);
+  const canSubmit = !busy && classDetailsReady;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,6 +116,8 @@ export function MissionBuilder({
 
     await onProcess({
       ...form,
+      audience_type: "all",
+      target_student_ids: [],
       class_id: teacherClass.class_id || classId,
       class_name: teacherClass.class_name,
       subject: teacherClass.subject,
@@ -144,15 +139,6 @@ export function MissionBuilder({
     },
     [persistedAttachments, removedAttachmentIds],
   );
-
-  function toggleStudent(studentId: string) {
-    setForm((current) => ({
-      ...current,
-      target_student_ids: current.target_student_ids.includes(studentId)
-        ? current.target_student_ids.filter((id) => id !== studentId)
-        : [...current.target_student_ids, studentId],
-    }));
-  }
 
   function removeAttachment(uploadcareUUID: string) {
     setRemovedAttachmentIds((current) => {
@@ -289,89 +275,15 @@ export function MissionBuilder({
               />
             </label>
 
-            <fieldset className="mt-4 rounded-lg border border-border p-4">
-              <legend className="px-1 text-sm font-semibold text-foreground">
-                Who is this mission for?
-              </legend>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                This helps you organize missions. Anyone with the mission code
-                can still join.
+            <div className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
+              <p className="text-sm font-semibold text-foreground">
+                Everyone in the class
               </p>
-
-              <div className="mt-3 grid gap-2">
-                <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 hover:bg-muted/40">
-                  <input
-                    type="radio"
-                    name="mission-audience"
-                    value="all"
-                    checked={form.audience_type === "all"}
-                    onChange={() =>
-                      setForm((current) => ({
-                        ...current,
-                        audience_type: "all",
-                        target_student_ids: [],
-                      }))
-                    }
-                    className="mt-0.5 size-4 accent-primary"
-                  />
-                  <span>
-                    <span className="block text-sm font-semibold">
-                      Everyone in the class
-                    </span>
-                    <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                      Includes students who join the class later.
-                    </span>
-                  </span>
-                </label>
-
-                {students.length > 0 ? (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 hover:bg-muted/40">
-                    <input
-                      type="radio"
-                      name="mission-audience"
-                      value="selected"
-                      checked={form.audience_type === "selected"}
-                      onChange={() =>
-                        setForm((current) => ({
-                          ...current,
-                          audience_type: "selected",
-                        }))
-                      }
-                      className="mt-0.5 size-4 accent-primary"
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold">
-                        Selected students
-                      </span>
-                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                        Choose one or more students as the intended audience.
-                      </span>
-                    </span>
-                  </label>
-                ) : null}
-              </div>
-
-              {form.audience_type === "selected" ? (
-                <div className="mt-3 max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                  {students.map((student) => (
-                    <label
-                      key={student.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-muted"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.target_student_ids.includes(student.id)}
-                        onChange={() => toggleStudent(student.id)}
-                        className="size-4 rounded accent-primary"
-                      />
-                      <span className="font-medium">
-                        {student.student_name}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              ) : null}
-            </fieldset>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                After publishing, this mission appears automatically in the
+                classroom for every student.
+              </p>
+            </div>
 
             <div className="mt-4 grid gap-2">
               <div>
@@ -467,9 +379,6 @@ export function MissionBuilder({
               </header>
 
               <div className="grid gap-4 px-4 py-5 sm:px-6">
-                {missionCode ? (
-                  <ClassCodeBadge label="Mission code" value={missionCode} />
-                ) : null}
                 {previewDraft ? (
                   <>
                     {previewDraft.education_guardrail &&
@@ -1098,8 +1007,8 @@ function buildMissionBuilderDraft(
     mission_name: mission?.mission_name ?? "",
     learning_goal: mission?.learning_goal ?? "",
     teacher_prompt: mission?.teacher_prompt ?? draftPrompt ?? "",
-    audience_type: mission?.audience_type ?? "all",
-    target_student_ids: mission?.target_student_ids ?? [],
+    audience_type: "all",
+    target_student_ids: [],
     attachments: mission?.attachments ?? [],
   };
 }
@@ -1165,23 +1074,4 @@ function formatFileSize(sizeBytes: number) {
 
   const digits = value >= 10 || unitIndex === 0 ? 0 : 1;
   return `${value.toFixed(digits)} ${units[unitIndex]}`;
-}
-
-function ClassCodeBadge({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div className="w-fit rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm">
-      <span className="block text-xs font-bold uppercase text-primary">
-        {label}
-      </span>
-      <span className="mt-1 block font-mono text-base font-black text-[#3f20c8]">
-        {value}
-      </span>
-    </div>
-  );
 }

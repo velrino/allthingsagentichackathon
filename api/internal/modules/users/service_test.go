@@ -6,50 +6,93 @@ import (
 	"testing"
 
 	mission "classgame-api/internal/modules/mission"
+	teacherclass "classgame-api/internal/modules/teacher-class"
+	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
 )
 
-func TestValidateStudentMissionCodeAcceptsPublishedMission(t *testing.T) {
-	reader := &fakeMissionReader{
-		mission: mission.MissionDocument{
-			ID:          "mission-1",
-			MissionCode: "123456",
-			Status:      mission.StatusPublished,
+func TestValidateStudentClassCodeAcceptsActiveClass(t *testing.T) {
+	reader := &fakeClassReader{
+		teacherClass: teacherclass.TeacherClassDocument{
+			ClassID:   "123456",
+			ClassCode: "123456",
+			Status:    "active",
 		},
 		exists: true,
 	}
-	service := NewService(nil, reader)
+	service := NewService(nil, nil)
+	service.ConfigureClassReader(reader)
 
-	if err := service.ValidateStudentMissionCode(context.Background(), " 123456 "); err != nil {
-		t.Fatalf("validate student mission code: %v", err)
+	if err := service.ValidateStudentClassCode(context.Background(), " 123456 "); err != nil {
+		t.Fatalf("validate student class code: %v", err)
 	}
 	if reader.code != "123456" {
-		t.Fatalf("mission code = %q, want %q", reader.code, "123456")
+		t.Fatalf("class code = %q, want %q", reader.code, "123456")
 	}
 }
 
-func TestValidateStudentMissionCodeRejectsMissingMission(t *testing.T) {
-	service := NewService(nil, &fakeMissionReader{})
+func TestValidateStudentClassCodeRejectsMissingClass(t *testing.T) {
+	service := NewService(nil, nil)
+	service.ConfigureClassReader(&fakeClassReader{})
 
-	err := service.ValidateStudentMissionCode(context.Background(), "123456")
-	if !errors.Is(err, ErrMissionCodeNotFound) {
-		t.Fatalf("error = %v, want %v", err, ErrMissionCodeNotFound)
+	err := service.ValidateStudentClassCode(context.Background(), "123456")
+	if !errors.Is(err, ErrClassCodeNotFound) {
+		t.Fatalf("error = %v, want %v", err, ErrClassCodeNotFound)
 	}
 }
 
-func TestValidateStudentMissionCodeRejectsUnpublishedMission(t *testing.T) {
-	service := NewService(nil, &fakeMissionReader{
-		mission: mission.MissionDocument{
-			ID:          "mission-1",
-			MissionCode: "123456",
-			Status:      mission.StatusDraft,
+func TestValidateStudentClassCodeRejectsInactiveClass(t *testing.T) {
+	service := NewService(nil, nil)
+	service.ConfigureClassReader(&fakeClassReader{
+		teacherClass: teacherclass.TeacherClassDocument{
+			ClassID:   "123456",
+			ClassCode: "123456",
+			Status:    "deleted",
 		},
 		exists: true,
 	})
 
-	err := service.ValidateStudentMissionCode(context.Background(), "123456")
-	if !errors.Is(err, ErrMissionCodeNotFound) {
-		t.Fatalf("error = %v, want %v", err, ErrMissionCodeNotFound)
+	err := service.ValidateStudentClassCode(context.Background(), "123456")
+	if !errors.Is(err, ErrClassCodeNotFound) {
+		t.Fatalf("error = %v, want %v", err, ErrClassCodeNotFound)
+	}
+}
+
+func TestUpdateStudentPresenceRejectsDeletedMission(t *testing.T) {
+	service := NewService(nil, &fakeMissionReader{})
+	service.ConfigureClassReader(activeFakeClassReader())
+
+	_, err := service.UpdateStudentPresence(
+		context.Background(),
+		anonymousStudentIdentity(),
+		"mission-1",
+		"123456",
+		"Mathematics",
+		"stage-1",
+		"Stage 1",
+		"learning",
+	)
+	if !errors.Is(err, ErrPublishedMissionNotFound) {
+		t.Fatalf("error = %v, want %v", err, ErrPublishedMissionNotFound)
+	}
+}
+
+func TestUpdateStudentPresenceRejectsMissingClass(t *testing.T) {
+	service := NewService(nil, &fakeMissionReader{})
+	service.ConfigureClassReader(&fakeClassReader{})
+
+	_, err := service.UpdateStudentPresence(
+		context.Background(),
+		anonymousStudentIdentity(),
+		"mission-1",
+		"123456",
+		"Mathematics",
+		"stage-1",
+		"Stage 1",
+		"learning",
+	)
+	if !errors.Is(err, ErrClassCodeNotFound) {
+		t.Fatalf("error = %v, want %v", err, ErrClassCodeNotFound)
 	}
 }
 
@@ -103,10 +146,19 @@ func TestLearningGenerationQuotaFailsClosedWhenRedisIsUnavailable(t *testing.T) 
 }
 
 type fakeMissionReader struct {
-	code    string
-	err     error
-	exists  bool
-	mission mission.MissionDocument
+	classID   string
+	code      string
+	err       error
+	exists    bool
+	mission   mission.MissionDocument
+	missionID string
+}
+
+type fakeClassReader struct {
+	code         string
+	err          error
+	exists       bool
+	teacherClass teacherclass.TeacherClassDocument
 }
 
 type fakeLearningGenerationLimiter struct {
@@ -129,4 +181,41 @@ func (reader *fakeMissionReader) GetByCode(
 ) (mission.MissionDocument, bool, error) {
 	reader.code = missionCode
 	return reader.mission, reader.exists, reader.err
+}
+
+func (reader *fakeMissionReader) Get(
+	_ context.Context,
+	classID string,
+	missionID string,
+) (mission.MissionDocument, bool, error) {
+	reader.classID = classID
+	reader.missionID = missionID
+	return reader.mission, reader.exists, reader.err
+}
+
+func (reader *fakeClassReader) Get(
+	_ context.Context,
+	classCode string,
+) (teacherclass.TeacherClassDocument, bool, error) {
+	reader.code = classCode
+	return reader.teacherClass, reader.exists, reader.err
+}
+
+func activeFakeClassReader() *fakeClassReader {
+	return &fakeClassReader{
+		teacherClass: teacherclass.TeacherClassDocument{
+			ClassID:   "123456",
+			ClassCode: "123456",
+			Status:    "active",
+		},
+		exists: true,
+	}
+}
+
+func anonymousStudentIdentity() sharedfirebase.Identity {
+	return sharedfirebase.Identity{
+		Provider:       sharedfirebase.IdentityProviderFirebase,
+		ProviderUserID: "student-1",
+		AuthMethod:     sharedfirebase.AuthMethodAnonymous,
+	}
 }

@@ -185,6 +185,12 @@ func publishedView(mission MissionDocument) (MissionDocument, bool) {
 	return mission, true
 }
 
+// PublishedView returns the student-safe current published snapshot. Draft
+// edits remain private until the teacher publishes them.
+func PublishedView(mission MissionDocument) (MissionDocument, bool) {
+	return publishedView(mission)
+}
+
 // ViewAtPublishedRevision pins a student attempt to the immutable content that
 // was live when it started, even if the teacher publishes a newer revision.
 func ViewAtPublishedRevision(

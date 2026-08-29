@@ -32,17 +32,22 @@ func (repository *Repository) Create(
 	input CreateMissionInput,
 ) (MissionDocument, error) {
 	missionRef := repository.client.Collection(MissionsCollectionName).NewDoc()
-	codeRef := repository.client.Collection(MissionCodesCollectionName).
-		Doc(input.MissionCode)
+	var codeRef *firestore.DocumentRef
+	if input.MissionCode != "" {
+		codeRef = repository.client.Collection(MissionCodesCollectionName).
+			Doc(input.MissionCode)
+	}
 
 	mission := buildMissionDocument(missionRef.ID, input)
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		_, err := tx.Get(codeRef)
-		switch {
-		case err == nil:
-			return ErrMissionCodeUnavailable
-		case status.Code(err) != codes.NotFound:
-			return fmt.Errorf("check mission code: %w", err)
+		if codeRef != nil {
+			_, err := tx.Get(codeRef)
+			switch {
+			case err == nil:
+				return ErrMissionCodeUnavailable
+			case status.Code(err) != codes.NotFound:
+				return fmt.Errorf("check mission code: %w", err)
+			}
 		}
 
 		if err := tx.Create(missionRef, mission.firestoreMap()); err != nil {
@@ -56,7 +61,11 @@ func (repository *Repository) Create(
 			}
 		}
 
-		return tx.Create(codeRef, missionCodeFirestoreMap(mission))
+		if codeRef != nil {
+			return tx.Create(codeRef, missionCodeFirestoreMap(mission))
+		}
+
+		return nil
 	})
 	if err != nil {
 		return MissionDocument{}, fmt.Errorf("write mission: %w", err)
@@ -269,11 +278,21 @@ func (repository *Repository) Publish(
 			!mission.HasUnpublishedChanges &&
 			!draftEdits.HasChanges
 		if alreadyPublished {
+			publishedMission, published := publishedView(mission)
+			if !published {
+				return ErrMissionNotFound
+			}
 			if err := tx.Set(classRef, map[string]any{
 				"active_mission_id": mission.ID,
 				"updated_at":        timestamp,
 			}, firestore.MergeAll); err != nil {
 				return fmt.Errorf("activate published mission: %w", err)
+			}
+			if err := repository.syncStudentMissionCatalog(
+				tx,
+				publishedMission,
+			); err != nil {
+				return fmt.Errorf("write student mission catalog: %w", err)
 			}
 
 			return nil
@@ -300,6 +319,9 @@ func (repository *Repository) Publish(
 
 		if err := tx.Set(ref, mission.firestoreMap()); err != nil {
 			return err
+		}
+		if err := repository.syncStudentMissionCatalog(tx, mission); err != nil {
+			return fmt.Errorf("write student mission catalog: %w", err)
 		}
 
 		classUpdate := map[string]any{
@@ -433,6 +455,9 @@ func (repository *Repository) SoftDelete(
 
 		if err := tx.Set(missionRef, mission.firestoreMap()); err != nil {
 			return fmt.Errorf("soft delete mission: %w", err)
+		}
+		if err := tx.Delete(repository.studentMissionCatalogRef(classID, mission.ID)); err != nil {
+			return fmt.Errorf("delete student mission catalog: %w", err)
 		}
 		if teacherClass.ActiveMissionID == mission.ID {
 			if err := tx.Set(classRef, map[string]any{
@@ -643,6 +668,46 @@ func missionCodeFirestoreMap(mission MissionDocument) map[string]any {
 		"status":          mission.Status,
 		"created_at":      mission.CreatedAt,
 		"updated_at":      mission.UpdatedAt,
+	}
+}
+
+func (repository *Repository) studentMissionCatalogRef(
+	classID string,
+	missionID string,
+) *firestore.DocumentRef {
+	return repository.client.Collection(StudentClassMissionsCollectionName).
+		Doc(classID).
+		Collection(StudentClassMissionsSubcollection).
+		Doc(missionID)
+}
+
+func (repository *Repository) syncStudentMissionCatalog(
+	tx *firestore.Transaction,
+	mission MissionDocument,
+) error {
+	ref := repository.studentMissionCatalogRef(mission.ClassID, mission.ID)
+	if mission.AudienceType == AudienceSelected {
+		return tx.Delete(ref)
+	}
+
+	return tx.Set(ref, studentMissionCatalogMap(mission))
+}
+
+func studentMissionCatalogMap(mission MissionDocument) map[string]any {
+	return map[string]any{
+		"id":                         mission.ID,
+		"class_id":                   mission.ClassID,
+		"published_revision":         mission.PublishedRevision,
+		"mission_name":               mission.MissionName,
+		"title":                      mission.Title,
+		"summary":                    mission.Summary,
+		"subject":                    mission.Subject,
+		"grade_level":                mission.GradeLevel,
+		"learning_goal":              mission.LearningGoal,
+		"suggested_duration_minutes": mission.SuggestedDurationMinutes,
+		"status":                     StatusPublished,
+		"published_at":               mission.PublishedAt,
+		"updated_at":                 mission.UpdatedAt,
 	}
 }
 

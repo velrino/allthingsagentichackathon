@@ -556,7 +556,7 @@ export function DashboardPage({
     const isLive = activeMission?.id === mission.id;
     const confirmed = window.confirm(
       isLive
-        ? `Remove “${missionLabel}”? Its mission code will stop accepting new students.`
+        ? `Remove “${missionLabel}”? It will disappear from the student classroom.`
         : `Remove “${missionLabel}”? It will disappear from this class mission list.`,
     );
     if (!confirmed) {
@@ -863,7 +863,6 @@ export function DashboardPage({
             open={missionBuilderOpen}
             previewMission={previewMission}
             processing={processing}
-            students={students}
             teacherClass={selectedClass}
             onApprove={handleApproveMission}
             onOpenChange={setMissionBuilderOpen}

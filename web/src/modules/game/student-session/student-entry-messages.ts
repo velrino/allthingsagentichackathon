@@ -1,7 +1,7 @@
 import { ApiError } from "@/backend/api/api.endpoints";
 
 /**
- * Copy shown to students (ages ~11-14) while entering a mission.
+ * Copy shown to students (ages ~11-14) while entering a class.
  * Short sentences, no product or engineering vocabulary, always a next step.
  * The API keeps its technical messages for logs; the game owns the words.
  */
@@ -13,8 +13,12 @@ export const studentEntryCopy = {
   opening: "Opening the classroom...",
   errors: {
     codeNotFound:
-      "Hmm, that code doesn't match any mission. Check it with your teacher and try again.",
-    codeFormat: "Mission codes have 6 numbers, like 123 456.",
+      "Hmm, that code doesn't match any class. Check it with your teacher and try again.",
+    classUnavailable:
+      "This class is no longer available. Ask your teacher for a new code.",
+    missionUnavailable:
+      "This mission is no longer available. Ask your teacher for a new code.",
+    codeFormat: "Class codes have 6 numbers, like 123 456.",
     nameMissing: "Type your name so Emily knows who you are.",
     tooManyTries: "Too many tries. Wait a minute and try again.",
     signIn: "Something went wrong signing you in. Refresh the page and try again.",
@@ -27,7 +31,7 @@ export function describeStudentEntryError(error: unknown): string {
 
   if (error instanceof ApiError) {
     switch (error.code) {
-      case "mission_not_found":
+      case "class_not_found":
         return errors.codeNotFound;
       case "validation_failed":
         return describeValidationError(error.message);
@@ -50,9 +54,31 @@ export function describeStudentEntryError(error: unknown): string {
   return errors.offline;
 }
 
+export type StudentSessionErrorScope = "class" | "mission";
+
+export function studentSessionErrorScope(
+  error: unknown,
+): StudentSessionErrorScope | null {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+
+  switch (error.code) {
+    case "class_not_found":
+    case "student_not_found":
+      return "class";
+    case "mission_not_found":
+    case "mission_deleted":
+    case "mission_mismatch":
+      return "mission";
+    default:
+      return null;
+  }
+}
+
 function describeValidationError(message: string): string {
   const normalized = message.toLowerCase();
-  if (normalized.includes("mission_code")) {
+  if (normalized.includes("class_code")) {
     return studentEntryCopy.errors.codeFormat;
   }
   if (normalized.includes("student_name")) {

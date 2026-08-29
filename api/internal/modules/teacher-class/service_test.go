@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestGenerateClassCodeUsesReadableCharacters(t *testing.T) {
-	pattern := regexp.MustCompile(`^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$`)
+func TestGenerateClassCodeUsesSixDigits(t *testing.T) {
+	pattern := regexp.MustCompile(`^[0-9]{6}$`)
 
 	for index := 0; index < 100; index++ {
 		code, err := generateClassCode()
@@ -14,7 +14,7 @@ func TestGenerateClassCodeUsesReadableCharacters(t *testing.T) {
 			t.Fatalf("generate class code: %v", err)
 		}
 		if !pattern.MatchString(code) {
-			t.Fatalf("generated code %q is not readable", code)
+			t.Fatalf("generated code %q does not contain six digits", code)
 		}
 	}
 }

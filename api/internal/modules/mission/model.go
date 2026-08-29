@@ -9,12 +9,14 @@ import (
 )
 
 const (
-	MissionsCollectionName         = "missions"
-	MissionCodesCollectionName     = "mission_codes"
-	MissionRevisionsCollectionName = "published_revisions"
-	AudienceAll                    = "all"
-	AudienceSelected               = "selected"
-	StatusDraft                    = "draft"
+	MissionsCollectionName             = "missions"
+	MissionCodesCollectionName         = "mission_codes"
+	MissionRevisionsCollectionName     = "published_revisions"
+	StudentClassMissionsCollectionName = "student_class_missions"
+	StudentClassMissionsSubcollection  = "missions"
+	AudienceAll                        = "all"
+	AudienceSelected                   = "selected"
+	StatusDraft                        = "draft"
 	// StatusPreview is kept only to decode legacy documents and requests.
 	StatusPreview            = "preview"
 	StatusPublished          = "published"

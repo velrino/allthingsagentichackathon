@@ -12,10 +12,21 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/teacher_classes/$(classId)).data.teacher_id == request.auth.uid;
     }
 
+    function isStudentInClass(classId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.student.class_id == classId;
+    }
+
     // Browser clients are read-only. All writes, including anonymous student
     // checkpoints, go through the API after server-side validation.
     match /teacher_classes/{classId} {
-      allow read: if signedIn() && resource.data.teacher_id == request.auth.uid;
+      allow read: if ownsClass(classId) || isStudentInClass(classId);
+      allow write: if false;
+    }
+
+    match /student_class_missions/{classId}/missions/{missionId} {
+      allow read: if ownsClass(classId) || isStudentInClass(classId);
       allow write: if false;
     }
 
@@ -26,6 +37,13 @@ service cloud.firestore {
 
     match /student_mission_attempts/{attemptId} {
       allow read: if ownsClass(resource.data.class_id);
+      allow write: if false;
+    }
+
+    match /student_mission_completions/{studentId}/missions/{attemptId} {
+      allow read: if signedIn()
+        && request.auth.uid == studentId
+        && resource.data.student_id == studentId;
       allow write: if false;
     }
 

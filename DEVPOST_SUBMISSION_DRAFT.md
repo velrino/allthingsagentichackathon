@@ -34,9 +34,9 @@ The category brief describes "an expert guide that quizzes you as you go, learns
 
 ## What It Does
 
-**For the teacher**: sign in, create a class, describe what the class covered and what you noticed, and optionally attach the worksheet (PDF, images, text). Emily turns that into a **mission**: 3–4 stages, questions whose wrong options are traps for named misconceptions, step-by-step explanations, a mission flow graph, suggestions for the next lesson — and a set of **knowledge chunks** distilled from your material that she will retrieve from while tutoring. Review the preview, adjust the prompt and regenerate; every revision stays on the same mission with its history. Approve, and students get a six-digit **mission code**.
+**For the teacher**: sign in, create a class, describe what the class covered and what you noticed, and optionally attach the worksheet (PDF, images, text). Emily turns that into a **mission**: 3–4 stages, questions whose wrong options are traps for named misconceptions, step-by-step explanations, a mission flow graph, suggestions for the next lesson — and a set of **knowledge chunks** distilled from your material that she will retrieve from while tutoring. Review the preview, adjust the prompt and regenerate; every revision stays on the same mission with its history. Approve, and it appears instantly in that class's realtime mission list.
 
-**For the student**: enter the code and your name, pick a character, walk to your desk in a low-poly 3D classroom and sit down. Emily runs the lesson on the chalkboard:
+**For the student**: enter the class's six-digit numeric code and your name, pick a character, and enter a low-poly 3D classroom. The glowing desk appears as soon as the teacher publishes a mission; walk over, tap **START**, and choose one you have not completed. Emily runs it on the chalkboard:
 
 - She asks every question and decides every next step.
 - When you're wrong she doesn't reveal the answer. She asks *why you picked it*, with reasons written in your voice — and the question she asks is generated for *your* answer.
@@ -54,7 +54,7 @@ Two people collaborate with Emily: the teacher who plans, and the student who pl
 |---|---|---|
 | **Stateful, multi-turn dialogue** | Every answer, explicit "why" and feedback tap is one structured Gemini turn on the same attempt. Each turn carries the last 24 observable events and the last 12 tutor turns, so Emily's reply builds on what just happened, not on a blank slate. | Prompt → preview → revise → approve on one mission document with numbered revisions; the published version stays live while the next draft is edited. |
 | **Real-time context retrieval (RAG)** | Before each turn the API grounds the request against the published question, retrieves the top 5 knowledge chunks for *this question and this response* from the mission's chunk set, and loads the student's memory, the attempt history and the class-level patterns. Gemini reports which chunk ids it used; they are stored with the turn and shown to the teacher. | Attachments are downloaded and passed to Gemini inline at generation time, and distilled into the knowledge chunks the tutor retrieves from later. The dashboard reads the server-authorized overview and refreshes on Firestore realtime events. |
-| **Persistent memory** | Three layers in Firestore: the **attempt** (progress, events, decisions, exact checkpoint, tutor turns, trace), the **student** (`learning_memory`: strengths, improvement areas, preferred explanation, next adaptation — carried into the next mission), and the **class** (clustered strengths and needs across students). | Classes, missions, revisions, published snapshots, mission codes, attachments in Cloud Storage. |
+| **Persistent memory** | Three layers in Firestore: the **attempt** (progress, events, decisions, exact checkpoint, tutor turns, trace), the **student** (`learning_memory`: strengths, improvement areas, preferred explanation, next adaptation — carried into the next mission), and the **class** (clustered strengths and needs across students). | Classes, missions, revisions, published snapshots, a student-safe realtime catalog, attachments in Cloud Storage. |
 | **Adapts from past interactions** | Explanation style, difficulty bias and next action change from feedback and repeated slips, with a stated reason. A returning student resumes at the exact phase and step. When the mission ends — or is abandoned — Gemini writes a learning trace whose `next_adaptation` tells the *next* turn how to adapt. | The class patterns pre-write tomorrow's mission prompt, so the next lesson starts from today's evidence. |
 
 ## How We Built It
@@ -67,7 +67,7 @@ One repository, two Cloud Run services, one database.
 - **Business-ready tenancy**: every durable classroom record carries `organization_id`, `district_id` and `school_id`. The demo currently maps every teacher to one default tenant, but missions, teachers, classes, attempts and class summaries are already queryable by school or district.
 - **Frontend**: Next.js 16, React 19, TypeScript, Tailwind, Three.js. The classroom is a single merged GLB split into connected islands at load time to stretch the room, spread the desks and derive colliders; classmates are the six chibi characters repainted per instance by rewriting vertex colours. The dashboard uses Firestore realtime listeners on attempts and class summaries, React Flow for the mission and learning graphs, Uploadcare for uploads with previews.
 - **3D pipeline**: **Blender** generates the avatars headless (one shared rig, vertex colours, Draco). We drove **Blender through its MCP server** from Claude Code to inspect and iterate on the models, and measured desk groups and chair seats with Node scripts against the GLB.
-- **Safety**: Firestore rules are read-only for browsers — teachers read only their own classes, attempts and summaries; students read nothing and get their resume state only through the API, which strips notes, observations and traces. Mission generation has a deterministic pre-model gate and a post-model `education_guardrail`; blocked missions cannot be published. Both tutor and trace prompts reason only from observable answers and are forbidden from claiming to read hidden chain-of-thought.
+- **Safety**: Firestore rules are read-only for browsers — teachers read only their own classes, attempts and summaries; students read only their class, student-safe published metadata and a minimal completion projection (`mission_id`, revision, status). Full attempts, mission content and resume state come through the API, which strips notes, observations and traces. Mission generation has a deterministic pre-model gate and a post-model `education_guardrail`; blocked missions cannot be published. Both tutor and trace prompts reason only from observable answers and are forbidden from claiming to read hidden chain-of-thought.
 
 Runtime flow:
 
@@ -78,12 +78,15 @@ Teacher dashboard (Next.js on Cloud Run)
        -> Redis rate limit -> orchestrator.BuildMission -> Gemini (attachments inline)
        -> Firestore missions/{mission_id} draft revision n (tenant-scoped knowledge_chunks, guardrail, flow)
   -> POST /teacher-classes/{class_id}/missions/{mission_id}/approve
-       -> published_revisions/{n} + mission_codes/{code} -> Cloud Tasks -> Cloud Storage
+       -> published_revisions/{n} + student_class_missions/{class_id}/missions/{mission_id}
+       -> Cloud Tasks -> Cloud Storage
   -> GET /dashboard/overview?class_id=…  + Firestore realtime listeners
 
 Student game (Three.js, Next.js on Cloud Run)
   -> POST /users/student-session/validate -> anonymous Firebase Auth -> POST /users/student-session
-       -> users/{uid} + the published mission (pinned revision)
+       -> users/{uid} + class lobby
+  -> Firestore realtime catalog + own completion records
+  -> POST /users/student-mission -> chosen published mission (pinned revision)
   -> POST /users/student-tutor-turn on every answer / why / feedback
        -> ground -> retrieve chunks + memory + history + class context -> Gemini -> leak guard
        -> student_mission_attempts/{attempt_id}.tutor_turns[]
@@ -271,7 +274,7 @@ Smoke tests on the deployed services:
 curl -I https://classgame-web-mzkj6f7g3a-ue.a.run.app/home
 curl https://classgame-api-2057331207.us-east1.run.app/
 curl -X POST https://classgame-api-2057331207.us-east1.run.app/users/student-session/validate \
-  -H 'Content-Type: application/json' --data '{"mission_code":"000000"}'   # 404 mission_not_found
+  -H 'Content-Type: application/json' --data '{"class_code":"000000"}'   # 404 class_not_found
 ```
 
 Local run:
@@ -291,10 +294,10 @@ Teacher:
 2. Create a class (name, subject, grade) or open an existing one.
 3. In the Missions tab, enter a mission name, a learning goal and a teacher prompt, e.g. "Today: solving two-step equations. Several students slipped on fractions." Optionally attach a worksheet PDF (apps/assets/grade/README.md has ready-to-copy prompts for the included Grade 5 worksheets). Click "Generate preview".
 4. Review the preview: Gemini generates stages, questions with misconception traps, the mission flow graph and an education guardrail. Edit the prompt and click "Update preview" if you like — revisions stay on the same mission.
-5. Click "Approve and assign to class" and note the six-digit mission code.
+5. Click "Approve and assign to class" and keep the class's six-digit code visible.
 
 Student (a phone works best):
-6. Open https://classgame-web-mzkj6f7g3a-ue.a.run.app/home, enter the mission code and a name, tap "Start mission", pick a character, walk to the glowing desk and sit down.
+6. Open https://classgame-web-mzkj6f7g3a-ue.a.run.app/home, enter the class code and a name, pick a character, walk to the glowing desk, tap "START", and choose the published mission.
 7. Answer the first question wrong on purpose. Emily asks why — pick a reason. Read the explanation, then tap "Confusing": Emily switches to a drawing and the decision card states why.
 8. Answer a few more questions. Close the tab and reopen the same URL in the same browser: "Welcome back — last time you were on …", and you are back at the exact question and step.
 9. Finish the mission (or walk away for two minutes: the watchdog marks the attempt as left early and still writes a partial learning trace).
@@ -345,14 +348,17 @@ Teacher dashboard (Next.js on Cloud Run) — /login, /dashboard, /dashboard/clas
          -> Google GenAI SDK -> Gemini 3.7 Flash structured output (attachments inline)
          -> Firestore missions/{mission_id} (tenant-scoped draft revisions, knowledge_chunks)
        POST /teacher-classes/{class_id}/missions/{mission_id}/approve
-         -> Firestore missions/{mission_id}/published_revisions/{n} + mission_codes/{code}
+         -> Firestore missions/{mission_id}/published_revisions/{n}
+         -> student_class_missions/{class_id}/missions/{mission_id} (student-safe realtime metadata)
          -> Cloud Tasks -> Cloud Storage (attachments per class / mission / revision)
        GET  /dashboard/overview?class_id=…
   -> Firestore realtime listeners (student_mission_attempts, class_learning_summaries)
 
 Student game (Three.js, Next.js on Cloud Run) — /home
   -> POST /users/student-session/validate
-  -> Firebase Auth (anonymous) -> POST /users/student-session -> users/{uid} + published mission
+  -> Firebase Auth (anonymous) -> POST /users/student-session -> users/{uid} + class lobby
+  -> Firestore onSnapshot (class, published mission catalog, own completions)
+  -> POST /users/student-mission -> selected pinned mission payload
   -> POST /users/student-presence every 15 s
   -> POST /users/student-tutor-turn per answer / why / feedback
        -> grounding + retrieval (knowledge chunks, student memory, attempt history, class context)

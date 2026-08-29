@@ -27,7 +27,7 @@ const (
 	defaultStudentLearningTimeout         = 40 * time.Second
 )
 
-var missionCodePattern = regexp.MustCompile(`^[0-9]{6}$`)
+var classCodePattern = regexp.MustCompile(`^[0-9]{6}$`)
 
 type Authenticator interface {
 	AuthenticateBearerToken(context.Context, string) (sharedfirebase.Identity, error)
@@ -40,13 +40,21 @@ type UsersService interface {
 		string,
 		string,
 	) (UserDocument, error)
-	ValidateStudentMissionCode(
+	ValidateStudentClassCode(
 		context.Context,
 		string,
 	) error
+	StartStudentMission(
+		context.Context,
+		sharedfirebase.Identity,
+		string,
+		string,
+		string,
+	) (UserDocument, error)
 	UpdateStudentPresence(
 		context.Context,
 		sharedfirebase.Identity,
+		string,
 		string,
 		string,
 		string,
@@ -109,25 +117,33 @@ type Handler struct {
 }
 
 type StudentSessionRequest struct {
-	MissionCode string `json:"mission_code"`
+	ClassCode   string `json:"class_code"`
 	StudentName string `json:"student_name"`
 }
 
-type StudentMissionCodeRequest struct {
-	MissionCode string `json:"mission_code"`
+type StudentClassCodeRequest struct {
+	ClassCode string `json:"class_code"`
 }
 
-type StudentMissionCodeResponse struct {
+type StudentClassCodeResponse struct {
 	Valid bool `json:"valid"`
 }
 
 type StudentSessionResponse struct {
 	User    UserResponse           `json:"user"`
+	Class   *StudentSessionClass   `json:"class,omitempty"`
 	Mission *StudentSessionMission `json:"mission,omitempty"`
+}
+
+type StudentMissionRequest struct {
+	ClassCode   string `json:"class_code"`
+	MissionID   string `json:"mission_id"`
+	StudentName string `json:"student_name"`
 }
 
 type StudentPresenceRequest struct {
 	MissionID string `json:"mission_id"`
+	ClassCode string `json:"class_code"`
 	Subject   string `json:"subject"`
 	StageID   string `json:"stage_id"`
 	StageName string `json:"stage_name"`
@@ -202,6 +218,11 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 		sessionRateLimiter,
 	)
 	server.POST(
+		"/users/student-mission",
+		handler.PostStudentMission,
+		sessionRateLimiter,
+	)
+	server.POST(
 		"/users/student-presence",
 		handler.PostStudentPresence,
 		studentPresenceRateLimiter(),
@@ -224,11 +245,11 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 }
 
 func (handler *Handler) PostStudentSessionValidation(ctx *echo.Context) error {
-	var request StudentMissionCodeRequest
+	var request StudentClassCodeRequest
 	if err := ctx.Bind(&request); err != nil {
 		return jsonError(ctx, http.StatusBadRequest, "bad_request", "Invalid JSON body.")
 	}
-	request.MissionCode = strings.ToUpper(strings.TrimSpace(request.MissionCode))
+	request.ClassCode = strings.TrimSpace(request.ClassCode)
 	if err := request.Validate(); err != nil {
 		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
 	}
@@ -243,16 +264,16 @@ func (handler *Handler) PostStudentSessionValidation(ctx *echo.Context) error {
 	sessionContext, cancel := context.WithTimeout(ctx.Request().Context(), handler.studentSessionTimeout)
 	defer cancel()
 
-	if err := handler.usersService.ValidateStudentMissionCode(sessionContext, request.MissionCode); err != nil {
-		if errors.Is(err, ErrMissionCodeNotFound) {
-			return jsonError(ctx, http.StatusNotFound, "mission_not_found", "Published mission code not found.")
+	if err := handler.usersService.ValidateStudentClassCode(sessionContext, request.ClassCode); err != nil {
+		if errors.Is(err, ErrClassCodeNotFound) {
+			return jsonError(ctx, http.StatusNotFound, "class_not_found", "Active class code not found.")
 		}
 
 		slog.Error("student session validation failed", "error", err)
-		return jsonError(ctx, http.StatusInternalServerError, "session_validation_failed", "Could not validate mission code.")
+		return jsonError(ctx, http.StatusInternalServerError, "session_validation_failed", "Could not validate class code.")
 	}
 
-	return ctx.JSON(http.StatusOK, StudentMissionCodeResponse{Valid: true})
+	return ctx.JSON(http.StatusOK, StudentClassCodeResponse{Valid: true})
 }
 
 func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
@@ -260,7 +281,7 @@ func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return jsonError(ctx, http.StatusBadRequest, "bad_request", "Invalid JSON body.")
 	}
-	request.MissionCode = strings.ToUpper(strings.TrimSpace(request.MissionCode))
+	request.ClassCode = strings.TrimSpace(request.ClassCode)
 	if err := request.Validate(); err != nil {
 		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
 	}
@@ -283,15 +304,15 @@ func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
 	user, err := handler.usersService.UpsertStudent(
 		sessionContext,
 		identity,
-		request.MissionCode,
+		request.ClassCode,
 		request.StudentName,
 	)
 	if err != nil {
 		if errors.Is(err, ErrStudentRequiresAnonymousAuth) {
 			return jsonError(ctx, http.StatusForbidden, "forbidden", "Student sessions require anonymous Firebase auth.")
 		}
-		if errors.Is(err, ErrMissionCodeNotFound) {
-			return jsonError(ctx, http.StatusNotFound, "mission_not_found", "Published mission code not found.")
+		if errors.Is(err, ErrClassCodeNotFound) {
+			return jsonError(ctx, http.StatusNotFound, "class_not_found", "Active class code not found.")
 		}
 
 		slog.Error("student session upsert failed", "error", err, "auth_method", identity.AuthMethod)
@@ -299,7 +320,55 @@ func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, StudentSessionResponse{
+		User:  ToResponse(user),
+		Class: &user.SessionClass,
+	})
+}
+
+func (handler *Handler) PostStudentMission(ctx *echo.Context) error {
+	var request StudentMissionRequest
+	if err := ctx.Bind(&request); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "bad_request", "Invalid JSON body.")
+	}
+	request.ClassCode = strings.TrimSpace(request.ClassCode)
+	request.MissionID = strings.TrimSpace(request.MissionID)
+	if err := request.Validate(); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
+	}
+	if handler.authenticator == nil || handler.usersService == nil {
+		return jsonError(ctx, http.StatusInternalServerError, "not_configured", "Users are not configured.")
+	}
+
+	requestContext, cancel := context.WithTimeout(ctx.Request().Context(), handler.studentSessionTimeout)
+	defer cancel()
+	identity, ok, err := handler.authenticate(requestContext, ctx)
+	if err != nil || !ok {
+		return err
+	}
+	user, err := handler.usersService.StartStudentMission(
+		requestContext,
+		identity,
+		request.ClassCode,
+		request.MissionID,
+		request.StudentName,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrStudentRequiresAnonymousAuth):
+			return jsonError(ctx, http.StatusForbidden, "forbidden", "Student missions require anonymous Firebase auth.")
+		case errors.Is(err, ErrClassCodeNotFound):
+			return jsonError(ctx, http.StatusNotFound, "class_not_found", "The class is no longer available.")
+		case errors.Is(err, ErrPublishedMissionNotFound):
+			return jsonError(ctx, http.StatusNotFound, "mission_not_found", "The published mission is no longer available.")
+		default:
+			slog.Error("student mission start failed", "error", err)
+			return jsonError(ctx, http.StatusInternalServerError, "mission_start_failed", "Could not start this mission.")
+		}
+	}
+
+	return ctx.JSON(http.StatusOK, StudentSessionResponse{
 		User:    ToResponse(user),
+		Class:   &user.SessionClass,
 		Mission: &user.SessionMission,
 	})
 }
@@ -329,6 +398,7 @@ func (handler *Handler) PostStudentPresence(ctx *echo.Context) error {
 		requestContext,
 		identity,
 		request.MissionID,
+		request.ClassCode,
 		request.Subject,
 		request.StageID,
 		request.StageName,
@@ -340,6 +410,10 @@ func (handler *Handler) PostStudentPresence(ctx *echo.Context) error {
 			return jsonError(ctx, http.StatusForbidden, "forbidden", "Student presence requires anonymous Firebase auth.")
 		case errors.Is(err, ErrStudentNotFound):
 			return jsonError(ctx, http.StatusNotFound, "student_not_found", "Start a student session before entering the game.")
+		case errors.Is(err, ErrClassCodeNotFound):
+			return jsonError(ctx, http.StatusNotFound, "class_not_found", "The class is no longer available.")
+		case errors.Is(err, ErrPublishedMissionNotFound):
+			return jsonError(ctx, http.StatusNotFound, "mission_not_found", "The published mission is no longer available.")
 		case errors.Is(err, ErrStudentMissionMismatch):
 			return jsonError(ctx, http.StatusConflict, "mission_mismatch", "Presence does not match the active student mission.")
 		default:
@@ -542,8 +616,8 @@ func (handler *Handler) authenticate(
 
 func (request StudentSessionRequest) Validate() error {
 	return validation.ValidateStruct(&request,
-		validation.Field(&request.MissionCode,
-			validation.By(validateMissionCode),
+		validation.Field(&request.ClassCode,
+			validation.By(validateClassCode),
 		),
 		validation.Field(&request.StudentName,
 			validation.Required,
@@ -552,17 +626,26 @@ func (request StudentSessionRequest) Validate() error {
 	)
 }
 
-func (request StudentMissionCodeRequest) Validate() error {
+func (request StudentClassCodeRequest) Validate() error {
 	return validation.ValidateStruct(&request,
-		validation.Field(&request.MissionCode,
-			validation.By(validateMissionCode),
+		validation.Field(&request.ClassCode,
+			validation.By(validateClassCode),
 		),
+	)
+}
+
+func (request StudentMissionRequest) Validate() error {
+	return validation.ValidateStruct(&request,
+		validation.Field(&request.ClassCode, validation.By(validateClassCode)),
+		validation.Field(&request.MissionID, validation.Required, validation.Length(1, 120)),
+		validation.Field(&request.StudentName, validation.Required, validation.Length(2, 80)),
 	)
 }
 
 func (request StudentPresenceRequest) Validate() error {
 	return validation.ValidateStruct(&request,
 		validation.Field(&request.MissionID, validation.Required, validation.Length(1, 120)),
+		validation.Field(&request.ClassCode, validation.By(validateClassCode)),
 		validation.Field(&request.Subject, validation.Required, validation.Length(2, 80)),
 		validation.Field(&request.StageID, validation.Required, validation.Length(1, 80)),
 		validation.Field(&request.StageName, validation.Required, validation.Length(1, 120)),
@@ -778,11 +861,11 @@ func (request StudentTutorTurnRequest) Validate() error {
 	return nil
 }
 
-func validateMissionCode(value any) error {
+func validateClassCode(value any) error {
 	return validation.Validate(value,
 		validation.Required,
 		validation.Length(6, 6),
-		validation.Match(missionCodePattern),
+		validation.Match(classCodePattern),
 	)
 }
 

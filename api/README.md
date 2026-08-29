@@ -29,18 +29,19 @@ curl http://localhost:4004/
 ## Runtime
 
 - `GET /` returns the health check and service dependency status.
-- `POST /users/student-session/validate` resolves a published, six-digit mission code before anonymous Firebase sign-in.
-- `POST /users/student-session` resolves a published, six-digit mission code, verifies an anonymous Firebase ID token, and upserts `users/{firebase_uid}` in Firestore.
+- `POST /users/student-session/validate` resolves an active, six-digit numeric class code before anonymous Firebase sign-in.
+- `POST /users/student-session` verifies an anonymous Firebase ID token, joins that class, and upserts `users/{firebase_uid}` in Firestore without selecting a mission.
+- `POST /users/student-mission` verifies that a chosen mission is currently published in the joined class and returns its pinned student-safe payload.
 - `POST /users/student-presence` verifies the same anonymous token and updates the student's current game heartbeat.
 - `GET /users/student-learning?mission_id=...` restores the anonymous student's current persisted attempt.
 - `POST /users/student-learning` saves bounded observable events and memory; completing the mission asks Gemini for an evidence-based learning flow.
 - `GET /dashboard/overview` verifies a Google Firebase ID token and returns teacher dashboard data for one `class_id`.
-- `POST /teacher-classes` verifies a Google Firebase ID token and creates or updates a class. New classes receive a unique, six-character sharing code from the API.
+- `POST /teacher-classes` verifies a Google Firebase ID token and creates or updates a class. New classes receive a unique, six-digit numeric sharing code from the API.
 - `GET /teacher-classes/:class_id` returns one teacher-owned class.
 - `GET /teacher-classes/:class_id/missions` lists the latest missions for that class.
 - `POST /teacher-classes/:class_id/missions/preview` creates a draft or regenerates an existing draft when `mission_id` and `expected_draft_revision` are provided.
-- `POST /teacher-classes/:class_id/missions/:mission_id/approve` atomically promotes the expected draft revision, records an immutable published revision, and marks the mission active on the class.
-- `DELETE /teacher-classes/:class_id/missions/:mission_id` soft-deletes a mission, disables its code, and preserves its published history.
+- `POST /teacher-classes/:class_id/missions/:mission_id/approve` atomically promotes the expected draft revision, records an immutable published revision, marks the mission active, and updates the student-safe realtime catalog.
+- `DELETE /teacher-classes/:class_id/missions/:mission_id` soft-deletes a mission, removes it from the realtime catalog, and preserves its published history.
 - `internal/shared/google/genai` wraps the Google GenAI SDK so other modules can request structured output without coupling to SDK details.
 - `internal/modules/orchestrator` turns a teacher request into a mission blueprint and falls back locally if GenAI is disabled or unavailable.
 - `internal/modules/teacher-class-student` defines the per-class student thinking summary that future tutor turns will write.
@@ -61,9 +62,9 @@ Student records are stored in Firestore under `users/{firebase_uid}`. Payloads a
     "organization_id": "default-org",
     "district_id": "default-district",
     "school_id": "default-school",
-    "class_id": "ALG-2026-A",
+    "class_id": "123456",
+    "class_code": "123456",
     "mission_id": "mission-id",
-    "mission_code": "123456",
     "student_name": "Student Name"
   },
   "activity": {
@@ -86,7 +87,7 @@ Student records are stored in Firestore under `users/{firebase_uid}`. Payloads a
 }
 ```
 
-The web client reports presence every 15 seconds while the game tab is visible and debounces learning snapshots as answers, explicit explanations, feedback and tutor adaptations occur. Each active game is pinned to the published revision that the student joined, so a teacher can publish a newer draft without changing an in-progress session. Dashboard responses mark a student online when the latest heartbeat is no more than 45 seconds old.
+The web client listens to `student_class_missions/{class_id}/missions` and `student_mission_completions/{student_id}/missions` in realtime. The latter is a minimal student-readable projection; full attempts remain teacher/API-only. The client reports presence every 15 seconds only while a mission is active and debounces learning snapshots as answers, explicit explanations, feedback and tutor adaptations occur. Each active game is pinned to the published revision that the student chose, so a teacher can publish a newer draft without changing an in-progress session. Dashboard responses mark a student online when the latest heartbeat is no more than 45 seconds old.
 
 Learning evidence is stored separately so every mission revision remains available to the teacher:
 
@@ -139,6 +140,16 @@ mission_codes/{mission_code}
   mission_code, mission_id, class_id
   organization_id, district_id, school_id, teacher_id
   status, created_at, updated_at
+  # reserved for future selected-student sharing; whole-class missions leave mission_code empty
+
+student_class_missions/{class_id}/missions/{mission_id}
+  student-safe metadata for published whole-class missions
+  title, summary, subject, grade_level, learning_goal, suggested_duration_minutes
+  published_revision, status, published_at, updated_at
+
+student_mission_completions/{student_id}/missions/{attempt_id}
+  student_id, class_id, mission_id, published_revision
+  status, completed_at, updated_at
 
 teacher_classes/{class_id}/students/{student_id}
   student_id, student_name, current_mission_id
@@ -299,8 +310,9 @@ firebase deploy --only firestore:rules \
 
 Those rules permit a teacher to read only classes they own and deny every
 browser write. Anonymous students therefore cannot inspect tutor observations,
-notes, class memory or another student's attempt; their safe resume state is
-available only through the API.
+notes, class memory or any full attempt; they can read only their minimal
+completion projection, while safe resume state is available only through the
+API.
 
 The Uploadcare public key belongs in the web environment. The Uploadcare secret key must stay out of the repo; only add it to Secret Manager if signed uploads are implemented.
 

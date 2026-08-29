@@ -15,12 +15,12 @@ export interface IApiRequest {
 }
 
 export interface IApiStudentSession {
-  mission_code: string;
+  class_code: string;
   student_name: string;
 }
 
 export interface IApiStudentSessionValidation {
-  mission_code: string;
+  class_code: string;
 }
 
 export interface IApiStudentSessionValidationResponse {
@@ -29,6 +29,7 @@ export interface IApiStudentSessionValidationResponse {
 
 export interface IApiStudentPresence {
   mission_id: string;
+  class_code: string;
   subject: string;
   stage_id: string;
   stage_name: string;
@@ -39,6 +40,12 @@ export interface IApiStudentPresence {
     | "reviewing"
     | "paused"
     | "completed";
+}
+
+export interface IApiStartStudentMission {
+  class_code: string;
+  mission_id: string;
+  student_name: string;
 }
 
 export type IApiStudentLearningStatus =
@@ -164,6 +171,7 @@ export interface IApiStudentSessionUser {
     district_id: string;
     school_id: string;
     class_id: string;
+    class_code: string;
     mission_id: string;
     mission_code: string;
     student_name: string;
@@ -193,7 +201,16 @@ export interface IApiStudentSessionUser {
 
 export interface IApiStudentSessionResponse {
   user: IApiStudentSessionUser;
+  class?: IApiStudentClass;
   mission?: IApiStudentMission;
+}
+
+export interface IApiStudentClass {
+  id: string;
+  class_code: string;
+  class_name: string;
+  subject: string;
+  grade_level: string;
 }
 
 export interface IApiStudentMission {

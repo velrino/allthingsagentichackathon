@@ -109,7 +109,6 @@ export function ClassMissionsTable({
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="ps-6">Mission</TableHead>
-                    <TableHead>Mission code</TableHead>
                     <TableHead>Audience</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Updated</TableHead>
@@ -139,9 +138,6 @@ export function ClassMissionsTable({
                             {mission.learning_goal || "No learning goal provided"}
                           </p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <MissionCode value={mission.mission_code} />
                       </TableCell>
                       <TableCell>
                         <AudienceLabel mission={mission} />
@@ -213,9 +209,6 @@ function MissionMobileRow({
       <p className="mt-3 line-clamp-2 text-sm leading-5 text-muted-foreground">
         {mission.learning_goal || "No learning goal provided"}
       </p>
-      <div className="mt-3">
-        <MissionCode value={mission.mission_code} />
-      </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <AudienceLabel mission={mission} />
         <span>
@@ -235,16 +228,6 @@ function MissionMobileRow({
         />
       </div>
     </article>
-  );
-}
-
-function MissionCode({ value }: { readonly value: string }) {
-  return value ? (
-    <span className="inline-flex rounded-md bg-slate-950 px-2.5 py-1 font-mono text-xs font-bold tracking-[0.12em] text-white">
-      {value}
-    </span>
-  ) : (
-    <span className="text-xs text-muted-foreground">Not generated</span>
   );
 }
 

@@ -20,6 +20,7 @@ const optionalEnv = {
 } satisfies Pick<FirebaseOptions, "measurementId">;
 
 let firestore: Firestore | null = null;
+let studentFirestore: Firestore | null = null;
 let auth: Auth | null = null;
 let studentAuth: Auth | null = null;
 let analyticsPromise: Promise<Analytics | null> | null = null;
@@ -58,6 +59,11 @@ export function getStudentFirebaseApp(): FirebaseApp {
 export function getFirebaseDb(): Firestore {
   firestore ??= getFirestore(getFirebaseApp());
   return firestore;
+}
+
+export function getStudentFirebaseDb(): Firestore {
+  studentFirestore ??= getFirestore(getStudentFirebaseApp());
+  return studentFirestore;
 }
 
 export function getFirebaseAuth(): Auth {

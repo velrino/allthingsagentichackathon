@@ -18,6 +18,7 @@ type GameCanvasProps = {
   readonly movementRef: MovementRef;
   readonly directiveRef: WorldDirectiveRef;
   readonly onReport: (report: WorldReport) => void;
+  readonly showSeatMarker: boolean;
 };
 
 const TARGET_FRAME_MS = 1000 / 34;
@@ -88,14 +89,24 @@ function resolveCollisions(position: THREE.Vector3, radius: number, boxes: reado
   position.z = THREE.MathUtils.clamp(position.z, bounds.minZ + WALL_MARGIN, bounds.maxZ - WALL_MARGIN);
 }
 
-export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasProps) {
+export function GameCanvas({
+  movementRef,
+  directiveRef,
+  onReport,
+  showSeatMarker,
+}: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onReportRef = useRef(onReport);
+  const showSeatMarkerRef = useRef(showSeatMarker);
   const [webglUnavailable, setWebglUnavailable] = useState(false);
 
   useEffect(() => {
     onReportRef.current = onReport;
   }, [onReport]);
+
+  useEffect(() => {
+    showSeatMarkerRef.current = showSeatMarker;
+  }, [showSeatMarker]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -163,7 +174,10 @@ export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasPr
       pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
       raycaster.setFromCamera(pointer, camera);
 
-      if (raycaster.intersectObject(classroom.seat.hitArea, false).length > 0) {
+      if (
+        showSeatMarkerRef.current &&
+        raycaster.intersectObject(classroom.seat.hitArea, false).length > 0
+      ) {
         walkingToSeat = true;
         walkStuckFor = 0;
       }
@@ -270,7 +284,11 @@ export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasPr
       let sprinting = false;
 
       // React asked us to walk to the desk ("Go to my desk").
-      if (directive.walkRequest && directive.walkRequest.token !== lastWalkToken) {
+      if (
+        showSeatMarkerRef.current &&
+        directive.walkRequest &&
+        directive.walkRequest.token !== lastWalkToken
+      ) {
         lastWalkToken = directive.walkRequest.token;
         walkingToSeat = true;
         walkStuckFor = 0;
@@ -362,9 +380,12 @@ export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasPr
 
       // Seat marker: coloured by the current stage, brighter when you're close.
       scratch.set(seat.standPosition.x, player.position.y, seat.standPosition.z);
-      const nearSeat = !directive.seated && player.position.distanceTo(scratch) < NEAR_DISTANCE;
+      const markerVisible = showSeatMarkerRef.current && !directive.seated;
+      const nearSeat =
+        markerVisible && player.position.distanceTo(scratch) < NEAR_DISTANCE;
       const look = SEAT_LOOK[directive.podStatus[directive.tutorPod]];
       const pulse = 1 + Math.sin(elapsed * 4.2) * 0.05;
+      seat.ring.visible = markerVisible;
       seat.ring.material.emissive.setHex(look.color);
       seat.ring.material.color.setHex(look.color);
       seat.ring.material.emissiveIntensity = look.intensity * (nearSeat ? 1.7 : 1);

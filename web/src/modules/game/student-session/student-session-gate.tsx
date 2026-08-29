@@ -14,17 +14,24 @@ import {
   isFirebaseConfigured,
 } from "@/shared/firebase/client";
 
-import { describeStudentEntryError } from "./student-entry-messages";
+import {
+  describeStudentEntryError,
+  studentSessionErrorScope,
+  studentEntryCopy,
+} from "./student-entry-messages";
 import {
   StudentSessionModal,
   type StudentSessionFormValue,
 } from "./student-session-modal";
 import {
-  clearStudentMissionSession,
-  readStudentMissionSession,
-  saveStudentMissionSession,
+  clearStudentSession,
+  readStudentClassSession,
+  saveStudentClassSession,
 } from "./student-mission-session";
-import { studentSessionReadyEvent } from "./use-student-presence";
+import {
+  studentSessionReadyEvent,
+  studentClassUnavailableEvent,
+} from "./use-student-presence";
 
 type StudentSessionGateProps = {
   readonly children: ReactNode;
@@ -51,21 +58,65 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
     }
 
     const auth = getStudentFirebaseAuth();
-    return onAuthStateChanged(auth, (user) => {
+    let cancelled = false;
+    const showClassUnavailable = () => {
+      setError(studentEntryCopy.errors.classUnavailable);
+    };
+    window.addEventListener(
+      studentClassUnavailableEvent,
+      showClassUnavailable,
+    );
+
+    async function restoreStoredSession(user: User | null) {
       if (registeringRef.current) {
         return;
       }
 
-      if (user?.isAnonymous && readStudentMissionSession()) {
+      const classSession = readStudentClassSession();
+      if (user?.isAnonymous && classSession) {
+        setStatus("checking");
+        try {
+          await API.users.validateStudentSession({
+            class_code: classSession.classCode,
+          });
+        } catch (caughtError) {
+          if (cancelled) {
+            return;
+          }
+          if (studentSessionErrorScope(caughtError) === "class") {
+            clearStudentSession();
+            setStatus("needs_student_session");
+            setError(studentEntryCopy.errors.classUnavailable);
+            await signOut(auth).catch(() => undefined);
+            return;
+          }
+          // Keep a previously opened mission playable during a network outage.
+        }
+
+        if (cancelled) {
+          return;
+        }
         setStatus("ready");
         setError(null);
         window.dispatchEvent(new Event(studentSessionReadyEvent));
         return;
       }
 
-      clearStudentMissionSession();
+      clearStudentSession();
       setStatus("needs_student_session");
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      void restoreStoredSession(user);
     });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      window.removeEventListener(
+        studentClassUnavailableEvent,
+        showClassUnavailable,
+      );
+    };
   }, [firebaseConfigured]);
 
   async function handleSubmit(value: StudentSessionFormValue) {
@@ -76,7 +127,7 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
 
     try {
       await API.users.validateStudentSession({
-        mission_code: value.missionCode,
+        class_code: value.classCode,
       });
 
       const auth = getStudentFirebaseAuth();
@@ -88,22 +139,14 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
 
       const response = await API.users.studentSession(idToken, {
         student_name: value.studentName,
-        mission_code: value.missionCode,
+        class_code: value.classCode,
       });
 
-      if (!response.mission) {
-        throw new Error("The published mission content is unavailable.");
+      if (!response.class) {
+        throw new Error("The class is unavailable.");
       }
 
-      saveStudentMissionSession({
-        attemptId: response.user.activity.current_game.attempt_id,
-        missionCode: response.user.student.mission_code,
-        missionId: response.user.activity.current_game.mission_id,
-        publishedRevision:
-          response.user.activity.current_game.published_revision,
-        subject: response.user.activity.current_game.subject,
-        mission: response.mission,
-      });
+      saveStudentClassSession(response.class, value.studentName);
 
       setStatus("ready");
       window.dispatchEvent(new Event(studentSessionReadyEvent));

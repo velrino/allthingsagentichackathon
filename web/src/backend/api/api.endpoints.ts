@@ -8,6 +8,7 @@ import {
   type IApiStudentSessionValidation,
   type IApiStudentSessionValidationResponse,
   type IApiStudentPresence,
+  type IApiStartStudentMission,
   type IApiStudentSessionResponse,
   type IApiStudentLearningResponse,
   type IApiStudentLearningSnapshotRequest,
@@ -46,6 +47,23 @@ export const API = {
 
       if (!res.ok) {
         throw await apiError(res, "STUDENT_SESSION_FAILED");
+      }
+
+      return (await res.json()) as IApiStudentSessionResponse;
+    },
+    async startStudentMission(
+      access_token: string,
+      data: IApiStartStudentMission,
+    ): Promise<IApiStudentSessionResponse> {
+      const res = await ApiResources.request({
+        access_token,
+        data,
+        method: IApiRequestMethod.POST,
+        path: "/users/student-mission",
+      });
+
+      if (!res.ok) {
+        throw await apiError(res, "STUDENT_MISSION_START_FAILED");
       }
 
       return (await res.json()) as IApiStudentSessionResponse;

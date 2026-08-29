@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	classCodeAlphabet       = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+	classCodeAlphabet       = "0123456789"
 	classCodeLength         = 6
 	classCodeCreateAttempts = 12
 )

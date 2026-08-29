@@ -364,7 +364,11 @@ func (service *Service) createDraft(
 
 	var mission MissionDocument
 	if input.MissionID == "" {
-		mission, err = service.createWithGeneratedCode(ctx, input)
+		if input.AudienceType == AudienceSelected {
+			mission, err = service.createWithGeneratedCode(ctx, input)
+		} else {
+			mission, err = service.repository.Create(ctx, input)
+		}
 	} else {
 		mission, err = service.repository.UpdateDraft(ctx, input)
 	}

@@ -29,6 +29,7 @@ type UserDocument struct {
 	// SessionMission is populated only for the authenticated student-session
 	// response and is never written to the user document.
 	SessionMission StudentSessionMission `firestore:"-" json:"-"`
+	SessionClass   StudentSessionClass   `firestore:"-" json:"-"`
 }
 
 type UserIdentity struct {
@@ -61,6 +62,7 @@ type StudentProfile struct {
 	DistrictID     string                `firestore:"district_id" json:"district_id"`
 	SchoolID       string                `firestore:"school_id" json:"school_id"`
 	ClassID        string                `firestore:"class_id" json:"class_id"`
+	ClassCode      string                `firestore:"class_code" json:"class_code"`
 	MissionID      string                `firestore:"mission_id" json:"mission_id"`
 	MissionCode    string                `firestore:"mission_code" json:"mission_code"`
 	StudentName    string                `firestore:"student_name" json:"student_name"`
@@ -90,11 +92,13 @@ type UpsertStudentInput struct {
 	Identity                 sharedfirebase.Identity
 	Scope                    tenant.Scope
 	ClassID                  string
+	ClassCode                string
 	MissionID                string
 	MissionCode              string
 	MissionPublishedRevision int64
 	MissionSubject           string
 	StudentName              string
+	IncrementLogin           bool
 	Timestamp                time.Time
 }
 
@@ -243,6 +247,14 @@ type StudentSessionMission struct {
 	LearningGoal      string                         `json:"learning_goal"`
 	Stages            []orchestrator.MissionStage    `json:"stages"`
 	PreviewQuestions  []orchestrator.PreviewQuestion `json:"preview_questions"`
+}
+
+type StudentSessionClass struct {
+	ID         string `json:"id"`
+	ClassCode  string `json:"class_code"`
+	ClassName  string `json:"class_name"`
+	Subject    string `json:"subject"`
+	GradeLevel string `json:"grade_level"`
 }
 
 type StudentTutorTurn struct {

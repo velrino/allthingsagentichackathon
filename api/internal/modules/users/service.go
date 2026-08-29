@@ -11,6 +11,7 @@ import (
 
 	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
+	teacherclass "classgame-api/internal/modules/teacher-class"
 	"classgame-api/internal/modules/tenant"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
@@ -18,6 +19,8 @@ import (
 
 var ErrStudentRequiresAnonymousAuth = errors.New("student session requires anonymous auth")
 var ErrStudentNotFound = errors.New("student user not found")
+var ErrClassCodeNotFound = errors.New("active class code not found")
+var ErrPublishedMissionNotFound = errors.New("published class mission not found")
 var ErrMissionCodeNotFound = errors.New("published mission code not found")
 var ErrStudentMissionMismatch = errors.New("student mission does not match current session")
 var ErrStudentAttemptNotFound = errors.New("student learning attempt not found")
@@ -29,6 +32,11 @@ const maxGeneratedTutorTurnsPerAttempt = 12
 
 type MissionReader interface {
 	GetByCode(context.Context, string) (mission.MissionDocument, bool, error)
+	Get(context.Context, string, string) (mission.MissionDocument, bool, error)
+}
+
+type ClassReader interface {
+	Get(context.Context, string) (teacherclass.TeacherClassDocument, bool, error)
 }
 
 type MissionRevisionReader interface {
@@ -59,6 +67,7 @@ type Service struct {
 	learningTraceGenerator    LearningTraceGenerator
 	tutorTurnGenerator        TutorTurnGenerator
 	classLearningGenerator    ClassLearningGenerator
+	classReader               ClassReader
 	missionReader             MissionReader
 	repository                *Repository
 }
@@ -96,17 +105,21 @@ func (service *Service) ConfigureLearningGenerationLimiter(limiter sharedratelim
 	service.learningGenerationLimiter = limiter
 }
 
+func (service *Service) ConfigureClassReader(reader ClassReader) {
+	service.classReader = reader
+}
+
 func (service *Service) UpsertStudent(
 	ctx context.Context,
 	identity sharedfirebase.Identity,
-	missionCode string,
+	classCode string,
 	studentName string,
 ) (UserDocument, error) {
 	if identity.AuthMethod != sharedfirebase.AuthMethodAnonymous {
 		return UserDocument{}, ErrStudentRequiresAnonymousAuth
 	}
 
-	missionDocument, err := service.publishedMissionByCode(ctx, missionCode)
+	teacherClass, err := service.classByCode(ctx, classCode)
 	if err != nil {
 		return UserDocument{}, err
 	}
@@ -114,11 +127,63 @@ func (service *Service) UpsertStudent(
 	user, err := service.repository.UpsertStudent(ctx, UpsertStudentInput{
 		Identity: identity,
 		Scope: tenant.Scope{
-			OrganizationID: missionDocument.OrganizationID,
-			DistrictID:     missionDocument.DistrictID,
-			SchoolID:       missionDocument.SchoolID,
+			OrganizationID: teacherClass.OrganizationID,
+			DistrictID:     teacherClass.DistrictID,
+			SchoolID:       teacherClass.SchoolID,
 		},
-		ClassID:                  missionDocument.ClassID,
+		ClassID:        teacherClass.ClassID,
+		ClassCode:      teacherClass.ClassCode,
+		StudentName:    normalizeStudentName(studentName),
+		IncrementLogin: true,
+		Timestamp:      time.Now(),
+	})
+	if err != nil {
+		return UserDocument{}, err
+	}
+	user.SessionClass = studentSessionClassFromDocument(teacherClass)
+
+	return user, nil
+}
+
+func (service *Service) ValidateStudentClassCode(
+	ctx context.Context,
+	classCode string,
+) error {
+	_, err := service.classByCode(ctx, classCode)
+	return err
+}
+
+func (service *Service) StartStudentMission(
+	ctx context.Context,
+	identity sharedfirebase.Identity,
+	classCode string,
+	missionID string,
+	studentName string,
+) (UserDocument, error) {
+	if identity.AuthMethod != sharedfirebase.AuthMethodAnonymous {
+		return UserDocument{}, ErrStudentRequiresAnonymousAuth
+	}
+	teacherClass, err := service.classByCode(ctx, classCode)
+	if err != nil {
+		return UserDocument{}, err
+	}
+	missionDocument, err := service.publishedMissionByID(
+		ctx,
+		teacherClass.ClassID,
+		missionID,
+	)
+	if err != nil {
+		return UserDocument{}, err
+	}
+	user, err := service.repository.UpsertStudent(ctx, UpsertStudentInput{
+		Identity: identity,
+		Scope: tenant.Scope{
+			OrganizationID: teacherClass.OrganizationID,
+			DistrictID:     teacherClass.DistrictID,
+			SchoolID:       teacherClass.SchoolID,
+		},
+		ClassID:                  teacherClass.ClassID,
+		ClassCode:                teacherClass.ClassCode,
 		MissionID:                missionDocument.ID,
 		MissionCode:              missionDocument.MissionCode,
 		MissionPublishedRevision: missionDocument.PublishedRevision,
@@ -137,17 +202,59 @@ func (service *Service) UpsertStudent(
 	if err != nil {
 		return UserDocument{}, err
 	}
+	user.SessionClass = studentSessionClassFromDocument(teacherClass)
 	user.SessionMission = studentSessionMissionFromDocument(sessionMission)
 
 	return user, nil
 }
 
-func (service *Service) ValidateStudentMissionCode(
+func (service *Service) classByCode(
 	ctx context.Context,
-	missionCode string,
-) error {
-	_, err := service.publishedMissionByCode(ctx, missionCode)
-	return err
+	classCode string,
+) (teacherclass.TeacherClassDocument, error) {
+	if service.classReader == nil {
+		return teacherclass.TeacherClassDocument{}, errors.New("student class reader is not configured")
+	}
+	teacherClass, exists, err := service.classReader.Get(ctx, normalizeClassCode(classCode))
+	if err != nil {
+		return teacherclass.TeacherClassDocument{}, err
+	}
+	if !exists || teacherClass.Status != "active" {
+		return teacherclass.TeacherClassDocument{}, ErrClassCodeNotFound
+	}
+
+	return teacherClass, nil
+}
+
+func (service *Service) publishedMissionByID(
+	ctx context.Context,
+	classID string,
+	missionID string,
+) (mission.MissionDocument, error) {
+	if service.missionReader == nil {
+		return mission.MissionDocument{}, errors.New("student mission reader is not configured")
+	}
+	normalizedClassID := normalizeClassCode(classID)
+	normalizedMissionID := normalizeText(missionID)
+	missionDocument, exists, err := service.missionReader.Get(
+		ctx,
+		normalizedClassID,
+		normalizedMissionID,
+	)
+	if err != nil {
+		return mission.MissionDocument{}, err
+	}
+	if !exists ||
+		missionDocument.ID != normalizedMissionID ||
+		missionDocument.ClassID != normalizedClassID {
+		return mission.MissionDocument{}, ErrPublishedMissionNotFound
+	}
+	published, available := mission.PublishedView(missionDocument)
+	if !available || published.AudienceType == mission.AudienceSelected {
+		return mission.MissionDocument{}, ErrPublishedMissionNotFound
+	}
+
+	return published, nil
 }
 
 func (service *Service) publishedMissionByCode(
@@ -206,6 +313,7 @@ func (service *Service) UpdateStudentPresence(
 	ctx context.Context,
 	identity sharedfirebase.Identity,
 	missionID string,
+	classCode string,
 	subject string,
 	stageID string,
 	stageName string,
@@ -214,10 +322,18 @@ func (service *Service) UpdateStudentPresence(
 	if identity.AuthMethod != sharedfirebase.AuthMethodAnonymous {
 		return UserDocument{}, ErrStudentRequiresAnonymousAuth
 	}
+	teacherClass, err := service.classByCode(ctx, classCode)
+	if err != nil {
+		return UserDocument{}, err
+	}
+	normalizedMissionID := normalizeText(missionID)
+	if _, err := service.publishedMissionByID(ctx, teacherClass.ClassID, normalizedMissionID); err != nil {
+		return UserDocument{}, err
+	}
 
 	return service.repository.UpdateStudentPresence(ctx, UpdateStudentPresenceInput{
 		Identity:  identity,
-		MissionID: normalizeText(missionID),
+		MissionID: normalizedMissionID,
 		Subject:   normalizeText(subject),
 		StageID:   normalizeText(stageID),
 		StageName: normalizeText(stageName),
@@ -341,7 +457,6 @@ func (service *Service) SaveStudentTutorTurn(
 	missionDocument, err := service.missionForAttempt(
 		ctx,
 		attempt,
-		user.Student.MissionCode,
 	)
 	if err != nil {
 		return StudentTutorTurn{}, err
@@ -482,7 +597,6 @@ func (service *Service) finalizeStudentAttempt(
 	missionDocument, err := service.missionForAttempt(
 		ctx,
 		attempt,
-		user.Student.MissionCode,
 	)
 	if err != nil {
 		_ = service.repository.SetStudentAttemptTraceState(ctx, attempt.ID, "failed", time.Now())
@@ -612,7 +726,6 @@ func (service *Service) allowLearningGeneration(ctx context.Context, classID str
 func (service *Service) missionForAttempt(
 	ctx context.Context,
 	attempt StudentMissionAttemptDocument,
-	currentMissionCode string,
 ) (mission.MissionDocument, error) {
 	if revisionReader, ok := service.missionReader.(MissionRevisionReader); ok && attempt.PublishedRevision > 0 {
 		published, exists, err := revisionReader.GetPublishedRevision(
@@ -640,14 +753,10 @@ func (service *Service) missionForAttempt(
 	}
 
 	// Compatibility path for repository fakes and legacy deployments without
-	// immutable revision reads. Never accept a different current mission.
-	current, err := service.publishedMissionByCode(ctx, currentMissionCode)
+	// immutable revision reads.
+	current, err := service.publishedMissionByID(ctx, attempt.ClassID, attempt.MissionID)
 	if err != nil {
 		return mission.MissionDocument{}, err
-	}
-	if current.ID != attempt.MissionID ||
-		(attempt.ClassID != "" && current.ClassID != attempt.ClassID) {
-		return mission.MissionDocument{}, ErrMissionRevisionNotFound
 	}
 
 	return service.missionAtPublishedRevision(ctx, current, attempt.PublishedRevision)
@@ -809,6 +918,16 @@ func studentSessionMissionFromDocument(document mission.MissionDocument) Student
 			LearningGoal:  document.LearningGoal,
 			TeacherPrompt: document.TeacherPrompt,
 		}, document.PreviewQuestions),
+	}
+}
+
+func studentSessionClassFromDocument(document teacherclass.TeacherClassDocument) StudentSessionClass {
+	return StudentSessionClass{
+		ID:         document.ClassID,
+		ClassCode:  document.ClassCode,
+		ClassName:  document.ClassName,
+		Subject:    document.Subject,
+		GradeLevel: document.GradeLevel,
 	}
 }
 
@@ -1102,6 +1221,10 @@ func truncateStudentText(value string, limit int) string {
 
 func normalizeMissionCode(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func normalizeClassCode(value string) string {
+	return strings.TrimSpace(value)
 }
 
 func normalizeStudentName(value string) string {

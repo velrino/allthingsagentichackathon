@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 import { studentEntryCopy } from "./student-entry-messages";
 
 export type StudentSessionFormValue = {
-  readonly missionCode: string;
+  readonly classCode: string;
   readonly studentName: string;
 };
 
@@ -15,48 +15,48 @@ type StudentSessionModalProps = {
   readonly onSubmit: (value: StudentSessionFormValue) => void;
 };
 
-const MISSION_CODE_LENGTH = 6;
-const MISSION_CODE_MASKED_LENGTH = 7;
-const missionCodeNonDigits = /\D/g;
-const missionCodeBlockedCharacters = /[^\d\s]/;
+const CLASS_CODE_LENGTH = 6;
+const CLASS_CODE_MASKED_LENGTH = 7;
+const classCodeNonDigits = /\D/g;
+const classCodeBlockedCharacters = /[^\d\s]/;
 
 export function StudentSessionModal({
   error,
   loading,
   onSubmit,
 }: StudentSessionModalProps) {
-  const missionCodeInputId = useId();
-  const missionCodeHintId = useId();
+  const classCodeInputId = useId();
+  const classCodeHintId = useId();
   const studentNameInputId = useId();
   const studentNameHintId = useId();
-  const [missionCode, setMissionCode] = useState("");
+  const [classCode, setClassCode] = useState("");
   const [studentName, setStudentName] = useState("");
   const [typedBlockedCharacter, setTypedBlockedCharacter] = useState(false);
 
   const trimmedName = studentName.trim();
-  const codeComplete = missionCode.length === MISSION_CODE_LENGTH;
+  const codeComplete = classCode.length === CLASS_CODE_LENGTH;
   const canSubmit = codeComplete && trimmedName.length >= 2 && !loading;
 
   const codeHint = typedBlockedCharacter
     ? studentEntryCopy.codeBlockedHint
     : codeComplete
       ? "Got it!"
-      : `${missionCode.length}/${MISSION_CODE_LENGTH} · ${studentEntryCopy.codeHint}`;
+      : `${classCode.length}/${CLASS_CODE_LENGTH} · ${studentEntryCopy.codeHint}`;
   const nameHint =
     trimmedName.length === 1
       ? studentEntryCopy.nameTooShort
       : studentEntryCopy.nameHint;
 
-  function handleMissionCodeChange(rawValue: string) {
+  function handleClassCodeChange(rawValue: string) {
     const cleaned = rawValue
-      .replace(missionCodeNonDigits, "")
-      .slice(0, MISSION_CODE_LENGTH);
+      .replace(classCodeNonDigits, "")
+      .slice(0, CLASS_CODE_LENGTH);
 
     setTypedBlockedCharacter(
-      missionCodeBlockedCharacters.test(rawValue) &&
-        cleaned.length < MISSION_CODE_LENGTH,
+      classCodeBlockedCharacters.test(rawValue) &&
+        cleaned.length < CLASS_CODE_LENGTH,
     );
-    setMissionCode(cleaned);
+    setClassCode(cleaned);
   }
 
   return (
@@ -67,7 +67,7 @@ export function StudentSessionModal({
             ClassGame
           </p>
           <h1 className="font-display mt-2 text-2xl font-bold tracking-tight">
-            Start your mission
+            Join your class
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             Type the code your teacher gave you. Emily remembers where you
@@ -81,31 +81,32 @@ export function StudentSessionModal({
             event.preventDefault();
 
             if (canSubmit) {
-              onSubmit({ missionCode, studentName: trimmedName });
+              onSubmit({ classCode, studentName: trimmedName });
             }
           }}
         >
           <div>
             <label
-              htmlFor={missionCodeInputId}
+              htmlFor={classCodeInputId}
               className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase"
             >
-              Mission code
+              Class code
             </label>
             <input
-              id={missionCodeInputId}
-              value={formatMissionCode(missionCode)}
-              onChange={(event) => handleMissionCodeChange(event.target.value)}
+              id={classCodeInputId}
+              value={formatClassCode(classCode)}
+              onChange={(event) => handleClassCodeChange(event.target.value)}
               disabled={loading}
               autoFocus
+              autoComplete="off"
               inputMode="numeric"
-              maxLength={MISSION_CODE_MASKED_LENGTH}
+              maxLength={CLASS_CODE_MASKED_LENGTH}
               placeholder="123 456"
-              aria-describedby={missionCodeHintId}
+              aria-describedby={classCodeHintId}
               className="mt-2 h-12 w-full rounded-xl border border-white/12 bg-white/8 px-4 text-center font-display text-base font-semibold tracking-[0.08em] text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/70 focus:bg-white/12 disabled:opacity-60"
             />
             <p
-              id={missionCodeHintId}
+              id={classCodeHintId}
               className={`mt-1.5 text-xs leading-5 ${typedBlockedCharacter ? "text-amber-200" : codeComplete ? "text-emerald-200" : "text-slate-400"}`}
               aria-live="polite"
             >
@@ -125,6 +126,7 @@ export function StudentSessionModal({
               value={studentName}
               onChange={(event) => setStudentName(event.target.value)}
               disabled={loading}
+              autoComplete="off"
               maxLength={80}
               placeholder="What should Emily call you?"
               aria-describedby={studentNameHintId}
@@ -152,7 +154,7 @@ export function StudentSessionModal({
             disabled={!canSubmit}
             className="cta font-display flex h-12 w-full items-center justify-center rounded-full px-5 text-sm font-bold tracking-tight transition hover:brightness-105 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? studentEntryCopy.opening : "Start mission"}
+            {loading ? studentEntryCopy.opening : "Enter class"}
           </button>
         </form>
       </section>
@@ -160,7 +162,7 @@ export function StudentSessionModal({
   );
 }
 
-function formatMissionCode(value: string) {
+function formatClassCode(value: string) {
   const firstGroup = value.slice(0, 3);
   const secondGroup = value.slice(3);
 

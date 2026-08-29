@@ -14,36 +14,36 @@ import (
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
 )
 
-func TestStudentSessionRequestAcceptsNumericMissionCode(t *testing.T) {
+func TestStudentSessionRequestAcceptsNumericClassCode(t *testing.T) {
 	request := StudentSessionRequest{
-		MissionCode: "123456",
+		ClassCode:   "123456",
 		StudentName: "Alex",
 	}
 
 	if err := request.Validate(); err != nil {
-		t.Fatalf("validate mission code: %v", err)
+		t.Fatalf("validate class code: %v", err)
 	}
 }
 
-func TestStudentSessionRequestRejectsAlphanumericMissionCode(t *testing.T) {
+func TestStudentSessionRequestRejectsAlphanumericClassCode(t *testing.T) {
 	request := StudentSessionRequest{
-		MissionCode: "ABC234",
+		ClassCode:   "ABC234",
 		StudentName: "Alex",
 	}
 
 	if err := request.Validate(); err == nil {
-		t.Fatal("expected alphanumeric mission code to fail validation")
+		t.Fatal("expected alphanumeric class code to fail validation")
 	}
 }
 
 func TestStudentSessionRequestRejectsClassStyleID(t *testing.T) {
 	request := StudentSessionRequest{
-		MissionCode: "class-with-long-id",
+		ClassCode:   "class-with-long-id",
 		StudentName: "Alex",
 	}
 
 	if err := request.Validate(); err == nil {
-		t.Fatal("expected class-style id to fail mission code validation")
+		t.Fatal("expected class-style id to fail class code validation")
 	}
 }
 
@@ -51,23 +51,38 @@ func TestPostStudentSessionValidationDoesNotRequireFirebaseAuth(t *testing.T) {
 	service := &fakeUsersService{}
 	recorder := postStudentSessionValidation(t, &Handler{
 		usersService: service,
-	}, `{"mission_code":"123456"}`)
+	}, `{"class_code":"123456"}`)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status code = %d, want %d; body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if service.validatedMissionCode != "123456" {
-		t.Fatalf("validated mission code = %q, want %q", service.validatedMissionCode, "123456")
+	if service.validatedClassCode != "123456" {
+		t.Fatalf("validated class code = %q, want %q", service.validatedClassCode, "123456")
 	}
 	if service.upsertCalled {
 		t.Fatal("student validation should not create or update a user")
 	}
 }
 
-func TestPostStudentSessionValidationReturnsMissionNotFound(t *testing.T) {
+func TestPostStudentSessionValidationReturnsClassNotFound(t *testing.T) {
 	recorder := postStudentSessionValidation(t, &Handler{
-		usersService: &fakeUsersService{validateErr: ErrMissionCodeNotFound},
-	}, `{"mission_code":"123456"}`)
+		usersService: &fakeUsersService{validateErr: ErrClassCodeNotFound},
+	}, `{"class_code":"123456"}`)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status code = %d, want %d; body = %s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"code":"class_not_found"`) {
+		t.Fatalf("expected class_not_found response, got %s", recorder.Body.String())
+	}
+}
+
+func TestPostStudentPresenceReturnsMissionNotFound(t *testing.T) {
+	recorder := postStudentPresence(t, &Handler{
+		authenticator:         fakeStudentAuthenticator{},
+		studentSessionTimeout: time.Second,
+		usersService:          &fakeUsersService{presenceErr: ErrPublishedMissionNotFound},
+	})
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status code = %d, want %d; body = %s", recorder.Code, http.StatusNotFound, recorder.Body.String())
@@ -182,6 +197,27 @@ func postStudentTutorTurn(t *testing.T, handler *Handler) *httptest.ResponseReco
 	return recorder
 }
 
+func postStudentPresence(t *testing.T, handler *Handler) *httptest.ResponseRecorder {
+	t.Helper()
+
+	server := echo.New()
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/users/student-presence",
+		strings.NewReader(`{"mission_id":"mission-1","class_code":"123456","subject":"Mathematics","stage_id":"stage-1","stage_name":"Stage 1","status":"learning"}`),
+	)
+	request.Header.Set(echo.HeaderAuthorization, "Bearer student-token")
+	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	recorder := httptest.NewRecorder()
+	ctx := server.NewContext(request, recorder)
+
+	if err := handler.PostStudentPresence(ctx); err != nil {
+		t.Fatalf("post student presence: %v", err)
+	}
+
+	return recorder
+}
+
 func allowTutorRateLimiter() *fakeTutorRateLimiter {
 	return &fakeTutorRateLimiter{decision: sharedratelimit.Decision{
 		Allowed:   true,
@@ -231,9 +267,10 @@ func (service *fakeStudentTutorService) SaveStudentTutorTurn(
 }
 
 type fakeUsersService struct {
-	validateErr          error
-	validatedMissionCode string
-	upsertCalled         bool
+	validateErr        error
+	validatedClassCode string
+	upsertCalled       bool
+	presenceErr        error
 }
 
 func (service *fakeUsersService) UpsertStudent(
@@ -246,12 +283,22 @@ func (service *fakeUsersService) UpsertStudent(
 	return UserDocument{}, nil
 }
 
-func (service *fakeUsersService) ValidateStudentMissionCode(
+func (service *fakeUsersService) ValidateStudentClassCode(
 	_ context.Context,
-	missionCode string,
+	classCode string,
 ) error {
-	service.validatedMissionCode = missionCode
+	service.validatedClassCode = classCode
 	return service.validateErr
+}
+
+func (service *fakeUsersService) StartStudentMission(
+	context.Context,
+	sharedfirebase.Identity,
+	string,
+	string,
+	string,
+) (UserDocument, error) {
+	return UserDocument{}, nil
 }
 
 func (service *fakeUsersService) UpdateStudentPresence(
@@ -262,6 +309,7 @@ func (service *fakeUsersService) UpdateStudentPresence(
 	string,
 	string,
 	string,
+	string,
 ) (UserDocument, error) {
-	return UserDocument{}, nil
+	return UserDocument{}, service.presenceErr
 }

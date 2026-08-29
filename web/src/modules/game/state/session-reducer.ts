@@ -83,6 +83,7 @@ export type SessionAction =
       explanationStyle: "steps" | "visual";
       difficultyBias: -1 | 0 | 1;
     }
+  | { type: "leave-mission" }
   | { type: "reset"; now: number };
 
 export function createInitialSession(
@@ -380,6 +381,9 @@ export function sessionReducer(session: Session, action: SessionAction): Session
         walkRequest: null,
       };
     }
+
+    case "leave-mission":
+      return createInitialSession();
 
     case "walk":
       return { ...session, walkRequest: { token: (session.walkRequest?.token ?? 0) + 1 } };
