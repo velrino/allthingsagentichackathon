@@ -530,6 +530,8 @@ func buildMissionDocumentFields(input CreateMissionInput) MissionDocument {
 		Suggestions:              blueprint.Suggestions,
 		PositiveSignals:          blueprint.PositiveSignals,
 		ImprovementSignals:       blueprint.ImprovementSignals,
+		EducationGuardrail:       blueprint.EducationGuardrail,
+		MissionFlow:              blueprint.MissionFlow,
 		Orchestration: MissionOrchestration{
 			Provider:             blueprint.Provider,
 			Model:                blueprint.Model,
@@ -568,6 +570,8 @@ func (mission MissionDocument) firestoreMap() map[string]any {
 		"suggestions":                mission.Suggestions,
 		"positive_signals":           mission.PositiveSignals,
 		"improvement_signals":        mission.ImprovementSignals,
+		"education_guardrail":        mission.EducationGuardrail,
+		"mission_flow":               mission.MissionFlow,
 		"orchestration": map[string]any{
 			"provider":               mission.Orchestration.Provider,
 			"model":                  mission.Orchestration.Model,

@@ -38,31 +38,33 @@ type TeacherClassResponse struct {
 }
 
 type MissionResponse struct {
-	ID                       string                `json:"id"`
-	ClassID                  string                `json:"class_id"`
-	ClassCode                string                `json:"class_code"`
-	ClassName                string                `json:"class_name"`
-	MissionName              string                `json:"mission_name"`
-	Title                    string                `json:"title"`
-	Summary                  string                `json:"summary"`
-	Subject                  string                `json:"subject"`
-	GradeLevel               string                `json:"grade_level"`
-	LearningGoal             string                `json:"learning_goal"`
-	TeacherPrompt            string                `json:"teacher_prompt"`
-	Attachments              []AttachmentResponse  `json:"attachments"`
-	PreviewQuestions         []PreviewQuestion     `json:"preview_questions"`
-	SuggestedDurationMinutes int                   `json:"suggested_duration_minutes"`
-	Stages                   []StageResponse       `json:"stages"`
-	Suggestions              []SuggestionResponse  `json:"suggestions"`
-	PositiveSignals          []string              `json:"positive_signals"`
-	ImprovementSignals       []string              `json:"improvement_signals"`
-	Orchestration            OrchestrationResponse `json:"orchestration"`
-	Status                   string                `json:"status"`
-	CreatedBy                TeacherResponse       `json:"created_by"`
-	UpdatedBy                TeacherResponse       `json:"updated_by"`
-	PublishedAt              string                `json:"published_at"`
-	CreatedAt                string                `json:"created_at"`
-	UpdatedAt                string                `json:"updated_at"`
+	ID                       string                          `json:"id"`
+	ClassID                  string                          `json:"class_id"`
+	ClassCode                string                          `json:"class_code"`
+	ClassName                string                          `json:"class_name"`
+	MissionName              string                          `json:"mission_name"`
+	Title                    string                          `json:"title"`
+	Summary                  string                          `json:"summary"`
+	Subject                  string                          `json:"subject"`
+	GradeLevel               string                          `json:"grade_level"`
+	LearningGoal             string                          `json:"learning_goal"`
+	TeacherPrompt            string                          `json:"teacher_prompt"`
+	Attachments              []AttachmentResponse            `json:"attachments"`
+	PreviewQuestions         []PreviewQuestion               `json:"preview_questions"`
+	SuggestedDurationMinutes int                             `json:"suggested_duration_minutes"`
+	Stages                   []StageResponse                 `json:"stages"`
+	Suggestions              []SuggestionResponse            `json:"suggestions"`
+	PositiveSignals          []string                        `json:"positive_signals"`
+	ImprovementSignals       []string                        `json:"improvement_signals"`
+	EducationGuardrail       orchestrator.EducationGuardrail `json:"education_guardrail"`
+	MissionFlow              orchestrator.MissionFlow        `json:"mission_flow"`
+	Orchestration            OrchestrationResponse           `json:"orchestration"`
+	Status                   string                          `json:"status"`
+	CreatedBy                TeacherResponse                 `json:"created_by"`
+	UpdatedBy                TeacherResponse                 `json:"updated_by"`
+	PublishedAt              string                          `json:"published_at"`
+	CreatedAt                string                          `json:"created_at"`
+	UpdatedAt                string                          `json:"updated_at"`
 }
 
 type AttachmentResponse struct {
@@ -219,6 +221,8 @@ func toMissionResponse(mission *mission.MissionDocument) *MissionResponse {
 		Suggestions:              toSuggestionResponses(mission.Suggestions),
 		PositiveSignals:          mission.PositiveSignals,
 		ImprovementSignals:       mission.ImprovementSignals,
+		EducationGuardrail:       mission.EducationGuardrail,
+		MissionFlow:              mission.MissionFlow,
 		Orchestration: OrchestrationResponse{
 			Provider:             mission.Orchestration.Provider,
 			Model:                mission.Orchestration.Model,

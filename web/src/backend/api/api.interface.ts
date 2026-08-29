@@ -176,6 +176,45 @@ export interface IApiMissionPreviewQuestion {
   misconception_traps: string[];
 }
 
+export interface IApiEducationGuardrail {
+  allowed: boolean;
+  reason: string;
+  used_attachments: boolean;
+  attachment_notes: string;
+}
+
+export interface IApiMissionFlow {
+  nodes: IApiMissionFlowNode[];
+  edges: IApiMissionFlowEdge[];
+}
+
+export interface IApiMissionFlowNode {
+  id: string;
+  kind:
+    | "start"
+    | "setup"
+    | "activity"
+    | "question"
+    | "decision"
+    | "feedback"
+    | "complete"
+    | "guardrail"
+    | string;
+  label: string;
+  description: string;
+  position: {
+    x: number;
+    y: number;
+  };
+}
+
+export interface IApiMissionFlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+}
+
 export interface IApiMissionOrchestration {
   provider: string;
   model: string;
@@ -211,6 +250,8 @@ export interface IApiTeacherClassMission {
   suggestions: IApiSuggestion[];
   positive_signals: string[];
   improvement_signals: string[];
+  education_guardrail: IApiEducationGuardrail;
+  mission_flow: IApiMissionFlow;
   orchestration: IApiMissionOrchestration;
   status: string;
   draft_revision?: number;

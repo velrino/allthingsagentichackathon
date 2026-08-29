@@ -23,6 +23,8 @@ type MissionBlueprint struct {
 	Suggestions              []MissionSuggestion `json:"suggestions"`
 	PositiveSignals          []string            `json:"positive_signals"`
 	ImprovementSignals       []string            `json:"improvement_signals"`
+	EducationGuardrail       EducationGuardrail  `json:"education_guardrail"`
+	MissionFlow              MissionFlow         `json:"mission_flow"`
 	GeneratedByAI            bool                `json:"generated_by_ai"`
 	GeneratedByMock          bool                `json:"generated_by_mock"`
 	Provider                 string              `json:"provider"`
@@ -69,4 +71,36 @@ type GenAIUsage struct {
 	CandidatesTokenCount int32 `json:"candidates_token_count"`
 	ThoughtsTokenCount   int32 `json:"thoughts_token_count"`
 	TotalTokenCount      int32 `json:"total_token_count"`
+}
+
+type EducationGuardrail struct {
+	Allowed         bool   `json:"allowed"`
+	Reason          string `json:"reason"`
+	UsedAttachments bool   `json:"used_attachments"`
+	AttachmentNotes string `json:"attachment_notes"`
+}
+
+type MissionFlow struct {
+	Nodes []MissionFlowNode `json:"nodes"`
+	Edges []MissionFlowEdge `json:"edges"`
+}
+
+type MissionFlowNode struct {
+	ID          string              `json:"id"`
+	Kind        string              `json:"kind"`
+	Label       string              `json:"label"`
+	Description string              `json:"description"`
+	Position    MissionFlowPosition `json:"position"`
+}
+
+type MissionFlowPosition struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
+type MissionFlowEdge struct {
+	ID     string `json:"id"`
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Label  string `json:"label"`
 }

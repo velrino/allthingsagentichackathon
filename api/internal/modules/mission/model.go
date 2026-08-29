@@ -46,6 +46,8 @@ type MissionDocument struct {
 	Suggestions              []orchestrator.MissionSuggestion `firestore:"suggestions" json:"suggestions"`
 	PositiveSignals          []string                         `firestore:"positive_signals" json:"positive_signals"`
 	ImprovementSignals       []string                         `firestore:"improvement_signals" json:"improvement_signals"`
+	EducationGuardrail       orchestrator.EducationGuardrail  `firestore:"education_guardrail" json:"education_guardrail"`
+	MissionFlow              orchestrator.MissionFlow         `firestore:"mission_flow" json:"mission_flow"`
 	Orchestration            MissionOrchestration             `firestore:"orchestration" json:"orchestration"`
 	Draft                    *MissionSnapshot                 `firestore:"draft,omitempty" json:"-"`
 	Published                *MissionSnapshot                 `firestore:"published,omitempty" json:"-"`
@@ -84,6 +86,8 @@ type MissionSnapshot struct {
 	Suggestions              []orchestrator.MissionSuggestion `firestore:"suggestions" json:"suggestions"`
 	PositiveSignals          []string                         `firestore:"positive_signals" json:"positive_signals"`
 	ImprovementSignals       []string                         `firestore:"improvement_signals" json:"improvement_signals"`
+	EducationGuardrail       orchestrator.EducationGuardrail  `firestore:"education_guardrail" json:"education_guardrail"`
+	MissionFlow              orchestrator.MissionFlow         `firestore:"mission_flow" json:"mission_flow"`
 	Orchestration            MissionOrchestration             `firestore:"orchestration" json:"orchestration"`
 	UpdatedBy                teacherclass.TeacherSummary      `firestore:"updated_by" json:"updated_by"`
 	UpdatedAt                time.Time                        `firestore:"updated_at" json:"updated_at"`

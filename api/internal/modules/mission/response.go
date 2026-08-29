@@ -29,6 +29,8 @@ type MissionResponse struct {
 	Suggestions              []orchestrator.MissionSuggestion `json:"suggestions"`
 	PositiveSignals          []string                         `json:"positive_signals"`
 	ImprovementSignals       []string                         `json:"improvement_signals"`
+	EducationGuardrail       orchestrator.EducationGuardrail  `json:"education_guardrail"`
+	MissionFlow              orchestrator.MissionFlow         `json:"mission_flow"`
 	Orchestration            MissionOrchestrationResponse     `json:"orchestration"`
 	DraftRevision            int64                            `json:"draft_revision"`
 	PublishedRevision        int64                            `json:"published_revision"`
@@ -78,6 +80,8 @@ func ToResponse(mission MissionDocument) MissionResponse {
 		Suggestions:              mission.Suggestions,
 		PositiveSignals:          mission.PositiveSignals,
 		ImprovementSignals:       mission.ImprovementSignals,
+		EducationGuardrail:       mission.EducationGuardrail,
+		MissionFlow:              mission.MissionFlow,
 		Orchestration: MissionOrchestrationResponse{
 			Provider:             mission.Orchestration.Provider,
 			Model:                mission.Orchestration.Model,

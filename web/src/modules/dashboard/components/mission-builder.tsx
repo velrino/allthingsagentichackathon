@@ -10,9 +10,11 @@ import type {
   IApiTeacherClassMission,
 } from "@/backend/api/api.interface";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 import { DashboardModal } from "./dashboard-modal";
+import { MissionFlowPreview } from "./mission-flow-preview";
 import { MissionFileUploader } from "../upload/mission-file-uploader";
 
 export type MissionBuilderForm = IApiCreateTeacherClassMissionRequest & {
@@ -389,11 +391,11 @@ export function MissionBuilder({
           className={cn(
             "grid min-w-0 overflow-hidden transition-[grid-template-rows,margin,width,opacity,transform] duration-500 ease-out motion-reduce:transition-none lg:shrink-0",
             showPreview
-              ? "mt-4 grid-rows-[1fr] opacity-100 lg:mt-0 lg:ml-4 lg:w-[420px] lg:translate-x-0"
+              ? "mt-4 grid-rows-[1fr] opacity-100 lg:mt-0 lg:ml-4 lg:w-[520px] lg:translate-x-0"
               : "pointer-events-none mt-0 grid-rows-[0fr] translate-y-2 opacity-0 lg:ml-0 lg:w-0 lg:translate-x-4 lg:translate-y-0",
           )}
         >
-          <div className="min-h-0 overflow-hidden lg:w-[420px]">
+          <div className="min-h-0 overflow-hidden lg:w-[520px]">
             <aside className="rounded-lg border border-border">
               <header className="border-b border-border px-4 py-4 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
@@ -419,42 +421,67 @@ export function MissionBuilder({
                 ) : null}
                 {visibleMission ? (
                   <>
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      {visibleMission.summary}
-                    </p>
+                    {visibleMission.education_guardrail &&
+                    !visibleMission.education_guardrail.allowed ? (
+                      <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                        {visibleMission.education_guardrail.reason}
+                      </p>
+                    ) : visibleMission.education_guardrail
+                        ?.attachment_notes ? (
+                      <p className="rounded-md border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-semibold leading-5 text-cyan-800">
+                        {visibleMission.education_guardrail.attachment_notes}
+                      </p>
+                    ) : null}
 
-                    <div className="grid gap-2">
-                      {visibleMission.preview_questions.map(
-                        (question, index) => (
-                          <article
-                            key={question.id}
-                            className="rounded-md border border-border p-3"
-                          >
-                            <p className="text-xs font-bold uppercase text-muted-foreground">
-                              Question {index + 1}
-                            </p>
-                            <h4 className="mt-2 font-semibold text-foreground">
-                              {question.prompt}
-                            </h4>
-                            {question.options.length > 0 ? (
-                              <div className="mt-3 grid gap-2">
-                                {question.options.map((option) => (
-                                  <span
-                                    key={option}
-                                    className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
-                                  >
-                                    {option}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : null}
-                            <p className="mt-3 text-sm font-semibold text-emerald-700">
-                              {question.expected_answer}
-                            </p>
-                          </article>
-                        ),
-                      )}
-                    </div>
+                    <Tabs defaultValue="preview">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="preview">Preview</TabsTrigger>
+                        <TabsTrigger value="flow">Flow</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="preview" className="mt-3 grid gap-4">
+                        <p className="text-sm leading-6 text-muted-foreground">
+                          {visibleMission.summary}
+                        </p>
+
+                        <div className="grid gap-2">
+                          {visibleMission.preview_questions.map(
+                            (question, index) => (
+                              <article
+                                key={question.id}
+                                className="rounded-md border border-border p-3"
+                              >
+                                <p className="text-xs font-bold uppercase text-muted-foreground">
+                                  Question {index + 1}
+                                </p>
+                                <h4 className="mt-2 font-semibold text-foreground">
+                                  {question.prompt}
+                                </h4>
+                                {question.options.length > 0 ? (
+                                  <div className="mt-3 grid gap-2">
+                                    {question.options.map((option) => (
+                                      <span
+                                        key={option}
+                                        className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
+                                      >
+                                        {option}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                <p className="mt-3 text-sm font-semibold text-emerald-700">
+                                  {question.expected_answer}
+                                </p>
+                              </article>
+                            ),
+                          )}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="flow" className="mt-3">
+                        <MissionFlowPreview flow={visibleMission.mission_flow} />
+                      </TabsContent>
+                    </Tabs>
 
                     {visibleMission.orchestration.generated_by_mock ? (
                       <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">

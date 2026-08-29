@@ -198,6 +198,8 @@ For Cloud Run, prefer the service account identity and grant it Vertex AI permis
 
 Mission preview generation sends teacher text plus attachment metadata to Gemini. For `https://ucarecdn.com/...` files with supported MIME types (`application/pdf`, images, text, markdown and CSV), the API also downloads the file with a 20 MB limit and includes it as inline GenAI content. Other attachments remain metadata-only so the generation can still proceed.
 
+Generated previews include `education_guardrail` and `mission_flow`. The guardrail tells the dashboard whether the model used the attachments and whether the request stayed inside age-appropriate classroom learning scope. The flow is a small React Flow-ready graph (`nodes[]` and `edges[]`) used by the teacher dashboard to visualize the mission path. If uploaded material is empty, unrelated, unsafe or tries prompt injection, Emily must ignore it and keep the output educational; clearly unsafe requests receive a harmless remediation preview instead of student-facing exercises.
+
 The Uploadcare public key belongs in the web environment. The Uploadcare secret key must stay out of the repo; only add it to Secret Manager if signed uploads are implemented.
 
 ## Secrets
