@@ -87,6 +87,8 @@ function useFitScale(
 const chalkButton =
   "chalk-line chalk pointer-events-auto rounded-sm border-2 px-[0.8em] py-[0.5em] leading-tight transition hover:bg-white/10 active:bg-white/15 active:translate-y-px disabled:opacity-40";
 const chalkPrimary = `${chalkButton} border-chalk-accent text-chalk-accent`;
+const chalkHeaderButton =
+  "chalk-line min-h-10 whitespace-nowrap rounded-sm border-2 px-3 py-2 text-sm font-semibold transition hover:bg-white/10 active:translate-y-px active:bg-white/15 sm:px-4 sm:text-base";
 
 const FEEDBACK: readonly {
   value: FeedbackValue;
@@ -340,7 +342,11 @@ function WhyPhase({
     return null;
   }
 
-  const options = buildWhyOptions(mission, lesson.question, wrong.misconception);
+  const options = buildWhyOptions(
+    mission,
+    lesson.question,
+    wrong.misconception,
+  );
   const isSteps = lesson.question.kind === "steps";
 
   return (
@@ -570,7 +576,8 @@ function questionLabel(question: Question) {
  * The board fills the screen; text shrinks to fit rather than scroll.
  */
 export function Chalkboard(props: ChalkboardProps) {
-  const { lesson, mission, progress, onEndSession, onFeedback, onStand } = props;
+  const { lesson, mission, progress, onEndSession, onFeedback, onStand } =
+    props;
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useFitScale(bodyRef, [
@@ -586,33 +593,33 @@ export function Chalkboard(props: ChalkboardProps) {
     <div className="absolute inset-0 z-20 flex flex-col bg-black/45 backdrop-blur-[2px]">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-2 pt-[max(env(safe-area-inset-top),0.5rem)] pb-1 sm:px-6 sm:pt-4 sm:pb-3">
         <section className="chalk-board flex min-h-0 flex-1 flex-col rounded-md border-[8px] border-chalk-frame p-3 sm:border-[10px] sm:p-6">
-          <header className="flex items-start justify-between gap-3">
-            <div className="chalk leading-tight">
-              <p className="text-sm text-chalk-ink/80 sm:text-lg">
-                {mission.title} · {stageLabel(mission, lesson.pod)}
-              </p>
-              <p className="text-xs text-chalk-ink/60 sm:text-base">
-                Prof. {TUTOR_NAME} · {questionLabel(lesson.question)}
-              </p>
+          <header className="flex flex-col gap-3">
+            <div className="pointer-events-auto flex w-full flex-row gap-2">
+              <button
+                type="button"
+                onClick={onStand}
+                className={`${chalkHeaderButton} flex-1 text-chalk-ink/80`}
+              >
+                Leave board
+              </button>
+              <button
+                type="button"
+                onClick={onEndSession}
+                className={`${chalkHeaderButton} flex-1 text-chalk-wrong`}
+              >
+                New session
+              </button>
             </div>
-            <div className="flex items-start gap-2">
-              <PodDots progress={progress} className="mt-1" />
-              <div className="pointer-events-auto flex flex-col gap-1 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={onStand}
-                  className="chalk-line rounded-sm border px-2 py-1 text-xs font-semibold text-chalk-ink/75 transition hover:bg-white/10"
-                >
-                  Leave board
-                </button>
-                <button
-                  type="button"
-                  onClick={onEndSession}
-                  className="chalk-line rounded-sm border px-2 py-1 text-xs font-semibold text-chalk-wrong transition hover:bg-white/10"
-                >
-                  New session
-                </button>
+            <div className="flex items-start justify-between gap-3">
+              <div className="chalk min-w-0 leading-tight">
+                <p className="text-base text-chalk-ink/80 sm:text-lg">
+                  {mission.title} · {stageLabel(mission, lesson.pod)}
+                </p>
+                <p className="text-base text-chalk-ink/60 sm:text-base">
+                  Prof. {TUTOR_NAME} · {questionLabel(lesson.question)}
+                </p>
               </div>
+              <PodDots progress={progress} className="mt-1 shrink-0" />
             </div>
           </header>
 
