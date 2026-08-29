@@ -44,9 +44,9 @@ When Emily approves the mission, it appears for her class right away through Fir
 
 ## 1:25–2:35 — Bruce plays with an adaptive tutor
 
-*[Screen: return to the split view. Without refreshing the student window, show the glowing desk appear; maximize it, walk to the desk, press Start, and select the mission.]*
+*[Screen: return to the split view and keep the student window unchanged. Pause long enough to show the glowing circle appear beside Bruce's desk, matching `assets/pitch/03-1.png`. Then maximize the student window, walk into the circle, press Start, and select the mission.]*
 
-Bruce does not refresh. When Emily publishes, a glowing desk appears. He walks to it, presses Start, and sees the mission.
+Bruce does not refresh. When Emily publishes, a glowing circle appears beside his desk. He walks to it, presses Start, and chooses the new mission.
 
 This is more than a quiz. The Gemini tutor remembers every step.
 
