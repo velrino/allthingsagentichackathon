@@ -13,20 +13,34 @@ type StudentSessionModalProps = {
   readonly onSubmit: (value: StudentSessionFormValue) => void;
 };
 
-export function StudentSessionModal({ error, loading, onSubmit }: StudentSessionModalProps) {
+export function StudentSessionModal({
+  error,
+  loading,
+  onSubmit,
+}: StudentSessionModalProps) {
   const missionCodeInputId = useId();
   const studentNameInputId = useId();
   const [missionCode, setMissionCode] = useState("");
   const [studentName, setStudentName] = useState("");
-  const canSubmit = missionCode.trim().length === 6 && studentName.trim().length >= 2 && !loading;
+  const canSubmit =
+    missionCode.trim().length === 6 &&
+    studentName.trim().length >= 2 &&
+    !loading;
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-50 grid place-items-center bg-slate-950/72 px-4 py-[max(env(safe-area-inset-top),1rem)] backdrop-blur-md">
+    <div className="pointer-events-auto fixed inset-0 z-50 grid place-items-center bg-[radial-gradient(ellipse_at_center,rgba(5,7,13,0.5)_0%,rgba(5,7,13,0.25)_55%,rgba(5,7,13,0.6)_100%)] px-4 py-[max(env(safe-area-inset-top),1rem)] backdrop-blur-[3px]">
       <section className="glass w-full max-w-sm rounded-2xl p-5 text-white shadow-2xl shadow-black/40">
         <div className="text-center">
-          <p className="font-display text-[0.68rem] font-semibold tracking-[0.22em] text-cyan-200 uppercase">ClassGame</p>
-          <h1 className="font-display mt-2 text-2xl font-bold tracking-tight">Start your mission</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-300">Enter the mission code from your teacher. Emily will save your progress as you play.</p>
+          <p className="font-display text-[0.68rem] font-semibold tracking-[0.22em] text-cyan-200 uppercase">
+            ClassGame
+          </p>
+          <h1 className="font-display mt-2 text-2xl font-bold tracking-tight">
+            Start your mission
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Enter the mission code from your teacher. Emily will save your
+            progress as you play.
+          </p>
         </div>
 
         <form
@@ -40,7 +54,10 @@ export function StudentSessionModal({ error, loading, onSubmit }: StudentSession
           }}
         >
           <div>
-            <label htmlFor={missionCodeInputId} className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase">
+            <label
+              htmlFor={missionCodeInputId}
+              className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase"
+            >
               Mission code
             </label>
             <input
@@ -66,7 +83,10 @@ export function StudentSessionModal({ error, loading, onSubmit }: StudentSession
           </div>
 
           <div>
-            <label htmlFor={studentNameInputId} className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase">
+            <label
+              htmlFor={studentNameInputId}
+              className="font-display text-xs font-semibold tracking-[0.16em] text-slate-300 uppercase"
+            >
               Student name
             </label>
             <input
@@ -80,7 +100,11 @@ export function StudentSessionModal({ error, loading, onSubmit }: StudentSession
             />
           </div>
 
-          {error ? <p className="rounded-xl border border-red-300/20 bg-red-500/10 px-3 py-2 text-sm leading-5 text-red-100">{error}</p> : null}
+          {error ? (
+            <p className="rounded-xl border border-red-300/20 bg-red-500/10 px-3 py-2 text-sm leading-5 text-red-100">
+              {error}
+            </p>
+          ) : null}
 
           <button
             type="submit"

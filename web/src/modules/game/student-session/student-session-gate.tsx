@@ -1,12 +1,22 @@
 "use client";
 
-import { onAuthStateChanged, signInAnonymously, type User } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signInAnonymously,
+  type User,
+} from "firebase/auth";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
-import { getFirebaseAuth, isFirebaseConfigured } from "@/shared/firebase/client";
+import {
+  getFirebaseAuth,
+  isFirebaseConfigured,
+} from "@/shared/firebase/client";
 
-import { StudentSessionModal, type StudentSessionFormValue } from "./student-session-modal";
+import {
+  StudentSessionModal,
+  type StudentSessionFormValue,
+} from "./student-session-modal";
 import {
   clearStudentMissionSession,
   saveStudentMissionSession,
@@ -22,8 +32,14 @@ type GateStatus = "checking" | "needs_student_session" | "ready";
 export function StudentSessionGate({ children }: StudentSessionGateProps) {
   const firebaseConfigured = isFirebaseConfigured();
   const registeringRef = useRef(false);
-  const [status, setStatus] = useState<GateStatus>(() => (firebaseConfigured ? "checking" : "needs_student_session"));
-  const [error, setError] = useState<string | null>(() => (firebaseConfigured ? null : "Firebase is not configured for this environment."));
+  const [status, setStatus] = useState<GateStatus>(() =>
+    firebaseConfigured ? "checking" : "needs_student_session",
+  );
+  const [error, setError] = useState<string | null>(() =>
+    firebaseConfigured
+      ? null
+      : "Firebase is not configured for this environment.",
+  );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -68,7 +84,8 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       saveStudentMissionSession({
         missionCode: response.user.student.mission_code,
         missionId: response.user.activity.current_game.mission_id,
-        publishedRevision: response.user.activity.current_game.published_revision,
+        publishedRevision:
+          response.user.activity.current_game.published_revision,
         subject: response.user.activity.current_game.subject,
       });
 
@@ -80,17 +97,41 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       }
 
       setStatus("needs_student_session");
-      setError(caughtError instanceof Error ? caughtError.message : "Could not start the student session.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not start the student session.",
+      );
     } finally {
       registeringRef.current = false;
       setLoading(false);
     }
   }
 
+  const ready = status === "ready";
+
   return (
     <>
-      {status === "ready" ? children : null}
-      {status !== "ready" ? <StudentSessionModal error={error} loading={loading || status === "checking"} onSubmit={handleSubmit} /> : null}
+      {/*
+        The classroom renders behind the modal so the student sees the game
+        while entering the code. `inert` blocks focus, taps and the joystick
+        until the session exists; the game's keyboard controls already ignore
+        keys typed inside inputs.
+      */}
+      <div
+        aria-hidden={!ready}
+        inert={!ready}
+        className={ready ? undefined : "pointer-events-none select-none"}
+      >
+        {children}
+      </div>
+      {!ready ? (
+        <StudentSessionModal
+          error={error}
+          loading={loading || status === "checking"}
+          onSubmit={handleSubmit}
+        />
+      ) : null}
     </>
   );
 }
