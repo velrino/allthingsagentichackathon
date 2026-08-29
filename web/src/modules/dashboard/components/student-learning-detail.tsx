@@ -30,6 +30,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { formatDate } from "@/lib/date";
 
 import { MissionFlowPreview } from "./mission-flow-preview";
 
@@ -207,7 +208,11 @@ export function StudentLearningDetail({
                       : `Built directly from ${attempt.trace.event_count} observable events${attempt.trace.fallback_reason ? ` · ${attempt.trace.fallback_reason}` : ""}.`}
                   </p>
                   <p className="mt-1">
-                    Last activity: {formatDate(attempt.last_activity_at)}
+                    Last activity:{" "}
+                    {formatDate(attempt.last_activity_at, {
+                      fallback: "Not available",
+                      preset: "date-time",
+                    })}
                   </p>
                   <p className="mt-1">
                     Processing state: {attempt.trace_state || "live"}
@@ -363,7 +368,11 @@ function EvidenceTimeline({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-semibold">{event.title}</p>
               <span className="text-xs text-muted-foreground">
-                #{event.sequence} · {formatEventTime(event.occurred_at)}
+                #{event.sequence} ·{" "}
+                {formatDate(event.occurred_at || null, {
+                  fallback: "time unavailable",
+                  preset: "time",
+                })}
               </span>
             </div>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -408,7 +417,10 @@ function TutorTurnTimeline({
                 Turn {turn.sequence} · {turn.type}
               </p>
               <span className="text-xs text-muted-foreground">
-                {formatDate(turn.created_at)}
+                {formatDate(turn.created_at, {
+                  fallback: "Not available",
+                  preset: "date-time",
+                })}
               </span>
             </div>
             <dl className="mt-3 grid gap-3 text-sm leading-6">
@@ -464,29 +476,6 @@ function eventTone(outcome: string) {
   }
 
   return "bg-slate-400";
-}
-
-function formatDate(value: string) {
-  if (!value) {
-    return "Not available";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function formatEventTime(value: number) {
-  if (!value) {
-    return "time unavailable";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(value));
 }
 
 function checkpointLabel(attempt: IApiStudentLearningAttempt) {

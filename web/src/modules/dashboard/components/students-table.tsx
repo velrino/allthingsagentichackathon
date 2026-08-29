@@ -5,6 +5,7 @@ import { useMemo } from "react";
 
 import type { IApiDashboardStudent } from "@/backend/api/api.interface";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
+import { formatDate } from "@/lib/date";
 
 type StudentsTableProps = {
   readonly students: IApiDashboardStudent[];
@@ -20,7 +21,12 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
         cell: ({ row }) => (
           <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{row.original.student_name}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{formatDate(row.original.last_activity_at)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatDate(row.original.last_activity_at, {
+                fallback: "No mission",
+                preset: "date-time",
+              })}
+            </p>
           </div>
         ),
         meta: {
@@ -164,15 +170,4 @@ function statusClassName(status: string) {
   }
 
   return `${base} bg-cyan-50 text-cyan-700`;
-}
-
-function formatDate(value: string) {
-  if (!value) {
-    return "No mission";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

@@ -29,12 +29,12 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatDate } from "@/lib/date";
 
 type ClassroomCardItem = {
   readonly activeMissionId: string;
@@ -493,36 +493,39 @@ function ClassroomCard({
       </CardHeader>
 
       <CardContent className="mt-auto px-4 pb-3">
-        <div className="border-y border-white/10 py-2.5">
+        <div className="border-white/10 py-2.5">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">
-                Class code
-              </p>
+              <p className="text-[9px] font-bold opacity-65">Class code</p>
               <p className="mt-0.5 font-mono text-base font-bold tracking-[0.12em]">
                 {classroom.classCode}
               </p>
             </div>
             <div className="text-end">
-              <p className="text-base font-bold">{classroom.missionCount}</p>
-              <p className="text-[10px] opacity-65">
+              <p className="text-[10px] font-bold  opacity-65">
                 {classroom.missionCount === 1 ? "mission" : "missions"}
               </p>
+              <p className="text-base font-bold">{classroom.missionCount}</p>
             </div>
           </div>
         </div>
+        <div className="text-[11px]">
+          <span className="opacity-70">
+            {classroom.isPreview
+              ? "Layout preview"
+              : `Updated ${formatDate(classroom.updatedAt, {
+                  fallback: "recently",
+                  preset: "day-month",
+                })}`}
+          </span>
+        </div>
       </CardContent>
 
-      <CardFooter className="flex-col items-stretch gap-2 rounded-b-lg border-t border-white/10 px-4 py-2.5 text-[11px] text-current">
-        <span className="opacity-70">
-          {classroom.isPreview
-            ? "Layout preview"
-            : `Updated ${formatDate(classroom.updatedAt)}`}
-        </span>
+      <div className="flex-col items-stretch gap-2 rounded-b-lg border-t border-white/10 px-4 py-2.5">
         {onOpen ? (
           <button
             type="button"
-            className="flex w-full cursor-pointer items-center justify-center gap-1 rounded-md px-1.5 py-1 font-bold outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/70"
+            className="flex h-10 w-full cursor-pointer items-center justify-center gap-1 rounded-md px-1.5 font-bold outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/70 pt-0"
             onClick={onOpen}
             aria-label={`Open ${classroom.name}`}
           >
@@ -533,7 +536,7 @@ function ClassroomCard({
             Demo
           </span>
         )}
-      </CardFooter>
+      </div>
     </Card>
   );
 }
@@ -633,8 +636,7 @@ function buildClassroomCards(
 
     return {
       activeMissionId: index % 3 === 0 ? `preview-mission-${index + 1}` : "",
-      missionCount:
-        index % 3 === 0 ? Math.max(missionCount, 1) : missionCount,
+      missionCount: index % 3 === 0 ? Math.max(missionCount, 1) : missionCount,
       classCode: createPreviewCode(index),
       classId: `preview-class-${index + 1}`,
       createdAt: createPreviewDate(index, 1),
@@ -711,15 +713,4 @@ function getMissionStatus(classroom: ClassroomCardItem) {
     className: "border-slate-200 bg-slate-50 text-slate-600",
     label: "Needs mission",
   };
-}
-
-function formatDate(value: string) {
-  if (!value) {
-    return "recently";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(value));
 }

@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import type { IApiTeacherClass } from "@/backend/api/api.interface";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/date";
 
 type ClassesTableProps = {
   readonly teacherClasses: IApiTeacherClass[];
@@ -79,7 +80,14 @@ export function ClassesTable({ onBuildMission, onOpenClass, teacherClasses }: Cl
       {
         accessorKey: "updated_at",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Updated" />,
-        cell: ({ row }) => <span className="text-muted-foreground">{formatDate(row.original.updated_at)}</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {formatDate(row.original.updated_at, {
+              fallback: "Never",
+              preset: "date-time",
+            })}
+          </span>
+        ),
         meta: {
           className: "ps-1",
           tdClassName: "ps-4",
@@ -158,15 +166,4 @@ function statusLabel(status: string) {
   }
 
   return status || "Active";
-}
-
-function formatDate(value: string) {
-  if (!value) {
-    return "Never";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

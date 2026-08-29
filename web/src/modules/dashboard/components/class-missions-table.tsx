@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 type ClassMissionsTableProps = {
@@ -144,7 +145,10 @@ export function ClassMissionsTable({
                         <MissionStatus mission={mission} />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {formatDate(mission.updated_at)}
+                        {formatDate(mission.updated_at, {
+                          fallback: "Not updated",
+                          preset: "date",
+                        })}
                       </TableCell>
                       <TableCell className="pe-6">
                         <MissionActions
@@ -208,7 +212,12 @@ function MissionMobileRow({
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <AudienceLabel mission={mission} />
-        <span>{formatDate(mission.updated_at)}</span>
+        <span>
+          {formatDate(mission.updated_at, {
+            fallback: "Not updated",
+            preset: "date",
+          })}
+        </span>
       </div>
       <div className="mt-3 border-t border-border pt-3">
         <MissionActions
@@ -353,21 +362,4 @@ function missionHasPublishedRevision(mission: IApiTeacherClassMission) {
 
 function formatDuration(minutes: number) {
   return minutes > 0 ? `${minutes} min` : "Not estimated";
-}
-
-function formatDate(value: string) {
-  if (!value) {
-    return "Not updated";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Not updated";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
 }

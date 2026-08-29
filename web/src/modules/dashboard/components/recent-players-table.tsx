@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/date";
 
 type RecentPlayersTableProps = {
   readonly fallbackSubject?: string;
@@ -73,7 +74,10 @@ export function RecentPlayersTable({
                 <TableCell className="pe-4 text-right text-muted-foreground">
                   {student.session?.is_online
                     ? "Now"
-                    : formatDateTime(student.last_activity_at)}
+                    : formatDate(student.last_activity_at, {
+                        fallback: "Never",
+                        preset: "date-time",
+                      })}
                 </TableCell>
               </TableRow>
             ))
@@ -138,17 +142,6 @@ function sessionStatusLabel(status: string) {
   };
 
   return labels[status] ?? "Waiting to begin";
-}
-
-function formatDateTime(value: string) {
-  if (!value) {
-    return "Never";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
 
 function timestamp(value: string) {

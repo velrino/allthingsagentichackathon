@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { formatDate } from "@/lib/date";
 
 const subjectSuggestions = [
   "Mathematics",
@@ -172,7 +173,13 @@ export function ClassFormModal({
               <div className="grid gap-3 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-3">
                 <ClassMeta label="Missions" value={String(teacherClass.mission_count)} />
                 <ClassMeta label="Status" value={teacherClass.status || "active"} />
-                <ClassMeta label="Updated" value={formatDate(teacherClass.updated_at)} />
+                <ClassMeta
+                  label="Updated"
+                  value={formatDate(teacherClass.updated_at, {
+                    fallback: "Never",
+                    preset: "date-time",
+                  })}
+                />
               </div>
             ) : null}
 
@@ -341,15 +348,4 @@ function ClassMeta({ label, value }: { readonly label: string; readonly value: s
       <p className="mt-1 font-semibold text-foreground">{value}</p>
     </div>
   );
-}
-
-function formatDate(value: string) {
-  if (!value) {
-    return "Never";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
