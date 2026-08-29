@@ -40,16 +40,9 @@ func (service *Service) UpsertStudent(
 		return UserDocument{}, ErrStudentRequiresAnonymousAuth
 	}
 
-	if service.missionReader == nil {
-		return UserDocument{}, errors.New("student mission reader is not configured")
-	}
-
-	missionDocument, exists, err := service.missionReader.GetByCode(ctx, normalizeMissionCode(missionCode))
+	missionDocument, err := service.publishedMissionByCode(ctx, missionCode)
 	if err != nil {
 		return UserDocument{}, err
-	}
-	if !exists || missionDocument.Status != mission.StatusPublished {
-		return UserDocument{}, ErrMissionCodeNotFound
 	}
 
 	return service.repository.UpsertStudent(ctx, UpsertStudentInput{
@@ -62,6 +55,33 @@ func (service *Service) UpsertStudent(
 		StudentName:              normalizeStudentName(studentName),
 		Timestamp:                time.Now(),
 	})
+}
+
+func (service *Service) ValidateStudentMissionCode(
+	ctx context.Context,
+	missionCode string,
+) error {
+	_, err := service.publishedMissionByCode(ctx, missionCode)
+	return err
+}
+
+func (service *Service) publishedMissionByCode(
+	ctx context.Context,
+	missionCode string,
+) (mission.MissionDocument, error) {
+	if service.missionReader == nil {
+		return mission.MissionDocument{}, errors.New("student mission reader is not configured")
+	}
+
+	missionDocument, exists, err := service.missionReader.GetByCode(ctx, normalizeMissionCode(missionCode))
+	if err != nil {
+		return mission.MissionDocument{}, err
+	}
+	if !exists || missionDocument.Status != mission.StatusPublished {
+		return mission.MissionDocument{}, ErrMissionCodeNotFound
+	}
+
+	return missionDocument, nil
 }
 
 func (service *Service) UpdateStudentPresence(

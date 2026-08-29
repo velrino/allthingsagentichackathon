@@ -18,6 +18,14 @@ export interface IApiStudentSession {
   student_name: string;
 }
 
+export interface IApiStudentSessionValidation {
+  mission_code: string;
+}
+
+export interface IApiStudentSessionValidationResponse {
+  valid: boolean;
+}
+
 export interface IApiStudentPresence {
   mission_id: string;
   subject: string;

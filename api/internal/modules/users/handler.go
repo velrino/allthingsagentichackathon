@@ -38,6 +38,10 @@ type UsersService interface {
 		string,
 		string,
 	) (UserDocument, error)
+	ValidateStudentMissionCode(
+		context.Context,
+		string,
+	) error
 	UpdateStudentPresence(
 		context.Context,
 		sharedfirebase.Identity,
@@ -69,6 +73,14 @@ type StudentSessionRequest struct {
 	StudentName string `json:"student_name"`
 }
 
+type StudentMissionCodeRequest struct {
+	MissionCode string `json:"mission_code"`
+}
+
+type StudentMissionCodeResponse struct {
+	Valid bool `json:"valid"`
+}
+
 type StudentSessionResponse struct {
 	User UserResponse `json:"user"`
 }
@@ -97,16 +109,54 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 		usersService:          options.UsersService,
 	}
 
+	sessionRateLimiter := studentSessionRateLimiter(options)
+	server.POST(
+		"/users/student-session/validate",
+		handler.PostStudentSessionValidation,
+		sessionRateLimiter,
+	)
 	server.POST(
 		"/users/student-session",
 		handler.PostStudentSession,
-		studentSessionRateLimiter(options),
+		sessionRateLimiter,
 	)
 	server.POST(
 		"/users/student-presence",
 		handler.PostStudentPresence,
 		studentPresenceRateLimiter(),
 	)
+}
+
+func (handler *Handler) PostStudentSessionValidation(ctx *echo.Context) error {
+	var request StudentMissionCodeRequest
+	if err := ctx.Bind(&request); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "bad_request", "Invalid JSON body.")
+	}
+	request.MissionCode = strings.ToUpper(strings.TrimSpace(request.MissionCode))
+	if err := request.Validate(); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
+	}
+
+	if handler.usersService == nil {
+		err := errors.New("users student session dependencies are not configured")
+		slog.Error("users student session validation not configured", "error", err)
+
+		return jsonError(ctx, http.StatusInternalServerError, "not_configured", "Users are not configured.")
+	}
+
+	sessionContext, cancel := context.WithTimeout(ctx.Request().Context(), handler.studentSessionTimeout)
+	defer cancel()
+
+	if err := handler.usersService.ValidateStudentMissionCode(sessionContext, request.MissionCode); err != nil {
+		if errors.Is(err, ErrMissionCodeNotFound) {
+			return jsonError(ctx, http.StatusNotFound, "mission_not_found", "Published mission code not found.")
+		}
+
+		slog.Error("student session validation failed", "error", err)
+		return jsonError(ctx, http.StatusInternalServerError, "session_validation_failed", "Could not validate mission code.")
+	}
+
+	return ctx.JSON(http.StatusOK, StudentMissionCodeResponse{Valid: true})
 }
 
 func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
@@ -230,13 +280,19 @@ func (handler *Handler) authenticate(
 func (request StudentSessionRequest) Validate() error {
 	return validation.ValidateStruct(&request,
 		validation.Field(&request.MissionCode,
-			validation.Required,
-			validation.Length(6, 6),
-			validation.Match(missionCodePattern),
+			validation.By(validateMissionCode),
 		),
 		validation.Field(&request.StudentName,
 			validation.Required,
 			validation.Length(2, 80),
+		),
+	)
+}
+
+func (request StudentMissionCodeRequest) Validate() error {
+	return validation.ValidateStruct(&request,
+		validation.Field(&request.MissionCode,
+			validation.By(validateMissionCode),
 		),
 	)
 }
@@ -251,6 +307,14 @@ func (request StudentPresenceRequest) Validate() error {
 			validation.Required,
 			validation.In("exploring", "learning", "thinking", "reviewing", "completed"),
 		),
+	)
+}
+
+func validateMissionCode(value any) error {
+	return validation.Validate(value,
+		validation.Required,
+		validation.Length(6, 6),
+		validation.Match(missionCodePattern),
 	)
 }
 

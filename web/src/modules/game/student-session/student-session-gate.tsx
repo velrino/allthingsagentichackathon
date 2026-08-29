@@ -46,10 +46,18 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
     setError(null);
     setLoading(true);
     registeringRef.current = true;
+    let newAnonymousUser: User | null = null;
 
     try {
+      await API.users.validateStudentSession({
+        mission_code: value.missionCode,
+      });
+
       const auth = getFirebaseAuth();
-      const user = await anonymousUser(auth.currentUser);
+      const { isNew, user } = await anonymousUser(auth.currentUser);
+      if (isNew) {
+        newAnonymousUser = user;
+      }
       const idToken = await user.getIdToken(true);
 
       const response = await API.users.studentSession(idToken, {
@@ -67,6 +75,10 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       setStatus("ready");
       window.dispatchEvent(new Event(studentSessionReadyEvent));
     } catch (caughtError) {
+      if (newAnonymousUser) {
+        await newAnonymousUser.delete().catch(() => undefined);
+      }
+
       setStatus("needs_student_session");
       setError(caughtError instanceof Error ? caughtError.message : "Could not start the student session.");
     } finally {
@@ -85,9 +97,9 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
 
 async function anonymousUser(currentUser: User | null) {
   if (currentUser?.isAnonymous) {
-    return currentUser;
+    return { isNew: false, user: currentUser };
   }
 
   const credential = await signInAnonymously(getFirebaseAuth());
-  return credential.user;
+  return { isNew: true, user: credential.user };
 }

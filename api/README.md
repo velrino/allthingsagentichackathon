@@ -25,6 +25,7 @@ curl http://localhost:4004/
 ## Runtime
 
 - `GET /` returns the health check and service dependency status.
+- `POST /users/student-session/validate` resolves a published mission code before anonymous Firebase sign-in.
 - `POST /users/student-session` resolves a published mission code, verifies an anonymous Firebase ID token, and upserts `users/{firebase_uid}` in Firestore.
 - `POST /users/student-presence` verifies the same anonymous token and updates the student's current game heartbeat.
 - `GET /dashboard/overview` verifies a Google Firebase ID token and returns teacher dashboard data for one `class_id`.

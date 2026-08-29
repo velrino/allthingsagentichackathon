@@ -5,6 +5,8 @@ import {
   type IApiDashboardOverviewRequest,
   type IApiDashboardOverviewResponse,
   type IApiStudentSession,
+  type IApiStudentSessionValidation,
+  type IApiStudentSessionValidationResponse,
   type IApiStudentPresence,
   type IApiStudentSessionResponse,
   type IApiTeacherClassMissionsResponse,
@@ -17,6 +19,19 @@ import { ApiResources } from "./api.service";
 
 export const API = {
   users: {
+    async validateStudentSession(data: IApiStudentSessionValidation): Promise<IApiStudentSessionValidationResponse> {
+      const res = await ApiResources.request({
+        data,
+        method: IApiRequestMethod.POST,
+        path: "/users/student-session/validate",
+      });
+
+      if (!res.ok) {
+        throw new Error((await safeMessage(res)) ?? "STUDENT_SESSION_VALIDATION_FAILED");
+      }
+
+      return (await res.json()) as IApiStudentSessionValidationResponse;
+    },
     async studentSession(access_token: string, data: IApiStudentSession): Promise<IApiStudentSessionResponse> {
       const res = await ApiResources.request({
         access_token,
