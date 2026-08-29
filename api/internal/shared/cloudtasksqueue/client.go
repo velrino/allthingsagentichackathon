@@ -19,6 +19,7 @@ import (
 
 const (
 	defaultDispatchDeadline = 10 * time.Minute
+	createTaskTimeout       = 10 * time.Second
 	minimumDispatchDeadline = 15 * time.Second
 	maximumDispatchDeadline = 30 * time.Minute
 )
@@ -86,7 +87,10 @@ func (client *Client) Enqueue(ctx context.Context, input Task) error {
 	}
 
 	task := client.buildTask(input)
-	_, err := client.client.CreateTask(ctx, &taskspb.CreateTaskRequest{
+	createContext, cancel := context.WithTimeout(ctx, createTaskTimeout)
+	defer cancel()
+
+	_, err := client.client.CreateTask(createContext, &taskspb.CreateTaskRequest{
 		Parent: client.parent,
 		Task:   task,
 	})

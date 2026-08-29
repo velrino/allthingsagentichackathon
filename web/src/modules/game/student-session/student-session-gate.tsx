@@ -29,6 +29,7 @@ import {
   clearStudentSession,
   readStudentClassSession,
   saveStudentClassSession,
+  studentClassSessionStorageKey,
 } from "./student-mission-session";
 import {
   studentSessionReadyEvent,
@@ -115,7 +116,13 @@ export function StudentSessionGate({
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       void restoreStoredSession(user);
     });
-    const restoreSessionFromAnotherTab = () => {
+    const restoreSessionFromAnotherTab = (event: StorageEvent) => {
+      if (
+        event.key !== null &&
+        event.key !== studentClassSessionStorageKey
+      ) {
+        return;
+      }
       void restoreStoredSession(auth.currentUser);
     };
     window.addEventListener("storage", restoreSessionFromAnotherTab);

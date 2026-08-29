@@ -3,7 +3,8 @@ import type {
   IApiStudentMission,
 } from "@/backend/api/api.interface";
 
-const studentClassSessionKey = "classgame:student-class-session";
+export const studentClassSessionStorageKey =
+  "classgame:student-class-session";
 const studentMissionSessionKey = "classgame:student-mission-session";
 export const studentClassSessionChangedEvent =
   "classgame:student-class-session-changed";
@@ -38,23 +39,30 @@ export function saveStudentClassSession(
     gradeLevel: studentClass.grade_level,
     studentName,
   };
-  window.localStorage.setItem(studentClassSessionKey, JSON.stringify(session));
-  window.sessionStorage.removeItem(studentClassSessionKey);
+  window.localStorage.setItem(
+    studentClassSessionStorageKey,
+    JSON.stringify(session),
+  );
+  window.sessionStorage.removeItem(studentClassSessionStorageKey);
   window.dispatchEvent(new Event(studentClassSessionChangedEvent));
 }
 
 export function readStudentClassSession(): StudentClassSession | null {
   try {
-    const localValue = window.localStorage.getItem(studentClassSessionKey);
+    const localValue = window.localStorage.getItem(
+      studentClassSessionStorageKey,
+    );
     if (localValue) {
       return JSON.parse(localValue) as StudentClassSession;
     }
 
     // Preserve a session created before class sessions were shared across tabs.
-    const value = window.sessionStorage.getItem(studentClassSessionKey);
+    const value = window.sessionStorage.getItem(
+      studentClassSessionStorageKey,
+    );
     if (value) {
-      window.localStorage.setItem(studentClassSessionKey, value);
-      window.sessionStorage.removeItem(studentClassSessionKey);
+      window.localStorage.setItem(studentClassSessionStorageKey, value);
+      window.sessionStorage.removeItem(studentClassSessionStorageKey);
     }
     return value ? (JSON.parse(value) as StudentClassSession) : null;
   } catch {
@@ -80,8 +88,8 @@ export function clearStudentMissionSession() {
 }
 
 export function clearStudentSession() {
-  window.localStorage.removeItem(studentClassSessionKey);
-  window.sessionStorage.removeItem(studentClassSessionKey);
+  window.localStorage.removeItem(studentClassSessionStorageKey);
+  window.sessionStorage.removeItem(studentClassSessionStorageKey);
   clearStudentMissionSession();
   window.dispatchEvent(new Event(studentClassSessionChangedEvent));
 }
