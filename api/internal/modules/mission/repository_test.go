@@ -19,8 +19,8 @@ func TestBuildMissionDocumentKeepsClassIDAndSharingCodeSeparate(t *testing.T) {
 	}
 }
 
-func TestGenerateMissionCodeUsesReadableCharacters(t *testing.T) {
-	pattern := regexp.MustCompile(`^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$`)
+func TestGenerateMissionCodeUsesNumericCharacters(t *testing.T) {
+	pattern := regexp.MustCompile(`^[0-9]{6}$`)
 
 	for index := 0; index < 100; index++ {
 		code, err := generateMissionCode()
@@ -28,7 +28,7 @@ func TestGenerateMissionCodeUsesReadableCharacters(t *testing.T) {
 			t.Fatalf("generate mission code: %v", err)
 		}
 		if !pattern.MatchString(code) {
-			t.Fatalf("generated mission code %q is not readable", code)
+			t.Fatalf("generated mission code %q is not numeric", code)
 		}
 	}
 }

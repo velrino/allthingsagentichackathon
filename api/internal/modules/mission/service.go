@@ -27,7 +27,7 @@ var (
 )
 
 const (
-	missionCodeAlphabet       = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+	missionCodeAlphabet       = "0123456789"
 	missionCodeLength         = 6
 	missionCodeCreateAttempts = 12
 	missionListLimit          = 100

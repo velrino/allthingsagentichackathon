@@ -25,8 +25,8 @@ curl http://localhost:4004/
 ## Runtime
 
 - `GET /` returns the health check and service dependency status.
-- `POST /users/student-session/validate` resolves a published mission code before anonymous Firebase sign-in.
-- `POST /users/student-session` resolves a published mission code, verifies an anonymous Firebase ID token, and upserts `users/{firebase_uid}` in Firestore.
+- `POST /users/student-session/validate` resolves a published, six-digit mission code before anonymous Firebase sign-in.
+- `POST /users/student-session` resolves a published, six-digit mission code, verifies an anonymous Firebase ID token, and upserts `users/{firebase_uid}` in Firestore.
 - `POST /users/student-presence` verifies the same anonymous token and updates the student's current game heartbeat.
 - `GET /dashboard/overview` verifies a Google Firebase ID token and returns teacher dashboard data for one `class_id`.
 - `POST /teacher-classes` verifies a Google Firebase ID token and creates or updates a class. New classes receive a unique, six-character sharing code from the API.
@@ -50,7 +50,7 @@ Student records are stored in Firestore under `users/{firebase_uid}`. Payloads a
 {
   "identity": { "provider_user_id": "firebase_uid", "auth_method": "anonymous" },
   "profile": { "display_name": "Student Name" },
-  "student": { "class_id": "ALG-2026-A", "mission_id": "mission-id", "mission_code": "ABC234", "student_name": "Student Name" },
+  "student": { "class_id": "ALG-2026-A", "mission_id": "mission-id", "mission_code": "123456", "student_name": "Student Name" },
   "mission": {
     "first_seen_at": "...",
     "last_seen_at": "...",

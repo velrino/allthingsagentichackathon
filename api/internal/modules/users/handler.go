@@ -25,7 +25,7 @@ const (
 	defaultStudentSessionRateLimitExpires = 5 * time.Minute
 )
 
-var missionCodePattern = regexp.MustCompile(`^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$`)
+var missionCodePattern = regexp.MustCompile(`^[0-9]{6}$`)
 
 type Authenticator interface {
 	AuthenticateBearerToken(context.Context, string) (sharedfirebase.Identity, error)

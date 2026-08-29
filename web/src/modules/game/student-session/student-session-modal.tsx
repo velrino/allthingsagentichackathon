@@ -16,8 +16,9 @@ type StudentSessionModalProps = {
 };
 
 const MISSION_CODE_LENGTH = 6;
-/** Mission codes skip look-alike characters (O/0, I/1/L) so students can read them aloud. */
-const missionCodeCharacters = /[^23456789ABCDEFGHJKMNPQRSTUVWXYZ]/g;
+const MISSION_CODE_MASKED_LENGTH = 7;
+const missionCodeNonDigits = /\D/g;
+const missionCodeBlockedCharacters = /[^\d\s]/;
 
 export function StudentSessionModal({
   error,
@@ -47,11 +48,15 @@ export function StudentSessionModal({
       : studentEntryCopy.nameHint;
 
   function handleMissionCodeChange(rawValue: string) {
-    const upper = rawValue.toUpperCase();
-    const cleaned = upper.replace(missionCodeCharacters, "");
+    const cleaned = rawValue
+      .replace(missionCodeNonDigits, "")
+      .slice(0, MISSION_CODE_LENGTH);
 
-    setTypedBlockedCharacter(cleaned.length !== upper.length);
-    setMissionCode(cleaned.slice(0, MISSION_CODE_LENGTH));
+    setTypedBlockedCharacter(
+      missionCodeBlockedCharacters.test(rawValue) &&
+        cleaned.length < MISSION_CODE_LENGTH,
+    );
+    setMissionCode(cleaned);
   }
 
   return (
@@ -89,15 +94,15 @@ export function StudentSessionModal({
             </label>
             <input
               id={missionCodeInputId}
-              value={missionCode}
+              value={formatMissionCode(missionCode)}
               onChange={(event) => handleMissionCodeChange(event.target.value)}
               disabled={loading}
               autoFocus
-              autoComplete="off"
-              autoCapitalize="characters"
-              inputMode="text"
-              maxLength={MISSION_CODE_LENGTH}
-              placeholder="ABC234"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={MISSION_CODE_MASKED_LENGTH}
+              placeholder="123 456"
               aria-describedby={missionCodeHintId}
               className="mt-2 h-12 w-full rounded-xl border border-white/12 bg-white/8 px-4 text-center font-display text-base font-semibold tracking-[0.08em] text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/70 focus:bg-white/12 disabled:opacity-60"
             />
@@ -156,4 +161,11 @@ export function StudentSessionModal({
       </section>
     </div>
   );
+}
+
+function formatMissionCode(value: string) {
+  const firstGroup = value.slice(0, 3);
+  const secondGroup = value.slice(3);
+
+  return secondGroup ? `${firstGroup} ${secondGroup}` : firstGroup;
 }

@@ -12,14 +12,25 @@ import (
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
-func TestStudentSessionRequestAcceptsMissionCode(t *testing.T) {
+func TestStudentSessionRequestAcceptsNumericMissionCode(t *testing.T) {
 	request := StudentSessionRequest{
-		MissionCode: "ABC234",
+		MissionCode: "123456",
 		StudentName: "Alex",
 	}
 
 	if err := request.Validate(); err != nil {
 		t.Fatalf("validate mission code: %v", err)
+	}
+}
+
+func TestStudentSessionRequestRejectsAlphanumericMissionCode(t *testing.T) {
+	request := StudentSessionRequest{
+		MissionCode: "ABC234",
+		StudentName: "Alex",
+	}
+
+	if err := request.Validate(); err == nil {
+		t.Fatal("expected alphanumeric mission code to fail validation")
 	}
 }
 
@@ -38,13 +49,13 @@ func TestPostStudentSessionValidationDoesNotRequireFirebaseAuth(t *testing.T) {
 	service := &fakeUsersService{}
 	recorder := postStudentSessionValidation(t, &Handler{
 		usersService: service,
-	}, `{"mission_code":"abc234"}`)
+	}, `{"mission_code":"123456"}`)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status code = %d, want %d; body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if service.validatedMissionCode != "ABC234" {
-		t.Fatalf("validated mission code = %q, want %q", service.validatedMissionCode, "ABC234")
+	if service.validatedMissionCode != "123456" {
+		t.Fatalf("validated mission code = %q, want %q", service.validatedMissionCode, "123456")
 	}
 	if service.upsertCalled {
 		t.Fatal("student validation should not create or update a user")
@@ -54,7 +65,7 @@ func TestPostStudentSessionValidationDoesNotRequireFirebaseAuth(t *testing.T) {
 func TestPostStudentSessionValidationReturnsMissionNotFound(t *testing.T) {
 	recorder := postStudentSessionValidation(t, &Handler{
 		usersService: &fakeUsersService{validateErr: ErrMissionCodeNotFound},
-	}, `{"mission_code":"ABC234"}`)
+	}, `{"mission_code":"123456"}`)
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status code = %d, want %d; body = %s", recorder.Code, http.StatusNotFound, recorder.Body.String())

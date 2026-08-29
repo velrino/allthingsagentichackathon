@@ -6,15 +6,15 @@ import { ApiError } from "@/backend/api/api.endpoints";
  * The API keeps its technical messages for logs; the game owns the words.
  */
 export const studentEntryCopy = {
-  codeHint: "6 letters and numbers, like ABC234.",
-  codeBlockedHint: "Codes never use O, 0, I, 1 or L. Try the next letter.",
+  codeHint: "6 numbers, like 123 456.",
+  codeBlockedHint: "Use numbers only.",
   nameHint: "So Emily knows who you are.",
   nameTooShort: "One more letter, please.",
   opening: "Opening the classroom...",
   errors: {
     codeNotFound:
       "Hmm, that code doesn't match any mission. Check it with your teacher and try again.",
-    codeFormat: "Mission codes have 6 letters and numbers, like ABC234.",
+    codeFormat: "Mission codes have 6 numbers, like 123 456.",
     nameMissing: "Type your name so Emily knows who you are.",
     tooManyTries: "Too many tries. Wait a minute and try again.",
     signIn: "Something went wrong signing you in. Refresh the page and try again.",

@@ -67,7 +67,7 @@ The game loop still uses a mocked tutor agent, but student entry and live game p
 - **Third-person camera**: drag to orbit, returns behind the avatar while walking, slides along walls instead of clipping.
 - **Collision** with walls and furniture; joystick on phones, WASD + mouse on desktop; tap the glowing desk to walk to it.
 - **Characters**: six chibi avatars (from Unshatter's chibi-band set). The student picks one from the top bar; **Emily** is the teacher, standing at the whiteboard.
-- **Student entry**: `/home` blocks the game with a centered modal for a six-character `mission_code` and `student_name`; the web validates the mission code before signing in anonymously with Firebase Auth and posting to the API.
+- **Student entry**: `/home` blocks the game with a centered modal for a six-digit `mission_code` and `student_name`; the web validates the mission code before signing in anonymously with Firebase Auth and posting to the API.
 - **Teacher login and dashboard**: `/dashboard` and `/dashboard/classes` are protected by Firebase Google sign-in; unauthenticated or anonymous users go to `/login`. Teachers can create classes, build missions with optional files, process them with Emily, review and approve a student-facing preview, inspect reusable learning charts, and see the 10 most recently active players with live presence.
 - **One desk**: the student sits at the desk in front of the teacher's; the whole mission happens there.
 - **Chalkboard lesson UI** (Bully: Scholarship Edition style, no timer): multiple choice for fractions, "pick the next move" for equations, the *why* card, step/visual explanations (fraction bars, equation chains), feedback pills, decision card with its *why*.
@@ -199,8 +199,8 @@ Current MVP identity rule: a returning student is matched by Firebase anonymous 
 
 ```txt
 GET  /
-POST /users/student-session/validate mission code → published mission check before anonymous sign-in
-POST /users/student-session          anonymous Firebase token + mission code/student name → Firestore user
+POST /users/student-session/validate six-digit mission code → published mission check before anonymous sign-in
+POST /users/student-session          anonymous Firebase token + six-digit mission code/student name → Firestore user
 POST /users/student-presence         anonymous Firebase token + current game state → presence heartbeat
 GET  /dashboard/overview             Google Firebase token + class_id → teacher dashboard data
 POST /teacher-classes                Google Firebase token + class metadata → Firestore teacher class
