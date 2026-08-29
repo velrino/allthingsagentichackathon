@@ -325,6 +325,9 @@ func (handler *Handler) serviceError(ctx *echo.Context, err error) error {
 	if errors.Is(err, ErrMissionAttachmentQueue) {
 		return jsonError(ctx, http.StatusServiceUnavailable, "attachment_queue_unavailable", "Mission file storage is temporarily unavailable. Try publishing again.")
 	}
+	if errors.Is(err, ErrMissionGuardrailBlocked) {
+		return jsonError(ctx, http.StatusUnprocessableEntity, "mission_guardrail_blocked", "This preview cannot be published. Add relevant grade-level educational material and generate it again.")
+	}
 
 	slog.Error("teacher mission request failed", "error", err)
 	return jsonError(ctx, http.StatusInternalServerError, "teacher_mission_failed", "Could not process teacher mission.")

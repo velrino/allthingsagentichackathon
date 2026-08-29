@@ -119,6 +119,7 @@ func run() error {
 
 	missionServiceOptions := make([]mission.ServiceOption, 0, 1)
 	var missionAttachmentHandler http.Handler
+	var studentLearningTaskHandler http.Handler
 	if cfg.CloudTasksEnabled {
 		storageConnection, err := objectstorage.Connect(context.Background(), objectstorage.Options{
 			BucketName:      cfg.FirebaseStorageBucket,
@@ -160,6 +161,31 @@ func run() error {
 			}
 		}()
 
+		learningTaskQueue, err := cloudtasksqueue.Connect(context.Background(), cloudtasksqueue.Options{
+			ProjectID:          cfg.CloudTasksProjectID,
+			Location:           cfg.CloudTasksLocation,
+			Queue:              cfg.CloudTasksQueue,
+			TargetURL:          cfg.CloudTasksLearningTargetURL,
+			OIDCServiceAccount: cfg.CloudTasksServiceAccount,
+			OIDCAudience:       cfg.CloudTasksOIDCAudience,
+			DispatchDeadline:   290 * time.Second,
+		})
+		if err != nil {
+			return fmt.Errorf("initialize student learning task queue: %w", err)
+		}
+		defer func() {
+			if err := learningTaskQueue.Close(); err != nil {
+				slog.Error("student learning task queue disconnect failed", "error", err)
+			}
+		}()
+		usersService.ConfigureLearningTasks(
+			users.NewCloudLearningTaskEnqueuer(
+				learningTaskQueue,
+				time.Duration(cfg.StudentAbandonmentSeconds)*time.Second,
+			),
+			time.Duration(cfg.StudentAbandonmentSeconds)*time.Second,
+		)
+
 		attachmentEnqueuer := missionattachment.NewCloudTaskEnqueuer(taskQueue, 2*time.Second)
 		missionServiceOptions = append(
 			missionServiceOptions,
@@ -184,6 +210,13 @@ func run() error {
 		)
 		if err != nil {
 			return fmt.Errorf("initialize mission attachment task handler: %w", err)
+		}
+		studentLearningTaskHandler, err = users.NewLearningTaskHTTPHandler(
+			attachmentAuthenticator,
+			usersService,
+		)
+		if err != nil {
+			return fmt.Errorf("initialize student learning task handler: %w", err)
 		}
 	}
 
@@ -212,7 +245,8 @@ func run() error {
 			GenerationLimiter: generationLimiter,
 			MissionService:    missionService,
 		},
-		MissionAttachment: missionAttachmentHandler,
+		MissionAttachment:   missionAttachmentHandler,
+		StudentLearningTask: studentLearningTaskHandler,
 		HealthChecks: []healthcheck.Check{
 			{
 				Name:    healthcheck.HealthCheckServiceFirebase,

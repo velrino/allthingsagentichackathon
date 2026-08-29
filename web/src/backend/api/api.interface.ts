@@ -11,6 +11,7 @@ export interface IApiRequest {
   data?: unknown;
   headers?: Headers;
   access_token?: string;
+  keepalive?: boolean;
 }
 
 export interface IApiStudentSession {
@@ -31,7 +32,13 @@ export interface IApiStudentPresence {
   subject: string;
   stage_id: string;
   stage_name: string;
-  status: "exploring" | "learning" | "thinking" | "reviewing" | "completed";
+  status:
+    | "exploring"
+    | "learning"
+    | "thinking"
+    | "reviewing"
+    | "paused"
+    | "completed";
 }
 
 export type IApiStudentLearningStatus =
@@ -39,6 +46,7 @@ export type IApiStudentLearningStatus =
   | "learning"
   | "thinking"
   | "reviewing"
+  | "paused"
   | "completed";
 
 export interface IApiStudentLearningSnapshotRequest {
@@ -48,6 +56,7 @@ export interface IApiStudentLearningSnapshotRequest {
 }
 
 export interface IApiStudentLearningSnapshot {
+  revision: number;
   progress: IApiStudentStageProgress[];
   notes: IApiStudentLearningNote[];
   preferences: IApiStudentPreferences;
@@ -56,6 +65,26 @@ export interface IApiStudentLearningSnapshot {
   redirected: boolean;
   return_to: string;
   last_pod: string;
+  checkpoint: IApiStudentSessionCheckpoint;
+}
+
+export interface IApiStudentSessionCheckpoint {
+  stage_id: string;
+  question_id: string;
+  phase: string;
+  step_index: number;
+  explain_index: number;
+  lines: string[];
+  wrong_choice: string;
+  wrong_misconception_id: string;
+  decision_action: string;
+  decision_target: string;
+  decision_message: string;
+  decision_why: string;
+  tutor_message: string;
+  why_prompt: string;
+  clean: boolean;
+  seated: boolean;
 }
 
 export interface IApiStudentStageProgress {
@@ -135,14 +164,6 @@ export interface IApiStudentSessionUser {
     mission_id: string;
     mission_code: string;
     student_name: string;
-    learning_memory?: {
-      strengths: string[];
-      improvement_areas: string[];
-      preferred_explanation: string;
-      next_adaptation: string;
-      last_mission_id: string;
-      updated_at: string;
-    };
   };
   activity: {
     first_seen_at: string;
@@ -169,10 +190,69 @@ export interface IApiStudentSessionUser {
 
 export interface IApiStudentSessionResponse {
   user: IApiStudentSessionUser;
+  mission?: IApiStudentMission;
+}
+
+export interface IApiStudentMission {
+  id: string;
+  mission_code: string;
+  published_revision: number;
+  title: string;
+  subject: string;
+  grade_level: string;
+  learning_goal: string;
+  stages: IApiMissionStage[];
+  preview_questions: IApiMissionPreviewQuestion[];
 }
 
 export interface IApiStudentLearningResponse {
-  attempt: IApiStudentLearningAttempt | null;
+  attempt: IApiStudentLearningResumeAttempt | null;
+}
+
+export interface IApiStudentLearningResumeAttempt {
+  id: string;
+  mission_id: string;
+  published_revision: number;
+  status: IApiStudentLearningStatus | "abandoned" | string;
+  snapshot: {
+    revision: number;
+    progress: IApiStudentStageProgress[];
+    preferences: IApiStudentPreferences;
+    redirected: boolean;
+    return_to: string;
+    last_pod: string;
+    checkpoint: IApiStudentSessionCheckpoint;
+  };
+  last_event_sequence: number;
+  started_at: string;
+  last_activity_at: string;
+}
+
+export interface IApiStudentTutorTurnRequest {
+  mission_id: string;
+  event_id: string;
+  type: "answer" | "reasoning" | "feedback" | "resume";
+  stage_id: string;
+  question_id: string;
+  prompt: string;
+  student_response: string;
+  expected_answer: string;
+  outcome: "neutral" | "correct" | "incorrect" | "support" | "complete";
+  explicit_reasoning: string;
+  feedback: string;
+}
+
+export interface IApiStudentTutorTurnResponse {
+  turn: {
+    turn_id: string;
+    sequence: number;
+    message: string;
+    why_prompt: string;
+    explanation_steps: string[];
+    explanation_style: "steps" | "visual";
+    difficulty_bias: -1 | 0 | 1;
+    next_action: "continue" | "ask_reasoning" | "explain" | "retry" | "complete";
+  };
 }
 
 export interface IApiStudentLearningAttempt {
@@ -186,12 +266,46 @@ export interface IApiStudentLearningAttempt {
   subject: string;
   status: IApiStudentLearningStatus | string;
   snapshot: IApiStudentLearningSnapshot;
+  tutor_turns: IApiStudentTutorTurn[];
   trace: IApiStudentLearningTrace;
+  trace_state: "live" | "pending" | "processing" | "ready" | "failed" | string;
   started_at: string;
   last_activity_at: string;
   completed_at: string;
+  abandoned_at: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface IApiStudentTutorTurn {
+  id: string;
+  sequence: number;
+  type: string;
+  stage_id: string;
+  question_id: string;
+  prompt: string;
+  student_response: string;
+  expected_answer: string;
+  outcome: string;
+  explicit_reasoning: string;
+  feedback: string;
+  tutor: {
+    message: string;
+    why_prompt: string;
+    explanation_steps: string[];
+    explanation_style: string;
+    difficulty_bias: number;
+    next_action: string;
+    teacher_observation: string;
+    retrieved_chunk_ids: string[];
+    evidence_event_ids: string[];
+    generated_by_ai: boolean;
+    provider: string;
+    model: string;
+    model_version: string;
+    fallback_reason: string;
+  };
+  created_at: string;
 }
 
 export interface IApiStudentLearningTrace {
@@ -305,11 +419,21 @@ export interface IApiMissionStage {
 
 export interface IApiMissionPreviewQuestion {
   id: string;
+  stage_id: string;
   prompt: string;
   answer_type: "multiple_choice" | "next_step" | "short_text" | string;
   options: string[];
   expected_answer: string;
+  explanation_steps: string[];
   misconception_traps: string[];
+}
+
+export interface IApiMissionKnowledgeChunk {
+  id: string;
+  source: string;
+  title: string;
+  content: string;
+  keywords: string[];
 }
 
 export interface IApiEducationGuardrail {
@@ -342,6 +466,7 @@ export interface IApiMissionFlowNode {
     | string;
   label: string;
   description: string;
+  evidence_event_ids: string[];
   position: {
     x: number;
     y: number;
@@ -385,6 +510,7 @@ export interface IApiTeacherClassMission {
   target_student_ids: string[];
   attachments: IApiMissionAttachment[];
   preview_questions: IApiMissionPreviewQuestion[];
+  knowledge_chunks: IApiMissionKnowledgeChunk[];
   suggested_duration_minutes: number;
   stages: IApiMissionStage[];
   suggestions: IApiSuggestion[];
@@ -431,6 +557,7 @@ export interface IApiDashboardMetrics {
   completed_students: number;
   average_progress: number;
   needs_attention: number;
+  abandoned_students: number;
   notebook_notes: number;
 }
 
@@ -473,6 +600,7 @@ export interface IApiClassLearningPattern {
 export interface IApiClassLearningSummary {
   total_attempts: number;
   completed_attempts: number;
+  abandoned_attempts: number;
   students_with_evidence: number;
   common_strengths: IApiClassLearningPattern[];
   common_needs: IApiClassLearningPattern[];

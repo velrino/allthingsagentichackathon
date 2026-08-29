@@ -22,6 +22,7 @@ func snapshotFromMission(mission MissionDocument, revision int64) MissionSnapsho
 		TargetStudentIDs:         mission.TargetStudentIDs,
 		Attachments:              mission.Attachments,
 		PreviewQuestions:         mission.PreviewQuestions,
+		KnowledgeChunks:          mission.KnowledgeChunks,
 		SuggestedDurationMinutes: mission.SuggestedDurationMinutes,
 		Stages:                   mission.Stages,
 		Suggestions:              mission.Suggestions,
@@ -47,6 +48,7 @@ func (mission *MissionDocument) applySnapshot(snapshot MissionSnapshot) {
 	mission.TargetStudentIDs = snapshot.TargetStudentIDs
 	mission.Attachments = snapshot.Attachments
 	mission.PreviewQuestions = snapshot.PreviewQuestions
+	mission.KnowledgeChunks = snapshot.KnowledgeChunks
 	mission.SuggestedDurationMinutes = snapshot.SuggestedDurationMinutes
 	mission.Stages = snapshot.Stages
 	mission.Suggestions = snapshot.Suggestions
@@ -127,6 +129,28 @@ func publishedView(mission MissionDocument) (MissionDocument, bool) {
 	mission.applySnapshot(*mission.Published)
 	mission.Status = StatusPublished
 	mission.HasUnpublishedChanges = mission.DraftRevision != mission.PublishedRevision
+
+	return mission, true
+}
+
+// ViewAtPublishedRevision pins a student attempt to the immutable content that
+// was live when it started, even if the teacher publishes a newer revision.
+func ViewAtPublishedRevision(
+	mission MissionDocument,
+	published MissionPublishedRevisionDocument,
+) (MissionDocument, bool) {
+	if published.Revision <= 0 ||
+		published.MissionID != "" && published.MissionID != mission.ID ||
+		published.ClassID != "" && published.ClassID != mission.ClassID {
+		return MissionDocument{}, false
+	}
+
+	mission.applySnapshot(published.Snapshot)
+	mission.Published = &published.Snapshot
+	mission.PublishedRevision = published.Revision
+	mission.PublishedAt = published.PublishedAt
+	mission.Status = StatusPublished
+	mission.HasUnpublishedChanges = mission.DraftRevision != published.Revision
 
 	return mission, true
 }

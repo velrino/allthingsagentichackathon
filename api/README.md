@@ -156,7 +156,7 @@ curl -X POST http://localhost:4004/teacher-classes/ALG-2026-A/missions/$MISSION_
 
 Preview generation is limited both by IP and by authenticated teacher in Redis. A stale `expected_draft_revision` returns `409` instead of overwriting a draft generated in another tab.
 
-## Mission Attachment Queue
+## Cloud Tasks workers
 
 Uploadcare files remain temporary while the teacher reviews a draft. Approval first creates a revision-specific Cloud Task, then publishes the draft. The task calls an application handler protected by a Google-signed OIDC token, streams each file to Firebase Storage with a real 20 MiB limit, and stores its canonical `gs://` location in the published revision. Once that immutable revision exists, its task remains valid even after a newer publication or a mission soft delete, preserving the attachment history.
 
@@ -197,6 +197,22 @@ The first service-account binding lets the API specify the OIDC identity when it
 
 The Firebase service-account secret used by the storage worker needs `roles/storage.objectAdmin` on `gs://allthingsagentichackatho-ee359.firebasestorage.app`. Cloud Tasks uses the Cloud Run service identity through ADC; Firebase Storage uses the configured Firebase credentials.
 
+The same queue also dispatches student-learning jobs to
+`/internal/tasks/student-learning`. A browser checkpoint schedules an
+idempotent inactivity watchdog. If no newer checkpoint arrives within
+`STUDENT_ABANDONMENT_SECONDS` (120 seconds in production), the API marks the
+attempt `abandoned`, preserves its exact question/phase/step, and finalizes a
+partial teacher-facing learning trace. Completing a mission queues the same
+trace workflow immediately. Both handlers require a Cloud Tasks header and a
+valid OIDC token for the configured service account.
+
+The web client writes a monotonic snapshot after every game transition,
+heartbeats while the tab is active, and sends a `paused` keepalive snapshot on
+`visibilitychange`/`pagehide`. A later visit reuses the anonymous Firebase
+session and restores the newest local or Firestore checkpoint. Server-side
+snapshot merging keeps prior evidence even though notes and model observations
+are never returned to the student.
+
 ## GenAI
 
 Local development can use Vertex AI credentials from a local file, or an API key if `GENAI_BACKEND=gemini_api`.
@@ -218,7 +234,39 @@ Mission preview generation sends teacher text plus attachment metadata to Gemini
 
 Generated previews include `education_guardrail` and `mission_flow`. The guardrail tells the dashboard whether the model used the attachments and whether the request stayed inside age-appropriate classroom learning scope. The flow is a small React Flow-ready graph (`nodes[]` and `edges[]`) used by the teacher dashboard to visualize the mission path. If uploaded material is empty, unrelated, unsafe or tries prompt injection, Emily must ignore it and keep the output educational; clearly unsafe requests receive a harmless remediation preview instead of student-facing exercises.
 
-Completed student attempts use a separate structured Gemini workflow. Gemini receives the mission context, previous persistent memory and only observable interaction evidence. It produces a teacher-facing `trace.flow`, summary, strengths, improvement areas and the next adaptation to retrieve on a future turn. Student text is treated as untrusted data, and the model is explicitly forbidden from inventing or claiming to reveal private chain-of-thought, diagnoses, grades, rankings or sensitive traits. If Gemini is unavailable, the API builds a truthful flow directly from the recorded events.
+Each student answer, explicit explanation and feedback item can also invoke a
+structured Gemini tutor turn. Retrieval selects only chunks grounded in the
+published mission and combines them with that student's prior memory, recent
+observable turns and aggregated class patterns. The student receives the tutor
+message, explanation steps and safe adaptation controls; the teacher-only
+observation and retrieval provenance remain in Firestore. Untrusted student or
+attachment text cannot override the education scope, request another student's
+data, expose teacher memory or solicit hidden chain-of-thought.
+
+Completed or abandoned student attempts use a separate structured Gemini
+workflow. Gemini receives the mission context, previous persistent memory and
+only observable interaction evidence. It produces a teacher-facing
+`trace.flow`, summary, strengths, improvement areas and the next adaptation to
+retrieve on a future turn. Student text is treated as untrusted data, and the
+model is explicitly forbidden from inventing or claiming to reveal private
+chain-of-thought, diagnoses, grades, rankings or sensitive traits. If Gemini is
+unavailable, the API builds a truthful flow directly from the recorded events.
+
+Class-level synthesis clusters the latest finalized traces across every student
+in the class. The dashboard listens to `student_mission_attempts` and
+`class_learning_summaries` with Firestore realtime listeners, then refreshes
+the server-authorized projection. Deploy the read-only teacher rules from the
+repository root before enabling realtime in production:
+
+```bash
+firebase deploy --only firestore:rules \
+  --project=allthingsagentichackatho-ee359
+```
+
+Those rules permit a teacher to read only classes they own and deny every
+browser write. Anonymous students therefore cannot inspect tutor observations,
+notes, class memory or another student's attempt; their safe resume state is
+available only through the API.
 
 The Uploadcare public key belongs in the web environment. The Uploadcare secret key must stay out of the repo; only add it to Secret Manager if signed uploads are implemented.
 

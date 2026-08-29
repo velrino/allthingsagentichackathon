@@ -41,6 +41,7 @@ type MissionDocument struct {
 	TargetStudentIDs         []string                         `firestore:"target_student_ids" json:"target_student_ids"`
 	Attachments              []MissionAttachment              `firestore:"attachments" json:"attachments"`
 	PreviewQuestions         []orchestrator.PreviewQuestion   `firestore:"preview_questions" json:"preview_questions"`
+	KnowledgeChunks          []orchestrator.KnowledgeChunk    `firestore:"knowledge_chunks" json:"knowledge_chunks"`
 	SuggestedDurationMinutes int                              `firestore:"suggested_duration_minutes" json:"suggested_duration_minutes"`
 	Stages                   []orchestrator.MissionStage      `firestore:"stages" json:"stages"`
 	Suggestions              []orchestrator.MissionSuggestion `firestore:"suggestions" json:"suggestions"`
@@ -81,6 +82,7 @@ type MissionSnapshot struct {
 	TargetStudentIDs         []string                         `firestore:"target_student_ids" json:"target_student_ids"`
 	Attachments              []MissionAttachment              `firestore:"attachments" json:"attachments"`
 	PreviewQuestions         []orchestrator.PreviewQuestion   `firestore:"preview_questions" json:"preview_questions"`
+	KnowledgeChunks          []orchestrator.KnowledgeChunk    `firestore:"knowledge_chunks" json:"knowledge_chunks"`
 	SuggestedDurationMinutes int                              `firestore:"suggested_duration_minutes" json:"suggested_duration_minutes"`
 	Stages                   []orchestrator.MissionStage      `firestore:"stages" json:"stages"`
 	Suggestions              []orchestrator.MissionSuggestion `firestore:"suggestions" json:"suggestions"`

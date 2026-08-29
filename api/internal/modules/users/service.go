@@ -3,6 +3,9 @@ package users
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,17 +19,40 @@ var ErrStudentNotFound = errors.New("student user not found")
 var ErrMissionCodeNotFound = errors.New("published mission code not found")
 var ErrStudentMissionMismatch = errors.New("student mission does not match current session")
 var ErrStudentAttemptNotFound = errors.New("student learning attempt not found")
+var ErrStudentQuestionNotFound = errors.New("student mission question not found")
+var ErrMissionRevisionNotFound = errors.New("published student mission revision not found")
 
 type MissionReader interface {
 	GetByCode(context.Context, string) (mission.MissionDocument, bool, error)
+}
+
+type MissionRevisionReader interface {
+	GetPublishedRevision(
+		context.Context,
+		string,
+		string,
+		int64,
+	) (mission.MissionPublishedRevisionDocument, bool, error)
 }
 
 type LearningTraceGenerator interface {
 	BuildLearningTrace(context.Context, orchestrator.BuildLearningTraceInput) (orchestrator.LearningTraceBlueprint, error)
 }
 
+type TutorTurnGenerator interface {
+	BuildTutorTurn(context.Context, orchestrator.BuildTutorTurnInput) (orchestrator.TutorTurnBlueprint, error)
+}
+
+type ClassLearningGenerator interface {
+	BuildClassLearningSynthesis(context.Context, orchestrator.BuildClassLearningSynthesisInput) (orchestrator.ClassLearningSynthesis, error)
+}
+
 type Service struct {
+	abandonmentWindow      time.Duration
+	learningTaskEnqueuer   LearningTaskEnqueuer
 	learningTraceGenerator LearningTraceGenerator
+	tutorTurnGenerator     TutorTurnGenerator
+	classLearningGenerator ClassLearningGenerator
 	missionReader          MissionReader
 	repository             *Repository
 }
@@ -37,14 +63,27 @@ func NewService(
 	learningTraceGenerators ...LearningTraceGenerator,
 ) *Service {
 	service := &Service{
-		missionReader: missionReader,
-		repository:    repository,
+		abandonmentWindow: defaultStudentAbandonmentWindow,
+		missionReader:     missionReader,
+		repository:        repository,
 	}
 	if len(learningTraceGenerators) > 0 {
 		service.learningTraceGenerator = learningTraceGenerators[0]
+		service.tutorTurnGenerator, _ = learningTraceGenerators[0].(TutorTurnGenerator)
+		service.classLearningGenerator, _ = learningTraceGenerators[0].(ClassLearningGenerator)
 	}
 
 	return service
+}
+
+func (service *Service) ConfigureLearningTasks(
+	enqueuer LearningTaskEnqueuer,
+	abandonmentWindow time.Duration,
+) {
+	service.learningTaskEnqueuer = enqueuer
+	if abandonmentWindow > 0 {
+		service.abandonmentWindow = abandonmentWindow
+	}
 }
 
 func (service *Service) UpsertStudent(
@@ -62,7 +101,7 @@ func (service *Service) UpsertStudent(
 		return UserDocument{}, err
 	}
 
-	return service.repository.UpsertStudent(ctx, UpsertStudentInput{
+	user, err := service.repository.UpsertStudent(ctx, UpsertStudentInput{
 		Identity:                 identity,
 		ClassID:                  missionDocument.ClassID,
 		MissionID:                missionDocument.ID,
@@ -72,6 +111,20 @@ func (service *Service) UpsertStudent(
 		StudentName:              normalizeStudentName(studentName),
 		Timestamp:                time.Now(),
 	})
+	if err != nil {
+		return UserDocument{}, err
+	}
+	sessionMission, err := service.missionAtPublishedRevision(
+		ctx,
+		missionDocument,
+		user.Activity.CurrentGame.PublishedRevision,
+	)
+	if err != nil {
+		return UserDocument{}, err
+	}
+	user.SessionMission = studentSessionMissionFromDocument(sessionMission)
+
+	return user, nil
 }
 
 func (service *Service) ValidateStudentMissionCode(
@@ -99,6 +152,39 @@ func (service *Service) publishedMissionByCode(
 	}
 
 	return missionDocument, nil
+}
+
+func (service *Service) missionAtPublishedRevision(
+	ctx context.Context,
+	current mission.MissionDocument,
+	revision int64,
+) (mission.MissionDocument, error) {
+	if revision <= 0 || current.PublishedRevision == revision {
+		return current, nil
+	}
+
+	revisionReader, ok := service.missionReader.(MissionRevisionReader)
+	if !ok {
+		return mission.MissionDocument{}, ErrMissionRevisionNotFound
+	}
+	published, exists, err := revisionReader.GetPublishedRevision(
+		ctx,
+		current.ClassID,
+		current.ID,
+		revision,
+	)
+	if err != nil {
+		return mission.MissionDocument{}, err
+	}
+	if !exists {
+		return mission.MissionDocument{}, ErrMissionRevisionNotFound
+	}
+	view, valid := mission.ViewAtPublishedRevision(current, published)
+	if !valid {
+		return mission.MissionDocument{}, ErrMissionRevisionNotFound
+	}
+
+	return view, nil
 }
 
 func (service *Service) UpdateStudentPresence(
@@ -149,7 +235,7 @@ func (service *Service) SaveStudentLearningSnapshot(
 	liveTrace := orchestrator.BuildObservedLearningTrace(liveInput, "")
 	liveTrace.Finalized = false
 
-	attempt, user, err := service.repository.SaveStudentLearningSnapshot(ctx, SaveStudentLearningSnapshotInput{
+	attempt, _, err := service.repository.SaveStudentLearningSnapshot(ctx, SaveStudentLearningSnapshotInput{
 		Identity:  identity,
 		MissionID: normalizeText(missionID),
 		Status:    normalizedStatus,
@@ -160,46 +246,29 @@ func (service *Service) SaveStudentLearningSnapshot(
 	if err != nil {
 		return StudentMissionAttemptDocument{}, err
 	}
-	if normalizedStatus != "completed" || attempt.Trace.Finalized {
+	if attempt.Trace.Finalized {
 		return attempt, nil
 	}
 
-	missionDocument, err := service.publishedMissionByCode(ctx, user.Student.MissionCode)
-	if err != nil {
-		return StudentMissionAttemptDocument{}, err
+	if normalizedStatus == "completed" {
+		if service.learningTaskEnqueuer != nil {
+			if err := service.learningTaskEnqueuer.EnqueueFinalization(ctx, attempt); err == nil {
+				return attempt, nil
+			} else {
+				slog.Warn("student learning finalization enqueue failed; using inline fallback", "error", err)
+			}
+		}
+
+		return service.finalizeStudentAttempt(ctx, attempt.StudentID, attempt.ID)
 	}
-	traceInput := toLearningTraceInput(
-		missionDocument,
-		normalizedSnapshot,
-		"completed",
-		user.Student.LearningMemory,
-	)
-	trace := orchestrator.BuildObservedLearningTrace(traceInput, "learning trace generator is not configured")
-	if service.learningTraceGenerator != nil {
-		trace, err = service.learningTraceGenerator.BuildLearningTrace(ctx, traceInput)
-		if err != nil {
-			return StudentMissionAttemptDocument{}, err
+
+	if service.learningTaskEnqueuer != nil {
+		if err := service.learningTaskEnqueuer.EnqueueWatchdog(ctx, attempt); err != nil {
+			slog.Warn("student abandonment watchdog enqueue failed", "error", err, "attempt_id", attempt.ID)
 		}
 	}
-	trace.Finalized = true
-	trace.EventCount = len(normalizedSnapshot.Events)
 
-	memory := StudentLearningMemory{
-		Strengths:            trace.Strengths,
-		ImprovementAreas:     trace.ImprovementAreas,
-		PreferredExplanation: normalizedSnapshot.Preferences.ExplanationStyle,
-		NextAdaptation:       trace.NextAdaptation,
-		LastMissionID:        missionDocument.ID,
-	}
-
-	return service.repository.FinalizeStudentLearningTrace(
-		ctx,
-		user.ID,
-		attempt.ID,
-		trace,
-		memory,
-		time.Now(),
-	)
+	return attempt, nil
 }
 
 func (service *Service) GetCurrentStudentLearningAttempt(
@@ -220,6 +289,311 @@ func (service *Service) GetCurrentStudentLearningAttempt(
 		normalizeText(missionID),
 	)
 	return attempt, exists, err
+}
+
+func (service *Service) SaveStudentTutorTurn(
+	ctx context.Context,
+	identity sharedfirebase.Identity,
+	input SaveStudentTutorTurnInput,
+) (StudentTutorTurn, error) {
+	if identity.AuthMethod != sharedfirebase.AuthMethodAnonymous {
+		return StudentTutorTurn{}, ErrStudentRequiresAnonymousAuth
+	}
+	if service.repository == nil || service.tutorTurnGenerator == nil {
+		return StudentTutorTurn{}, errors.New("student tutor dependencies are not configured")
+	}
+
+	input = normalizeStudentTutorTurnInput(input)
+	input.Identity = identity
+	input.Timestamp = time.Now()
+	attempt, user, exists, err := service.repository.GetCurrentStudentLearningAttempt(
+		ctx,
+		identity.ProviderUserID,
+		input.MissionID,
+	)
+	if err != nil {
+		return StudentTutorTurn{}, err
+	}
+	if !exists {
+		return StudentTutorTurn{}, ErrStudentAttemptNotFound
+	}
+	missionDocument, err := service.missionForAttempt(
+		ctx,
+		attempt,
+		user.Student.MissionCode,
+	)
+	if err != nil {
+		return StudentTutorTurn{}, err
+	}
+	input, err = groundStudentTutorTurn(missionDocument, input)
+	if err != nil {
+		return StudentTutorTurn{}, err
+	}
+
+	retrievedChunks := retrieveMissionKnowledge(missionDocument, input, 5)
+	classContext, err := service.classTutorContext(ctx, user.Student.ClassID)
+	if err != nil {
+		return StudentTutorTurn{}, err
+	}
+	turnInput := orchestrator.BuildTutorTurnInput{
+		Mission: orchestrator.TutorMissionContext{
+			ID:           missionDocument.ID,
+			Title:        missionDocument.Title,
+			Subject:      missionDocument.Subject,
+			GradeLevel:   missionDocument.GradeLevel,
+			LearningGoal: missionDocument.LearningGoal,
+			Stages:       missionDocument.Stages,
+		},
+		StudentMemory: orchestrator.LearningTracePreviousMemory{
+			Strengths:            user.Student.LearningMemory.Strengths,
+			ImprovementAreas:     user.Student.LearningMemory.ImprovementAreas,
+			PreferredExplanation: user.Student.LearningMemory.PreferredExplanation,
+			NextAdaptation:       user.Student.LearningMemory.NextAdaptation,
+		},
+		ClassContext: classContext,
+		Attempt: orchestrator.TutorAttemptContext{
+			Status:       attempt.Status,
+			Progress:     toTutorProgress(attempt.Snapshot.Progress),
+			RecentTurns:  toTutorTurnHistory(attempt.TutorTurns),
+			RecentEvents: toTutorEvents(attempt.Snapshot.Events),
+		},
+		Turn: orchestrator.TutorTurnEvidence{
+			EventID:           input.EventID,
+			Type:              input.Type,
+			StageID:           input.StageID,
+			QuestionID:        input.QuestionID,
+			Prompt:            input.Prompt,
+			StudentResponse:   input.StudentResponse,
+			ExpectedAnswer:    input.ExpectedAnswer,
+			Outcome:           input.Outcome,
+			ExplicitReasoning: input.ExplicitReasoning,
+			Feedback:          input.Feedback,
+		},
+		RetrievedChunks: retrievedChunks,
+	}
+
+	tutor, err := service.tutorTurnGenerator.BuildTutorTurn(ctx, turnInput)
+	if err != nil {
+		return StudentTutorTurn{}, err
+	}
+
+	return service.repository.AppendStudentTutorTurn(ctx, input, tutor)
+}
+
+func (service *Service) classTutorContext(
+	ctx context.Context,
+	classID string,
+) (orchestrator.TutorClassContext, error) {
+	attempts, err := service.repository.ListLatestFinalizedAttemptsByClassID(ctx, classID, 40)
+	if err != nil {
+		return orchestrator.TutorClassContext{}, err
+	}
+	strengths := make([]string, 0)
+	needs := make([]string, 0)
+	for _, attempt := range attempts {
+		strengths = append(strengths, attempt.Trace.Strengths...)
+		needs = append(needs, attempt.Trace.ImprovementAreas...)
+	}
+
+	return orchestrator.TutorClassContext{
+		CommonStrengths: mostFrequentSignals(strengths, 4),
+		CommonNeeds:     mostFrequentSignals(needs, 4),
+	}, nil
+}
+
+func (service *Service) ProcessLearningJob(ctx context.Context, job LearningJob) error {
+	if err := job.Validate(); err != nil {
+		return err
+	}
+	switch job.Kind {
+	case LearningJobFinalize:
+		_, err := service.finalizeStudentAttempt(ctx, job.StudentID, job.AttemptID)
+		return err
+	case LearningJobWatchdog:
+		attempt, marked, err := service.repository.MarkStudentAttemptAbandoned(
+			ctx,
+			job.StudentID,
+			job.AttemptID,
+			job.ExpectedLastActivityAt,
+			time.Now(),
+		)
+		if err != nil {
+			return err
+		}
+		// A Cloud Tasks retry sees the attempt as already abandoned. Continue the
+		// unfinished finalization instead of acknowledging the retry and leaving
+		// the teacher-facing trace permanently pending or failed.
+		if !marked && (attempt.Status != "abandoned" || attempt.Trace.Finalized) {
+			return nil
+		}
+		_, err = service.finalizeStudentAttempt(ctx, attempt.StudentID, attempt.ID)
+		return err
+	default:
+		return errors.New("unsupported student learning job")
+	}
+}
+
+func (service *Service) finalizeStudentAttempt(
+	ctx context.Context,
+	studentID string,
+	attemptID string,
+) (StudentMissionAttemptDocument, error) {
+	if service.repository == nil {
+		return StudentMissionAttemptDocument{}, errors.New("student learning repository is not configured")
+	}
+	attempt, user, exists, err := service.repository.GetStudentLearningAttempt(ctx, studentID, attemptID)
+	if err != nil {
+		return StudentMissionAttemptDocument{}, err
+	}
+	if !exists {
+		return StudentMissionAttemptDocument{}, ErrStudentAttemptNotFound
+	}
+	if attempt.Trace.Finalized {
+		return attempt, nil
+	}
+	if attempt.Status != "completed" && attempt.Status != "abandoned" {
+		return attempt, nil
+	}
+	if err := service.repository.SetStudentAttemptTraceState(ctx, attempt.ID, "processing", time.Now()); err != nil {
+		return StudentMissionAttemptDocument{}, err
+	}
+
+	missionDocument, err := service.missionForAttempt(
+		ctx,
+		attempt,
+		user.Student.MissionCode,
+	)
+	if err != nil {
+		_ = service.repository.SetStudentAttemptTraceState(ctx, attempt.ID, "failed", time.Now())
+		return StudentMissionAttemptDocument{}, err
+	}
+	traceInput := toLearningTraceInput(
+		missionDocument,
+		attempt.Snapshot,
+		attempt.Status,
+		user.Student.LearningMemory,
+	)
+	trace := orchestrator.BuildObservedLearningTrace(traceInput, "learning trace generator is not configured")
+	if service.learningTraceGenerator != nil {
+		trace, err = service.learningTraceGenerator.BuildLearningTrace(ctx, traceInput)
+		if err != nil {
+			_ = service.repository.SetStudentAttemptTraceState(ctx, attempt.ID, "failed", time.Now())
+			return StudentMissionAttemptDocument{}, err
+		}
+	}
+	trace.Finalized = true
+	trace.EventCount = len(attempt.Snapshot.Events)
+	memory := StudentLearningMemory{
+		Strengths:            trace.Strengths,
+		ImprovementAreas:     trace.ImprovementAreas,
+		PreferredExplanation: attempt.Snapshot.Preferences.ExplanationStyle,
+		NextAdaptation:       trace.NextAdaptation,
+		LastMissionID:        missionDocument.ID,
+		EvidenceAt:           studentAttemptEvidenceTime(attempt),
+	}
+
+	finalized, err := service.repository.FinalizeStudentLearningTrace(
+		ctx,
+		user.ID,
+		attempt.ID,
+		trace,
+		memory,
+		time.Now(),
+	)
+	if err != nil {
+		_ = service.repository.SetStudentAttemptTraceState(ctx, attempt.ID, "failed", time.Now())
+		return StudentMissionAttemptDocument{}, err
+	}
+	if err := service.refreshClassLearningSynthesis(ctx, finalized.ClassID); err != nil {
+		slog.Warn("class learning synthesis refresh failed", "error", err, "class_id", finalized.ClassID)
+	}
+
+	return finalized, nil
+}
+
+func (service *Service) refreshClassLearningSynthesis(ctx context.Context, classID string) error {
+	if service.classLearningGenerator == nil || strings.TrimSpace(classID) == "" {
+		return nil
+	}
+	attempts, err := service.repository.ListLatestFinalizedAttemptsByClassID(ctx, classID, 100)
+	if err != nil {
+		return err
+	}
+	evidence := make([]orchestrator.ClassLearningStudentEvidence, 0, len(attempts))
+	evidenceUpdatedAt := time.Time{}
+	for _, attempt := range attempts {
+		evidence = append(evidence, orchestrator.ClassLearningStudentEvidence{
+			StudentID:        attempt.StudentID,
+			StudentName:      attempt.StudentName,
+			Strengths:        attempt.Trace.Strengths,
+			ImprovementAreas: attempt.Trace.ImprovementAreas,
+		})
+		if studentAttemptEvidenceTime(attempt).After(evidenceUpdatedAt) {
+			evidenceUpdatedAt = studentAttemptEvidenceTime(attempt)
+		}
+	}
+	synthesis, err := service.classLearningGenerator.BuildClassLearningSynthesis(
+		ctx,
+		orchestrator.BuildClassLearningSynthesisInput{
+			ClassID:  classID,
+			Evidence: evidence,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	return service.repository.SaveClassLearningSynthesis(ctx, ClassLearningSynthesisDocument{
+		ClassID:           classID,
+		Synthesis:         synthesis,
+		AttemptCount:      len(attempts),
+		EvidenceUpdatedAt: evidenceUpdatedAt,
+		UpdatedAt:         time.Now(),
+	})
+}
+
+func (service *Service) missionForAttempt(
+	ctx context.Context,
+	attempt StudentMissionAttemptDocument,
+	currentMissionCode string,
+) (mission.MissionDocument, error) {
+	if revisionReader, ok := service.missionReader.(MissionRevisionReader); ok && attempt.PublishedRevision > 0 {
+		published, exists, err := revisionReader.GetPublishedRevision(
+			ctx,
+			attempt.ClassID,
+			attempt.MissionID,
+			attempt.PublishedRevision,
+		)
+		if err != nil {
+			return mission.MissionDocument{}, err
+		}
+		if !exists {
+			return mission.MissionDocument{}, ErrMissionRevisionNotFound
+		}
+		view, valid := mission.ViewAtPublishedRevision(mission.MissionDocument{
+			ID:          attempt.MissionID,
+			ClassID:     attempt.ClassID,
+			MissionCode: attempt.MissionCode,
+		}, published)
+		if !valid {
+			return mission.MissionDocument{}, ErrMissionRevisionNotFound
+		}
+
+		return view, nil
+	}
+
+	// Compatibility path for repository fakes and legacy deployments without
+	// immutable revision reads. Never accept a different current mission.
+	current, err := service.publishedMissionByCode(ctx, currentMissionCode)
+	if err != nil {
+		return mission.MissionDocument{}, err
+	}
+	if current.ID != attempt.MissionID ||
+		(attempt.ClassID != "" && current.ClassID != attempt.ClassID) {
+		return mission.MissionDocument{}, ErrMissionRevisionNotFound
+	}
+
+	return service.missionAtPublishedRevision(ctx, current, attempt.PublishedRevision)
 }
 
 func toLearningTraceInput(
@@ -301,6 +675,9 @@ func toLearningTraceInput(
 }
 
 func normalizeLearningSnapshot(snapshot StudentLearningSnapshot) StudentLearningSnapshot {
+	if snapshot.Revision < 0 {
+		snapshot.Revision = 0
+	}
 	snapshot.ReturnTo = normalizeText(snapshot.ReturnTo)
 	snapshot.LastPod = normalizeText(snapshot.LastPod)
 	for index := range snapshot.Progress {
@@ -334,8 +711,309 @@ func normalizeLearningSnapshot(snapshot StudentLearningSnapshot) StudentLearning
 		event.Outcome = strings.ToLower(normalizeText(event.Outcome))
 	}
 	snapshot.Preferences.ExplanationStyle = strings.ToLower(normalizeText(snapshot.Preferences.ExplanationStyle))
+	snapshot.Checkpoint.StageID = normalizeText(snapshot.Checkpoint.StageID)
+	snapshot.Checkpoint.QuestionID = normalizeText(snapshot.Checkpoint.QuestionID)
+	snapshot.Checkpoint.Phase = strings.ToLower(normalizeText(snapshot.Checkpoint.Phase))
+	snapshot.Checkpoint.WrongChoice = normalizeText(snapshot.Checkpoint.WrongChoice)
+	snapshot.Checkpoint.WrongMisconceptionID = normalizeText(snapshot.Checkpoint.WrongMisconceptionID)
+	snapshot.Checkpoint.DecisionAction = strings.ToLower(normalizeText(snapshot.Checkpoint.DecisionAction))
+	snapshot.Checkpoint.DecisionTarget = normalizeText(snapshot.Checkpoint.DecisionTarget)
+	snapshot.Checkpoint.DecisionMessage = truncateStudentText(snapshot.Checkpoint.DecisionMessage, 500)
+	snapshot.Checkpoint.DecisionWhy = truncateStudentText(snapshot.Checkpoint.DecisionWhy, 500)
+	snapshot.Checkpoint.TutorMessage = truncateStudentText(snapshot.Checkpoint.TutorMessage, 500)
+	snapshot.Checkpoint.WhyPrompt = truncateStudentText(snapshot.Checkpoint.WhyPrompt, 500)
+	if len(snapshot.Checkpoint.Lines) > 12 {
+		snapshot.Checkpoint.Lines = snapshot.Checkpoint.Lines[:12]
+	}
+	for index := range snapshot.Checkpoint.Lines {
+		snapshot.Checkpoint.Lines[index] = normalizeText(snapshot.Checkpoint.Lines[index])
+	}
 
 	return snapshot
+}
+
+func studentSessionMissionFromDocument(document mission.MissionDocument) StudentSessionMission {
+	return StudentSessionMission{
+		ID:                document.ID,
+		MissionCode:       document.MissionCode,
+		PublishedRevision: document.PublishedRevision,
+		Title:             document.Title,
+		Subject:           document.Subject,
+		GradeLevel:        document.GradeLevel,
+		LearningGoal:      document.LearningGoal,
+		Stages:            document.Stages,
+		PreviewQuestions:  document.PreviewQuestions,
+	}
+}
+
+func normalizeStudentTutorTurnInput(input SaveStudentTutorTurnInput) SaveStudentTutorTurnInput {
+	input.MissionID = normalizeText(input.MissionID)
+	input.EventID = normalizeText(input.EventID)
+	input.Type = strings.ToLower(normalizeText(input.Type))
+	input.StageID = normalizeText(input.StageID)
+	input.QuestionID = normalizeText(input.QuestionID)
+	input.Prompt = truncateStudentText(input.Prompt, 500)
+	input.StudentResponse = truncateStudentText(input.StudentResponse, 800)
+	input.ExpectedAnswer = truncateStudentText(input.ExpectedAnswer, 500)
+	input.Outcome = strings.ToLower(normalizeText(input.Outcome))
+	input.ExplicitReasoning = truncateStudentText(input.ExplicitReasoning, 800)
+	input.Feedback = strings.ToLower(truncateStudentText(input.Feedback, 80))
+
+	return input
+}
+
+func groundStudentTutorTurn(
+	document mission.MissionDocument,
+	input SaveStudentTutorTurnInput,
+) (SaveStudentTutorTurnInput, error) {
+	if input.Type == "resume" && input.QuestionID == "" {
+		input.StageID = "mission-resume"
+		input.Prompt = "Resume the published mission: " + document.Title
+		input.ExpectedAnswer = ""
+		input.Outcome = "neutral"
+		return input, nil
+	}
+
+	var publishedQuestion *orchestrator.PreviewQuestion
+	for index := range document.PreviewQuestions {
+		question := &document.PreviewQuestions[index]
+		if question.ID == input.QuestionID {
+			publishedQuestion = question
+			break
+		}
+	}
+	if publishedQuestion == nil {
+		return SaveStudentTutorTurnInput{}, ErrStudentQuestionNotFound
+	}
+
+	input.StageID = publishedQuestion.StageID
+	input.Prompt = publishedQuestion.Prompt
+	input.ExpectedAnswer = publishedQuestion.ExpectedAnswer
+	switch input.Type {
+	case "answer":
+		if normalizedStudentAnswer(input.StudentResponse) == normalizedStudentAnswer(publishedQuestion.ExpectedAnswer) {
+			input.Outcome = "correct"
+		} else {
+			input.Outcome = "incorrect"
+		}
+	case "reasoning", "feedback":
+		input.Outcome = "support"
+	case "resume":
+		input.Outcome = "neutral"
+	}
+
+	return input, nil
+}
+
+func normalizedStudentAnswer(value string) string {
+	value = strings.ToLower(normalizeText(value))
+	return strings.Trim(value, " .,!?:;\"'")
+}
+
+func retrieveMissionKnowledge(
+	document mission.MissionDocument,
+	turn SaveStudentTutorTurnInput,
+	limit int,
+) []orchestrator.KnowledgeChunk {
+	chunks := append([]orchestrator.KnowledgeChunk{}, document.KnowledgeChunks...)
+	if len(chunks) == 0 {
+		for index, stage := range document.Stages {
+			chunks = append(chunks, orchestrator.KnowledgeChunk{
+				ID:       "legacy-stage-" + normalizeRetrievalID(stage.ID, index),
+				Source:   "Published mission",
+				Title:    stage.Title,
+				Content:  normalizeText(strings.Join(append([]string{stage.Goal}, stage.Checks...), " ")),
+				Keywords: strings.Fields(stage.Title + " " + document.Subject),
+			})
+		}
+		for index, question := range document.PreviewQuestions {
+			chunks = append(chunks, orchestrator.KnowledgeChunk{
+				ID:       "legacy-question-" + normalizeRetrievalID(question.ID, index),
+				Source:   "Published mission",
+				Title:    question.Prompt,
+				Content:  normalizeText(strings.Join(append(question.ExplanationSteps, question.ExpectedAnswer), " ")),
+				Keywords: strings.Fields(question.Prompt + " " + question.ExpectedAnswer),
+			})
+		}
+	}
+	queryTokens := retrievalTokens(strings.Join([]string{
+		document.Subject,
+		document.LearningGoal,
+		turn.StageID,
+		turn.Prompt,
+		turn.StudentResponse,
+		turn.ExplicitReasoning,
+	}, " "))
+	type scoredChunk struct {
+		chunk orchestrator.KnowledgeChunk
+		score int
+		index int
+	}
+	scored := make([]scoredChunk, 0, len(chunks))
+	for index, chunk := range chunks {
+		score := 0
+		chunkTokens := retrievalTokens(strings.Join(append([]string{chunk.Title, chunk.Content}, chunk.Keywords...), " "))
+		for token := range queryTokens {
+			if _, exists := chunkTokens[token]; exists {
+				score++
+			}
+		}
+		if turn.StageID != "" && strings.Contains(strings.ToLower(chunk.ID+" "+chunk.Title), strings.ToLower(turn.StageID)) {
+			score += 4
+		}
+		scored = append(scored, scoredChunk{chunk: chunk, score: score, index: index})
+	}
+	sort.SliceStable(scored, func(left int, right int) bool {
+		if scored[left].score == scored[right].score {
+			return scored[left].index < scored[right].index
+		}
+
+		return scored[left].score > scored[right].score
+	})
+	if limit <= 0 {
+		limit = 5
+	}
+	result := make([]orchestrator.KnowledgeChunk, 0, min(limit, len(scored)))
+	for _, entry := range scored {
+		if entry.chunk.Content == "" {
+			continue
+		}
+		result = append(result, entry.chunk)
+		if len(result) >= limit {
+			break
+		}
+	}
+
+	return result
+}
+
+func retrievalTokens(value string) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, token := range strings.Fields(strings.ToLower(value)) {
+		token = strings.Trim(token, ".,:;!?()[]{}\"'")
+		if len(token) < 3 {
+			continue
+		}
+		result[token] = struct{}{}
+	}
+
+	return result
+}
+
+func normalizeRetrievalID(value string, index int) string {
+	value = strings.ToLower(normalizeText(value))
+	value = strings.NewReplacer(" ", "-", "_", "-").Replace(value)
+	value = strings.Trim(value, "-")
+	if value == "" {
+		return fmt.Sprintf("%d", index+1)
+	}
+
+	return value
+}
+
+func toTutorProgress(progress []StudentStageProgress) []orchestrator.LearningTraceStageProgress {
+	result := make([]orchestrator.LearningTraceStageProgress, 0, len(progress))
+	for _, stage := range progress {
+		result = append(result, orchestrator.LearningTraceStageProgress{
+			StageID:  stage.StageID,
+			Status:   stage.Status,
+			Correct:  stage.Correct,
+			Required: stage.Required,
+		})
+	}
+
+	return result
+}
+
+func toTutorTurnHistory(turns []StudentTutorTurn) []orchestrator.TutorTurnHistory {
+	if len(turns) > 12 {
+		turns = turns[len(turns)-12:]
+	}
+	result := make([]orchestrator.TutorTurnHistory, 0, len(turns))
+	for _, turn := range turns {
+		result = append(result, orchestrator.TutorTurnHistory{
+			Sequence: turn.Sequence,
+			Type:     turn.Type,
+			StageID:  turn.StageID,
+			Prompt:   turn.Prompt,
+			Response: turn.StudentResponse,
+			Outcome:  turn.Outcome,
+			Message:  turn.Tutor.Message,
+		})
+	}
+
+	return result
+}
+
+func toTutorEvents(events []StudentLearningEvent) []orchestrator.LearningTraceEvent {
+	if len(events) > 24 {
+		events = events[len(events)-24:]
+	}
+	result := make([]orchestrator.LearningTraceEvent, 0, len(events))
+	for _, event := range events {
+		result = append(result, orchestrator.LearningTraceEvent{
+			ID:         event.ID,
+			Sequence:   event.Sequence,
+			Type:       event.Type,
+			StageID:    event.StageID,
+			QuestionID: event.QuestionID,
+			Title:      event.Title,
+			Detail:     event.Detail,
+			Outcome:    event.Outcome,
+			OccurredAt: event.OccurredAt,
+		})
+	}
+
+	return result
+}
+
+func mostFrequentSignals(values []string, limit int) []string {
+	type count struct {
+		label string
+		value int
+	}
+	counts := make(map[string]*count)
+	for _, value := range values {
+		value = normalizeText(value)
+		key := strings.ToLower(value)
+		if value == "" {
+			continue
+		}
+		if counts[key] == nil {
+			counts[key] = &count{label: value}
+		}
+		counts[key].value++
+	}
+	ordered := make([]count, 0, len(counts))
+	for _, item := range counts {
+		ordered = append(ordered, *item)
+	}
+	sort.SliceStable(ordered, func(left int, right int) bool {
+		if ordered[left].value == ordered[right].value {
+			return ordered[left].label < ordered[right].label
+		}
+
+		return ordered[left].value > ordered[right].value
+	})
+	result := make([]string, 0, min(limit, len(ordered)))
+	for _, item := range ordered {
+		result = append(result, item.label)
+		if len(result) >= limit {
+			break
+		}
+	}
+
+	return result
+}
+
+func truncateStudentText(value string, limit int) string {
+	value = normalizeText(value)
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+
+	return strings.TrimSpace(string(runes[:limit]))
 }
 
 func normalizeMissionCode(value string) string {

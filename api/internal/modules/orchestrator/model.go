@@ -20,6 +20,7 @@ type MissionBlueprint struct {
 	SuggestedDurationMinutes int                 `json:"suggested_duration_minutes"`
 	Stages                   []MissionStage      `json:"stages"`
 	PreviewQuestions         []PreviewQuestion   `json:"preview_questions"`
+	KnowledgeChunks          []KnowledgeChunk    `json:"knowledge_chunks"`
 	Suggestions              []MissionSuggestion `json:"suggestions"`
 	PositiveSignals          []string            `json:"positive_signals"`
 	ImprovementSignals       []string            `json:"improvement_signals"`
@@ -53,11 +54,24 @@ type MissionSuggestion struct {
 
 type PreviewQuestion struct {
 	ID                 string   `json:"id"`
+	StageID            string   `json:"stage_id"`
 	Prompt             string   `json:"prompt"`
 	AnswerType         string   `json:"answer_type"`
 	Options            []string `json:"options"`
 	ExpectedAnswer     string   `json:"expected_answer"`
+	ExplanationSteps   []string `json:"explanation_steps"`
 	MisconceptionTraps []string `json:"misconception_traps"`
+}
+
+// KnowledgeChunk is a short, teacher-approved retrieval unit distilled from
+// the mission prompt and readable attachments. Live tutor turns retrieve only
+// the chunks relevant to the current question instead of resending whole PDFs.
+type KnowledgeChunk struct {
+	ID       string   `firestore:"id" json:"id"`
+	Source   string   `firestore:"source" json:"source"`
+	Title    string   `firestore:"title" json:"title"`
+	Content  string   `firestore:"content" json:"content"`
+	Keywords []string `firestore:"keywords" json:"keywords"`
 }
 
 type AttachmentInput struct {
@@ -86,11 +100,12 @@ type MissionFlow struct {
 }
 
 type MissionFlowNode struct {
-	ID          string              `firestore:"id" json:"id"`
-	Kind        string              `firestore:"kind" json:"kind"`
-	Label       string              `firestore:"label" json:"label"`
-	Description string              `firestore:"description" json:"description"`
-	Position    MissionFlowPosition `firestore:"position" json:"position"`
+	ID               string              `firestore:"id" json:"id"`
+	Kind             string              `firestore:"kind" json:"kind"`
+	Label            string              `firestore:"label" json:"label"`
+	Description      string              `firestore:"description" json:"description"`
+	EvidenceEventIDs []string            `firestore:"evidence_event_ids" json:"evidence_event_ids"`
+	Position         MissionFlowPosition `firestore:"position" json:"position"`
 }
 
 type MissionFlowPosition struct {
@@ -193,4 +208,107 @@ type LearningTraceBlueprint struct {
 	ModelVersion     string      `firestore:"model_version" json:"model_version"`
 	FallbackReason   string      `firestore:"fallback_reason" json:"fallback_reason"`
 	Usage            GenAIUsage  `firestore:"usage" json:"usage"`
+}
+
+// BuildTutorTurnInput is the complete, server-owned context for one live
+// tutoring turn. Student-entered strings remain untrusted evidence.
+type BuildTutorTurnInput struct {
+	Mission         TutorMissionContext         `json:"mission"`
+	StudentMemory   LearningTracePreviousMemory `json:"student_memory"`
+	ClassContext    TutorClassContext           `json:"class_context"`
+	Attempt         TutorAttemptContext         `json:"attempt"`
+	Turn            TutorTurnEvidence           `json:"turn"`
+	RetrievedChunks []KnowledgeChunk            `json:"retrieved_chunks"`
+}
+
+type TutorMissionContext struct {
+	ID           string         `json:"id"`
+	Title        string         `json:"title"`
+	Subject      string         `json:"subject"`
+	GradeLevel   string         `json:"grade_level"`
+	LearningGoal string         `json:"learning_goal"`
+	Stages       []MissionStage `json:"stages"`
+}
+
+type TutorClassContext struct {
+	CommonStrengths []string `json:"common_strengths"`
+	CommonNeeds     []string `json:"common_needs"`
+}
+
+type TutorAttemptContext struct {
+	Status       string                       `json:"status"`
+	Progress     []LearningTraceStageProgress `json:"progress"`
+	RecentTurns  []TutorTurnHistory           `json:"recent_turns"`
+	RecentEvents []LearningTraceEvent         `json:"recent_events"`
+}
+
+type TutorTurnHistory struct {
+	Sequence int    `json:"sequence"`
+	Type     string `json:"type"`
+	StageID  string `json:"stage_id"`
+	Prompt   string `json:"prompt"`
+	Response string `json:"response"`
+	Outcome  string `json:"outcome"`
+	Message  string `json:"message"`
+}
+
+type TutorTurnEvidence struct {
+	EventID           string `json:"event_id"`
+	Type              string `json:"type"`
+	StageID           string `json:"stage_id"`
+	QuestionID        string `json:"question_id"`
+	Prompt            string `json:"prompt"`
+	StudentResponse   string `json:"student_response"`
+	ExpectedAnswer    string `json:"expected_answer"`
+	Outcome           string `json:"outcome"`
+	ExplicitReasoning string `json:"explicit_reasoning"`
+	Feedback          string `json:"feedback"`
+}
+
+type TutorTurnBlueprint struct {
+	Message            string     `firestore:"message" json:"message"`
+	WhyPrompt          string     `firestore:"why_prompt" json:"why_prompt"`
+	ExplanationSteps   []string   `firestore:"explanation_steps" json:"explanation_steps"`
+	ExplanationStyle   string     `firestore:"explanation_style" json:"explanation_style"`
+	DifficultyBias     int        `firestore:"difficulty_bias" json:"difficulty_bias"`
+	NextAction         string     `firestore:"next_action" json:"next_action"`
+	TeacherObservation string     `firestore:"teacher_observation" json:"teacher_observation"`
+	RetrievedChunkIDs  []string   `firestore:"retrieved_chunk_ids" json:"retrieved_chunk_ids"`
+	EvidenceEventIDs   []string   `firestore:"evidence_event_ids" json:"evidence_event_ids"`
+	GeneratedByAI      bool       `firestore:"generated_by_ai" json:"generated_by_ai"`
+	Provider           string     `firestore:"provider" json:"provider"`
+	Model              string     `firestore:"model" json:"model"`
+	ModelVersion       string     `firestore:"model_version" json:"model_version"`
+	FallbackReason     string     `firestore:"fallback_reason" json:"fallback_reason"`
+	Usage              GenAIUsage `firestore:"usage" json:"usage"`
+}
+
+type BuildClassLearningSynthesisInput struct {
+	ClassID  string                         `json:"class_id"`
+	Evidence []ClassLearningStudentEvidence `json:"evidence"`
+}
+
+type ClassLearningStudentEvidence struct {
+	StudentID        string   `json:"student_id"`
+	StudentName      string   `json:"student_name"`
+	Strengths        []string `json:"strengths"`
+	ImprovementAreas []string `json:"improvement_areas"`
+}
+
+type ClassLearningSynthesis struct {
+	CommonStrengths []ClassLearningCluster `firestore:"common_strengths" json:"common_strengths"`
+	CommonNeeds     []ClassLearningCluster `firestore:"common_needs" json:"common_needs"`
+	NextAdaptation  string                 `firestore:"next_adaptation" json:"next_adaptation"`
+	GeneratedByAI   bool                   `firestore:"generated_by_ai" json:"generated_by_ai"`
+	Provider        string                 `firestore:"provider" json:"provider"`
+	Model           string                 `firestore:"model" json:"model"`
+	ModelVersion    string                 `firestore:"model_version" json:"model_version"`
+	FallbackReason  string                 `firestore:"fallback_reason" json:"fallback_reason"`
+	Usage           GenAIUsage             `firestore:"usage" json:"usage"`
+}
+
+type ClassLearningCluster struct {
+	Label          string   `firestore:"label" json:"label"`
+	StudentIDs     []string `firestore:"student_ids" json:"student_ids"`
+	EvidenceLabels []string `firestore:"evidence_labels" json:"evidence_labels"`
 }

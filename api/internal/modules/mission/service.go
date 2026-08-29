@@ -24,6 +24,7 @@ var (
 	ErrMissionDraftConflict         = errors.New("teacher class mission draft revision changed")
 	ErrMissionDraftRevisionRequired = errors.New("teacher class mission expected draft revision is required")
 	ErrMissionAttachmentQueue       = errors.New("teacher class mission attachment queue is not configured")
+	ErrMissionGuardrailBlocked      = errors.New("teacher class mission was blocked by the education guardrail")
 )
 
 const (
@@ -151,6 +152,9 @@ func (service *Service) Approve(
 	if draftMission.Draft == nil {
 		return MissionDocument{}, ErrMissionDraftNotFound
 	}
+	if missionGuardrailBlocked(draftMission.EducationGuardrail) {
+		return MissionDocument{}, ErrMissionGuardrailBlocked
+	}
 	alreadyPublished := draftMission.Published != nil &&
 		draftMission.PublishedRevision == draftMission.DraftRevision &&
 		!draftMission.HasUnpublishedChanges
@@ -180,6 +184,12 @@ func (service *Service) Approve(
 	}
 
 	return mission, nil
+}
+
+func missionGuardrailBlocked(guardrail orchestrator.EducationGuardrail) bool {
+	// Older stored missions predate this field and decode to the zero value.
+	// A normalized blocked result always has an explanatory reason.
+	return !guardrail.Allowed && strings.TrimSpace(guardrail.Reason) != ""
 }
 
 func (service *Service) Delete(

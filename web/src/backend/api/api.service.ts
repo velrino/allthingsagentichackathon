@@ -22,6 +22,7 @@ export const ApiResources = {
 
     const options: RequestInit = {
       headers,
+      keepalive: parameters.keepalive,
       method: parameters.method,
     };
 

@@ -30,20 +30,10 @@ type UserProfileResponse struct {
 }
 
 type StudentProfileResponse struct {
-	ClassID        string                        `json:"class_id"`
-	MissionID      string                        `json:"mission_id"`
-	MissionCode    string                        `json:"mission_code"`
-	StudentName    string                        `json:"student_name"`
-	LearningMemory StudentLearningMemoryResponse `json:"learning_memory"`
-}
-
-type StudentLearningMemoryResponse struct {
-	Strengths            []string `json:"strengths"`
-	ImprovementAreas     []string `json:"improvement_areas"`
-	PreferredExplanation string   `json:"preferred_explanation"`
-	NextAdaptation       string   `json:"next_adaptation"`
-	LastMissionID        string   `json:"last_mission_id"`
-	UpdatedAt            string   `json:"updated_at"`
+	ClassID     string `json:"class_id"`
+	MissionID   string `json:"mission_id"`
+	MissionCode string `json:"mission_code"`
+	StudentName string `json:"student_name"`
 }
 
 type UserActivityResponse struct {
@@ -63,6 +53,38 @@ type StudentGameSessionResponse struct {
 	Status            string `json:"status"`
 	StartedAt         string `json:"started_at"`
 	LastHeartbeatAt   string `json:"last_heartbeat_at"`
+}
+
+type StudentLearningResumeResponse struct {
+	ID                string                        `json:"id"`
+	MissionID         string                        `json:"mission_id"`
+	PublishedRevision int64                         `json:"published_revision"`
+	Status            string                        `json:"status"`
+	Snapshot          StudentResumeSnapshotResponse `json:"snapshot"`
+	LastEventSequence int                           `json:"last_event_sequence"`
+	StartedAt         string                        `json:"started_at"`
+	LastActivityAt    string                        `json:"last_activity_at"`
+}
+
+type StudentResumeSnapshotResponse struct {
+	Revision    int64                    `json:"revision"`
+	Progress    []StudentStageProgress   `json:"progress"`
+	Preferences StudentPreferences       `json:"preferences"`
+	Redirected  bool                     `json:"redirected"`
+	ReturnTo    string                   `json:"return_to"`
+	LastPod     string                   `json:"last_pod"`
+	Checkpoint  StudentSessionCheckpoint `json:"checkpoint"`
+}
+
+type StudentTutorTurnResponse struct {
+	TurnID           string   `json:"turn_id"`
+	Sequence         int      `json:"sequence"`
+	Message          string   `json:"message"`
+	WhyPrompt        string   `json:"why_prompt"`
+	ExplanationSteps []string `json:"explanation_steps"`
+	ExplanationStyle string   `json:"explanation_style"`
+	DifficultyBias   int      `json:"difficulty_bias"`
+	NextAction       string   `json:"next_action"`
 }
 
 func ToResponse(user UserDocument) UserResponse {
@@ -85,14 +107,6 @@ func ToResponse(user UserDocument) UserResponse {
 			MissionID:   user.Student.MissionID,
 			MissionCode: user.Student.MissionCode,
 			StudentName: user.Student.StudentName,
-			LearningMemory: StudentLearningMemoryResponse{
-				Strengths:            user.Student.LearningMemory.Strengths,
-				ImprovementAreas:     user.Student.LearningMemory.ImprovementAreas,
-				PreferredExplanation: user.Student.LearningMemory.PreferredExplanation,
-				NextAdaptation:       user.Student.LearningMemory.NextAdaptation,
-				LastMissionID:        user.Student.LearningMemory.LastMissionID,
-				UpdatedAt:            formatTime(user.Student.LearningMemory.UpdatedAt),
-			},
 		},
 		Activity: UserActivityResponse{
 			FirstSeenAt: formatTime(user.Activity.FirstSeenAt),
@@ -115,6 +129,47 @@ func ToResponse(user UserDocument) UserResponse {
 		DeletedAt: optionalTime(user.DeletedAt),
 		CreatedAt: formatTime(user.CreatedAt),
 		UpdatedAt: formatTime(user.UpdatedAt),
+	}
+}
+
+func ToStudentLearningResume(attempt StudentMissionAttemptDocument) StudentLearningResumeResponse {
+	lastSequence := 0
+	for _, event := range attempt.Snapshot.Events {
+		if event.Sequence > lastSequence {
+			lastSequence = event.Sequence
+		}
+	}
+
+	return StudentLearningResumeResponse{
+		ID:                attempt.ID,
+		MissionID:         attempt.MissionID,
+		PublishedRevision: attempt.PublishedRevision,
+		Status:            attempt.Status,
+		Snapshot: StudentResumeSnapshotResponse{
+			Revision:    attempt.Snapshot.Revision,
+			Progress:    attempt.Snapshot.Progress,
+			Preferences: attempt.Snapshot.Preferences,
+			Redirected:  attempt.Snapshot.Redirected,
+			ReturnTo:    attempt.Snapshot.ReturnTo,
+			LastPod:     attempt.Snapshot.LastPod,
+			Checkpoint:  attempt.Snapshot.Checkpoint,
+		},
+		LastEventSequence: lastSequence,
+		StartedAt:         formatTime(attempt.StartedAt),
+		LastActivityAt:    formatTime(attempt.LastActivityAt),
+	}
+}
+
+func ToStudentTutorTurnResponse(turn StudentTutorTurn) StudentTutorTurnResponse {
+	return StudentTutorTurnResponse{
+		TurnID:           turn.ID,
+		Sequence:         turn.Sequence,
+		Message:          turn.Tutor.Message,
+		WhyPrompt:        turn.Tutor.WhyPrompt,
+		ExplanationSteps: turn.Tutor.ExplanationSteps,
+		ExplanationStyle: turn.Tutor.ExplanationStyle,
+		DifficultyBias:   turn.Tutor.DifficultyBias,
+		NextAction:       turn.Tutor.NextAction,
 	}
 }
 

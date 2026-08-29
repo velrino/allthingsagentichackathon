@@ -25,6 +25,9 @@ type UserDocument struct {
 	DeletedAt *time.Time     `firestore:"deleted_at" json:"deleted_at"`
 	CreatedAt time.Time      `firestore:"created_at" json:"created_at"`
 	UpdatedAt time.Time      `firestore:"updated_at" json:"updated_at"`
+	// SessionMission is populated only for the authenticated student-session
+	// response and is never written to the user document.
+	SessionMission StudentSessionMission `firestore:"-" json:"-"`
 }
 
 type UserIdentity struct {
@@ -106,37 +109,65 @@ type StudentLearningMemory struct {
 	PreferredExplanation string    `firestore:"preferred_explanation" json:"preferred_explanation"`
 	NextAdaptation       string    `firestore:"next_adaptation" json:"next_adaptation"`
 	LastMissionID        string    `firestore:"last_mission_id" json:"last_mission_id"`
+	EvidenceAt           time.Time `firestore:"evidence_at" json:"evidence_at"`
 	UpdatedAt            time.Time `firestore:"updated_at" json:"updated_at"`
 }
 
 type StudentMissionAttemptDocument struct {
-	ID                string                              `firestore:"id" json:"id"`
-	StudentID         string                              `firestore:"student_id" json:"student_id"`
-	StudentName       string                              `firestore:"student_name" json:"student_name"`
-	ClassID           string                              `firestore:"class_id" json:"class_id"`
-	MissionID         string                              `firestore:"mission_id" json:"mission_id"`
-	MissionCode       string                              `firestore:"mission_code" json:"mission_code"`
-	PublishedRevision int64                               `firestore:"published_revision" json:"published_revision"`
-	Subject           string                              `firestore:"subject" json:"subject"`
-	Status            string                              `firestore:"status" json:"status"`
-	Snapshot          StudentLearningSnapshot             `firestore:"snapshot" json:"snapshot"`
-	Trace             orchestrator.LearningTraceBlueprint `firestore:"trace" json:"trace"`
-	StartedAt         time.Time                           `firestore:"started_at" json:"started_at"`
-	LastActivityAt    time.Time                           `firestore:"last_activity_at" json:"last_activity_at"`
-	CompletedAt       time.Time                           `firestore:"completed_at" json:"completed_at"`
-	CreatedAt         time.Time                           `firestore:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                           `firestore:"updated_at" json:"updated_at"`
+	ID                  string                              `firestore:"id" json:"id"`
+	StudentID           string                              `firestore:"student_id" json:"student_id"`
+	StudentName         string                              `firestore:"student_name" json:"student_name"`
+	ClassID             string                              `firestore:"class_id" json:"class_id"`
+	MissionID           string                              `firestore:"mission_id" json:"mission_id"`
+	MissionCode         string                              `firestore:"mission_code" json:"mission_code"`
+	PublishedRevision   int64                               `firestore:"published_revision" json:"published_revision"`
+	Subject             string                              `firestore:"subject" json:"subject"`
+	Status              string                              `firestore:"status" json:"status"`
+	Snapshot            StudentLearningSnapshot             `firestore:"snapshot" json:"snapshot"`
+	TutorTurns          []StudentTutorTurn                  `firestore:"tutor_turns" json:"tutor_turns"`
+	Trace               orchestrator.LearningTraceBlueprint `firestore:"trace" json:"trace"`
+	TraceState          string                              `firestore:"trace_state" json:"trace_state"`
+	FinalizeRequestedAt time.Time                           `firestore:"finalize_requested_at" json:"finalize_requested_at"`
+	StartedAt           time.Time                           `firestore:"started_at" json:"started_at"`
+	LastActivityAt      time.Time                           `firestore:"last_activity_at" json:"last_activity_at"`
+	CompletedAt         time.Time                           `firestore:"completed_at" json:"completed_at"`
+	AbandonedAt         time.Time                           `firestore:"abandoned_at" json:"abandoned_at"`
+	CreatedAt           time.Time                           `firestore:"created_at" json:"created_at"`
+	UpdatedAt           time.Time                           `firestore:"updated_at" json:"updated_at"`
 }
 
 type StudentLearningSnapshot struct {
-	Progress    []StudentStageProgress `firestore:"progress" json:"progress"`
-	Notes       []StudentLearningNote  `firestore:"notes" json:"notes"`
-	Preferences StudentPreferences     `firestore:"preferences" json:"preferences"`
-	Decisions   []StudentDecision      `firestore:"decisions" json:"decisions"`
-	Events      []StudentLearningEvent `firestore:"events" json:"events"`
-	Redirected  bool                   `firestore:"redirected" json:"redirected"`
-	ReturnTo    string                 `firestore:"return_to" json:"return_to"`
-	LastPod     string                 `firestore:"last_pod" json:"last_pod"`
+	Revision    int64                    `firestore:"revision" json:"revision"`
+	Progress    []StudentStageProgress   `firestore:"progress" json:"progress"`
+	Notes       []StudentLearningNote    `firestore:"notes" json:"notes"`
+	Preferences StudentPreferences       `firestore:"preferences" json:"preferences"`
+	Decisions   []StudentDecision        `firestore:"decisions" json:"decisions"`
+	Events      []StudentLearningEvent   `firestore:"events" json:"events"`
+	Redirected  bool                     `firestore:"redirected" json:"redirected"`
+	ReturnTo    string                   `firestore:"return_to" json:"return_to"`
+	LastPod     string                   `firestore:"last_pod" json:"last_pod"`
+	Checkpoint  StudentSessionCheckpoint `firestore:"checkpoint" json:"checkpoint"`
+}
+
+// StudentSessionCheckpoint is the exact recoverable UI position. It contains
+// no teacher notes or hidden model reasoning.
+type StudentSessionCheckpoint struct {
+	StageID              string   `firestore:"stage_id" json:"stage_id"`
+	QuestionID           string   `firestore:"question_id" json:"question_id"`
+	Phase                string   `firestore:"phase" json:"phase"`
+	StepIndex            int      `firestore:"step_index" json:"step_index"`
+	ExplainIndex         int      `firestore:"explain_index" json:"explain_index"`
+	Lines                []string `firestore:"lines" json:"lines"`
+	WrongChoice          string   `firestore:"wrong_choice" json:"wrong_choice"`
+	WrongMisconceptionID string   `firestore:"wrong_misconception_id" json:"wrong_misconception_id"`
+	DecisionAction       string   `firestore:"decision_action" json:"decision_action"`
+	DecisionTarget       string   `firestore:"decision_target" json:"decision_target"`
+	DecisionMessage      string   `firestore:"decision_message" json:"decision_message"`
+	DecisionWhy          string   `firestore:"decision_why" json:"decision_why"`
+	TutorMessage         string   `firestore:"tutor_message" json:"tutor_message"`
+	WhyPrompt            string   `firestore:"why_prompt" json:"why_prompt"`
+	Clean                bool     `firestore:"clean" json:"clean"`
+	Seated               bool     `firestore:"seated" json:"seated"`
 }
 
 type StudentStageProgress struct {
@@ -191,4 +222,56 @@ type SaveStudentLearningSnapshotInput struct {
 	Snapshot  StudentLearningSnapshot
 	Trace     orchestrator.LearningTraceBlueprint
 	Timestamp time.Time
+}
+
+type StudentSessionMission struct {
+	ID                string                         `json:"id"`
+	MissionCode       string                         `json:"mission_code"`
+	PublishedRevision int64                          `json:"published_revision"`
+	Title             string                         `json:"title"`
+	Subject           string                         `json:"subject"`
+	GradeLevel        string                         `json:"grade_level"`
+	LearningGoal      string                         `json:"learning_goal"`
+	Stages            []orchestrator.MissionStage    `json:"stages"`
+	PreviewQuestions  []orchestrator.PreviewQuestion `json:"preview_questions"`
+}
+
+type StudentTutorTurn struct {
+	ID                string                          `firestore:"id" json:"id"`
+	Sequence          int                             `firestore:"sequence" json:"sequence"`
+	Type              string                          `firestore:"type" json:"type"`
+	StageID           string                          `firestore:"stage_id" json:"stage_id"`
+	QuestionID        string                          `firestore:"question_id" json:"question_id"`
+	Prompt            string                          `firestore:"prompt" json:"prompt"`
+	StudentResponse   string                          `firestore:"student_response" json:"student_response"`
+	ExpectedAnswer    string                          `firestore:"expected_answer" json:"expected_answer"`
+	Outcome           string                          `firestore:"outcome" json:"outcome"`
+	ExplicitReasoning string                          `firestore:"explicit_reasoning" json:"explicit_reasoning"`
+	Feedback          string                          `firestore:"feedback" json:"feedback"`
+	Tutor             orchestrator.TutorTurnBlueprint `firestore:"tutor" json:"tutor"`
+	CreatedAt         time.Time                       `firestore:"created_at" json:"created_at"`
+}
+
+type SaveStudentTutorTurnInput struct {
+	Identity          sharedfirebase.Identity
+	MissionID         string
+	EventID           string
+	Type              string
+	StageID           string
+	QuestionID        string
+	Prompt            string
+	StudentResponse   string
+	ExpectedAnswer    string
+	Outcome           string
+	ExplicitReasoning string
+	Feedback          string
+	Timestamp         time.Time
+}
+
+type ClassLearningSynthesisDocument struct {
+	ClassID           string                              `firestore:"class_id" json:"class_id"`
+	Synthesis         orchestrator.ClassLearningSynthesis `firestore:"synthesis" json:"synthesis"`
+	AttemptCount      int                                 `firestore:"attempt_count" json:"attempt_count"`
+	EvidenceUpdatedAt time.Time                           `firestore:"evidence_updated_at" json:"evidence_updated_at"`
+	UpdatedAt         time.Time                           `firestore:"updated_at" json:"updated_at"`
 }

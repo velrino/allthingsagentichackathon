@@ -69,6 +69,14 @@ type StudentLearningService interface {
 	) (StudentMissionAttemptDocument, bool, error)
 }
 
+type StudentTutorService interface {
+	SaveStudentTutorTurn(
+		context.Context,
+		sharedfirebase.Identity,
+		SaveStudentTutorTurnInput,
+	) (StudentTutorTurn, error)
+}
+
 type HandlerOptions struct {
 	Authenticator                  Authenticator
 	StudentSessionTimeout          time.Duration
@@ -77,6 +85,7 @@ type HandlerOptions struct {
 	StudentSessionRateLimitExpires time.Duration
 	StudentLearningTimeout         time.Duration
 	StudentLearningService         StudentLearningService
+	StudentTutorService            StudentTutorService
 	UsersService                   UsersService
 }
 
@@ -85,6 +94,7 @@ type Handler struct {
 	studentSessionTimeout  time.Duration
 	studentLearningTimeout time.Duration
 	studentLearningService StudentLearningService
+	studentTutorService    StudentTutorService
 	usersService           UsersService
 }
 
@@ -102,7 +112,8 @@ type StudentMissionCodeResponse struct {
 }
 
 type StudentSessionResponse struct {
-	User UserResponse `json:"user"`
+	User    UserResponse           `json:"user"`
+	Mission *StudentSessionMission `json:"mission,omitempty"`
 }
 
 type StudentPresenceRequest struct {
@@ -120,7 +131,25 @@ type StudentLearningSnapshotRequest struct {
 }
 
 type StudentLearningResponse struct {
-	Attempt *StudentMissionAttemptDocument `json:"attempt"`
+	Attempt *StudentLearningResumeResponse `json:"attempt"`
+}
+
+type StudentTutorTurnRequest struct {
+	MissionID         string `json:"mission_id"`
+	EventID           string `json:"event_id"`
+	Type              string `json:"type"`
+	StageID           string `json:"stage_id"`
+	QuestionID        string `json:"question_id"`
+	Prompt            string `json:"prompt"`
+	StudentResponse   string `json:"student_response"`
+	ExpectedAnswer    string `json:"expected_answer"`
+	Outcome           string `json:"outcome"`
+	ExplicitReasoning string `json:"explicit_reasoning"`
+	Feedback          string `json:"feedback"`
+}
+
+type StudentTutorTurnAPIResponse struct {
+	Turn StudentTutorTurnResponse `json:"turn"`
 }
 
 type ErrorResponse struct {
@@ -137,11 +166,16 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 	if studentLearningService == nil {
 		studentLearningService, _ = options.UsersService.(StudentLearningService)
 	}
+	studentTutorService := options.StudentTutorService
+	if studentTutorService == nil {
+		studentTutorService, _ = options.UsersService.(StudentTutorService)
+	}
 	handler := &Handler{
 		authenticator:          options.Authenticator,
 		studentSessionTimeout:  resolveStudentSessionTimeout(options.StudentSessionTimeout),
 		studentLearningTimeout: resolveStudentLearningTimeout(options.StudentLearningTimeout),
 		studentLearningService: studentLearningService,
+		studentTutorService:    studentTutorService,
 		usersService:           options.UsersService,
 	}
 
@@ -169,6 +203,11 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 	server.POST(
 		"/users/student-learning",
 		handler.PostStudentLearning,
+		studentLearningRateLimiter(),
+	)
+	server.POST(
+		"/users/student-tutor-turn",
+		handler.PostStudentTutorTurn,
 		studentLearningRateLimiter(),
 	)
 }
@@ -249,7 +288,8 @@ func (handler *Handler) PostStudentSession(ctx *echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, StudentSessionResponse{
-		User: ToResponse(user),
+		User:    ToResponse(user),
+		Mission: &user.SessionMission,
 	})
 }
 
@@ -325,7 +365,8 @@ func (handler *Handler) GetStudentLearning(ctx *echo.Context) error {
 		return ctx.JSON(http.StatusOK, StudentLearningResponse{Attempt: nil})
 	}
 
-	return ctx.JSON(http.StatusOK, StudentLearningResponse{Attempt: &attempt})
+	resume := ToStudentLearningResume(attempt)
+	return ctx.JSON(http.StatusOK, StudentLearningResponse{Attempt: &resume})
 }
 
 func (handler *Handler) PostStudentLearning(ctx *echo.Context) error {
@@ -359,7 +400,54 @@ func (handler *Handler) PostStudentLearning(ctx *echo.Context) error {
 		return handler.studentLearningError(ctx, err)
 	}
 
-	return ctx.JSON(http.StatusOK, StudentLearningResponse{Attempt: &attempt})
+	resume := ToStudentLearningResume(attempt)
+	return ctx.JSON(http.StatusOK, StudentLearningResponse{Attempt: &resume})
+}
+
+func (handler *Handler) PostStudentTutorTurn(ctx *echo.Context) error {
+	var request StudentTutorTurnRequest
+	if err := ctx.Bind(&request); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "bad_request", "Invalid JSON body.")
+	}
+	if err := request.Validate(); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
+	}
+	if handler.authenticator == nil || handler.studentTutorService == nil {
+		slog.Error("student tutor dependencies are not configured")
+		return jsonError(ctx, http.StatusInternalServerError, "not_configured", "Student tutor is not configured.")
+	}
+
+	requestContext, cancel := context.WithTimeout(ctx.Request().Context(), handler.studentLearningTimeout)
+	defer cancel()
+	identity, ok, err := handler.authenticate(requestContext, ctx)
+	if err != nil || !ok {
+		return err
+	}
+
+	turn, err := handler.studentTutorService.SaveStudentTutorTurn(
+		requestContext,
+		identity,
+		SaveStudentTutorTurnInput{
+			MissionID:         request.MissionID,
+			EventID:           request.EventID,
+			Type:              request.Type,
+			StageID:           request.StageID,
+			QuestionID:        request.QuestionID,
+			Prompt:            request.Prompt,
+			StudentResponse:   request.StudentResponse,
+			ExpectedAnswer:    request.ExpectedAnswer,
+			Outcome:           request.Outcome,
+			ExplicitReasoning: request.ExplicitReasoning,
+			Feedback:          request.Feedback,
+		},
+	)
+	if err != nil {
+		return handler.studentLearningError(ctx, err)
+	}
+
+	return ctx.JSON(http.StatusOK, StudentTutorTurnAPIResponse{
+		Turn: ToStudentTutorTurnResponse(turn),
+	})
 }
 
 func (handler *Handler) studentLearningError(ctx *echo.Context, err error) error {
@@ -372,6 +460,10 @@ func (handler *Handler) studentLearningError(ctx *echo.Context, err error) error
 		return jsonError(ctx, http.StatusConflict, "mission_mismatch", "The learning snapshot does not match the active student mission.")
 	case errors.Is(err, ErrStudentAttemptNotFound):
 		return jsonError(ctx, http.StatusNotFound, "attempt_not_found", "The student learning attempt was not found.")
+	case errors.Is(err, ErrStudentQuestionNotFound):
+		return jsonError(ctx, http.StatusBadRequest, "question_not_found", "The question is not part of the published mission.")
+	case errors.Is(err, ErrMissionRevisionNotFound):
+		return jsonError(ctx, http.StatusConflict, "mission_revision_not_found", "The published mission revision for this attempt is unavailable.")
 	default:
 		slog.Error("student learning request failed", "error", err)
 		return jsonError(ctx, http.StatusInternalServerError, "student_learning_failed", "Could not save student learning.")
@@ -431,7 +523,7 @@ func (request StudentPresenceRequest) Validate() error {
 		validation.Field(&request.StageName, validation.Required, validation.Length(1, 120)),
 		validation.Field(&request.Status,
 			validation.Required,
-			validation.In("exploring", "learning", "thinking", "reviewing", "completed"),
+			validation.In("exploring", "learning", "thinking", "reviewing", "paused", "completed"),
 		),
 	)
 }
@@ -441,7 +533,7 @@ func (request StudentLearningSnapshotRequest) Validate() error {
 		validation.Field(&request.MissionID, validation.Required, validation.Length(1, 120)),
 		validation.Field(&request.Status,
 			validation.Required,
-			validation.In("exploring", "learning", "thinking", "reviewing", "completed"),
+			validation.In("exploring", "learning", "thinking", "reviewing", "paused", "completed"),
 		),
 	); err != nil {
 		return err
@@ -457,6 +549,46 @@ func (request StudentLearningSnapshotRequest) Validate() error {
 	}
 	if len(request.Snapshot.Events) > 160 {
 		return errors.New("snapshot.events cannot contain more than 160 events")
+	}
+	if request.Snapshot.Revision <= 0 {
+		return errors.New("snapshot.revision must be greater than zero")
+	}
+	if len(request.Snapshot.Checkpoint.Lines) > 12 {
+		return errors.New("snapshot.checkpoint.lines cannot contain more than 12 lines")
+	}
+	checkpoint := request.Snapshot.Checkpoint
+	for field, value := range map[string]string{
+		"stage_id":               checkpoint.StageID,
+		"question_id":            checkpoint.QuestionID,
+		"wrong_choice":           checkpoint.WrongChoice,
+		"wrong_misconception_id": checkpoint.WrongMisconceptionID,
+		"decision_target":        checkpoint.DecisionTarget,
+	} {
+		if err := validation.Validate(value, validation.Length(0, 120)); err != nil {
+			return fmt.Errorf("snapshot.checkpoint.%s: %w", field, err)
+		}
+	}
+	for field, value := range map[string]string{
+		"decision_message": checkpoint.DecisionMessage,
+		"decision_why":     checkpoint.DecisionWhy,
+		"tutor_message":    checkpoint.TutorMessage,
+		"why_prompt":       checkpoint.WhyPrompt,
+	} {
+		if err := validation.Validate(value, validation.Length(0, 500)); err != nil {
+			return fmt.Errorf("snapshot.checkpoint.%s: %w", field, err)
+		}
+	}
+	if err := validation.Validate(
+		checkpoint.Phase,
+		validation.In("", "question", "correct", "why", "explain", "feedback", "thinking", "decision"),
+	); err != nil {
+		return fmt.Errorf("snapshot.checkpoint.phase: %w", err)
+	}
+	if err := validation.Validate(
+		checkpoint.DecisionAction,
+		validation.In("", "next", "complete", "redirect", "mission-complete", "erase-note"),
+	); err != nil {
+		return fmt.Errorf("snapshot.checkpoint.decision_action: %w", err)
 	}
 	if request.Snapshot.Preferences.DifficultyBias < -1 || request.Snapshot.Preferences.DifficultyBias > 1 {
 		return errors.New("snapshot.preferences.difficulty_bias must be -1, 0, or 1")
@@ -557,6 +689,44 @@ func (request StudentLearningSnapshotRequest) Validate() error {
 		}
 		if len([]rune(event.Title)) > 160 || len([]rune(event.Detail)) > 420 {
 			return fmt.Errorf("snapshot.events[%d] text is too long", index)
+		}
+	}
+
+	return nil
+}
+
+func (request StudentTutorTurnRequest) Validate() error {
+	if err := validation.ValidateStruct(&request,
+		validation.Field(&request.MissionID, validation.Required, validation.Length(1, 120)),
+		validation.Field(&request.EventID, validation.Required, validation.Length(1, 120)),
+		validation.Field(&request.Type,
+			validation.Required,
+			validation.In("answer", "reasoning", "feedback", "resume"),
+		),
+		validation.Field(&request.StageID, validation.Required, validation.Length(1, 120)),
+		validation.Field(&request.QuestionID, validation.Length(0, 120)),
+		validation.Field(&request.Prompt, validation.Required, validation.Length(1, 500)),
+		validation.Field(&request.StudentResponse, validation.Length(0, 800)),
+		validation.Field(&request.ExpectedAnswer, validation.Length(0, 500)),
+		validation.Field(&request.Outcome,
+			validation.Required,
+			validation.In("neutral", "correct", "incorrect", "support", "complete"),
+		),
+		validation.Field(&request.ExplicitReasoning, validation.Length(0, 800)),
+		validation.Field(&request.Feedback, validation.Length(0, 80)),
+	); err != nil {
+		return err
+	}
+	if request.Type == "reasoning" && strings.TrimSpace(request.ExplicitReasoning) == "" {
+		return errors.New("explicit_reasoning is required for a reasoning turn")
+	}
+	if request.Type == "feedback" {
+		if err := validation.Validate(
+			request.Feedback,
+			validation.Required,
+			validation.In("helpful", "confusing", "too-easy", "too-hard"),
+		); err != nil {
+			return fmt.Errorf("feedback: %w", err)
 		}
 	}
 

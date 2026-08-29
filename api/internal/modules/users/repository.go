@@ -3,10 +3,13 @@ package users
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -16,6 +19,8 @@ import (
 const (
 	usersCollectionName           = "users"
 	studentAttemptsCollectionName = "student_mission_attempts"
+	classLearningCollectionName   = "class_learning_summaries"
+	maxTutorTurnsPerAttempt       = 80
 )
 
 type Repository struct {
@@ -76,7 +81,7 @@ func (repository *Repository) UpsertStudent(
 				currentGame.PublishedRevision = input.MissionPublishedRevision
 			}
 			currentGame.LastHeartbeatAt = now
-			if currentGame.Status == "" {
+			if currentGame.Status == "" || currentGame.Status == "paused" || currentGame.Status == "abandoned" {
 				currentGame.Status = "exploring"
 			}
 		} else {
@@ -216,7 +221,11 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 			startedAt = input.Timestamp
 		}
 		completedAt := time.Time{}
+		abandonedAt := time.Time{}
 		trace := input.Trace
+		traceState := "live"
+		finalizeRequestedAt := time.Time{}
+		tutorTurns := []StudentTutorTurn{}
 
 		existingSnapshot, err := tx.Get(attemptRef)
 		switch {
@@ -232,8 +241,24 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 				startedAt = existing.StartedAt
 			}
 			completedAt = existing.CompletedAt
-			if existing.Trace.Finalized && existing.Trace.EventCount == len(input.Snapshot.Events) {
+			abandonedAt = existing.AbandonedAt
+			traceState = existing.TraceState
+			finalizeRequestedAt = existing.FinalizeRequestedAt
+			tutorTurns = existing.TutorTurns
+			if existing.Snapshot.Revision >= input.Snapshot.Revision {
+				attempt = existing
+				return nil
+			}
+			input.Snapshot = mergeLearningSnapshots(existing.Snapshot, input.Snapshot)
+			resumingAbandonedAttempt := existing.Status == "abandoned" && input.Status != "completed"
+			if resumingAbandonedAttempt {
+				traceState = "live"
+				finalizeRequestedAt = time.Time{}
+			} else if existing.Trace.Finalized && existing.Trace.EventCount == len(input.Snapshot.Events) {
 				trace = existing.Trace
+			}
+			if existing.Status == "completed" {
+				input.Status = "completed"
 			}
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read learning attempt: %w", err)
@@ -242,23 +267,34 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 		if input.Status == "completed" && completedAt.IsZero() {
 			completedAt = input.Timestamp
 		}
+		if input.Status == "completed" && !trace.Finalized {
+			traceState = "pending"
+			finalizeRequestedAt = input.Timestamp
+		}
+		if input.Status != "abandoned" {
+			abandonedAt = time.Time{}
+		}
 		attempt = StudentMissionAttemptDocument{
-			ID:                attemptID,
-			StudentID:         user.ID,
-			StudentName:       user.Student.StudentName,
-			ClassID:           user.Student.ClassID,
-			MissionID:         input.MissionID,
-			MissionCode:       user.Student.MissionCode,
-			PublishedRevision: user.Activity.CurrentGame.PublishedRevision,
-			Subject:           user.Activity.CurrentGame.Subject,
-			Status:            input.Status,
-			Snapshot:          input.Snapshot,
-			Trace:             trace,
-			StartedAt:         startedAt,
-			LastActivityAt:    input.Timestamp,
-			CompletedAt:       completedAt,
-			CreatedAt:         createdAt,
-			UpdatedAt:         input.Timestamp,
+			ID:                  attemptID,
+			StudentID:           user.ID,
+			StudentName:         user.Student.StudentName,
+			ClassID:             user.Student.ClassID,
+			MissionID:           input.MissionID,
+			MissionCode:         user.Student.MissionCode,
+			PublishedRevision:   user.Activity.CurrentGame.PublishedRevision,
+			Subject:             user.Activity.CurrentGame.Subject,
+			Status:              input.Status,
+			Snapshot:            input.Snapshot,
+			TutorTurns:          tutorTurns,
+			Trace:               trace,
+			TraceState:          traceState,
+			FinalizeRequestedAt: finalizeRequestedAt,
+			StartedAt:           startedAt,
+			LastActivityAt:      input.Timestamp,
+			CompletedAt:         completedAt,
+			AbandonedAt:         abandonedAt,
+			CreatedAt:           createdAt,
+			UpdatedAt:           input.Timestamp,
 		}
 
 		user.Activity.LastSeenAt = input.Timestamp
@@ -336,6 +372,309 @@ func (repository *Repository) GetCurrentStudentLearningAttempt(
 	return attempt, user, true, nil
 }
 
+func (repository *Repository) AppendStudentTutorTurn(
+	ctx context.Context,
+	input SaveStudentTutorTurnInput,
+	tutor orchestrator.TutorTurnBlueprint,
+) (StudentTutorTurn, error) {
+	userRef := repository.client.Collection(usersCollectionName).Doc(input.Identity.ProviderUserID)
+	var result StudentTutorTurn
+
+	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		userSnapshot, err := tx.Get(userRef)
+		if status.Code(err) == codes.NotFound {
+			return ErrStudentNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read student user: %w", err)
+		}
+		var user UserDocument
+		if err := userSnapshot.DataTo(&user); err != nil {
+			return fmt.Errorf("decode student user: %w", err)
+		}
+		if user.ID == "" {
+			user.ID = userRef.ID
+		}
+		if user.Activity.CurrentGame.MissionID != input.MissionID || user.Student.MissionID != input.MissionID {
+			return ErrStudentMissionMismatch
+		}
+
+		attemptID := user.Activity.CurrentGame.AttemptID
+		if attemptID == "" {
+			attemptID = learningAttemptID(user.ID, input.MissionID, user.Activity.CurrentGame.PublishedRevision)
+		}
+		attemptRef := repository.client.Collection(studentAttemptsCollectionName).Doc(attemptID)
+		attemptSnapshot, err := tx.Get(attemptRef)
+		if status.Code(err) == codes.NotFound {
+			return ErrStudentAttemptNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read learning attempt: %w", err)
+		}
+		var attempt StudentMissionAttemptDocument
+		if err := attemptSnapshot.DataTo(&attempt); err != nil {
+			return fmt.Errorf("decode learning attempt: %w", err)
+		}
+		if attempt.StudentID != user.ID {
+			return ErrStudentMissionMismatch
+		}
+
+		turnID := tutorTurnID(input.EventID)
+		for _, turn := range attempt.TutorTurns {
+			if turn.ID == turnID {
+				result = turn
+				return nil
+			}
+		}
+		result = StudentTutorTurn{
+			ID:                turnID,
+			Sequence:          len(attempt.TutorTurns) + 1,
+			Type:              input.Type,
+			StageID:           input.StageID,
+			QuestionID:        input.QuestionID,
+			Prompt:            input.Prompt,
+			StudentResponse:   input.StudentResponse,
+			ExpectedAnswer:    input.ExpectedAnswer,
+			Outcome:           input.Outcome,
+			ExplicitReasoning: input.ExplicitReasoning,
+			Feedback:          input.Feedback,
+			Tutor:             tutor,
+			CreatedAt:         input.Timestamp,
+		}
+		turns := append(attempt.TutorTurns, result)
+		if len(turns) > maxTutorTurnsPerAttempt {
+			turns = turns[len(turns)-maxTutorTurnsPerAttempt:]
+		}
+
+		if err := tx.Set(attemptRef, map[string]any{
+			"tutor_turns":      turns,
+			"last_activity_at": input.Timestamp,
+			"updated_at":       input.Timestamp,
+		}, firestore.MergeAll); err != nil {
+			return fmt.Errorf("append tutor turn: %w", err)
+		}
+		return tx.Set(userRef, map[string]any{
+			"activity": map[string]any{
+				"last_seen_at": input.Timestamp,
+				"current_game": map[string]any{
+					"last_heartbeat_at": input.Timestamp,
+				},
+			},
+			"updated_at": input.Timestamp,
+		}, firestore.MergeAll)
+	})
+	if err != nil {
+		return StudentTutorTurn{}, fmt.Errorf("save student tutor turn: %w", err)
+	}
+
+	return result, nil
+}
+
+func (repository *Repository) GetStudentLearningAttempt(
+	ctx context.Context,
+	studentID string,
+	attemptID string,
+) (StudentMissionAttemptDocument, UserDocument, bool, error) {
+	attemptSnapshot, err := repository.client.Collection(studentAttemptsCollectionName).Doc(attemptID).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, nil
+	}
+	if err != nil {
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, fmt.Errorf("read learning attempt: %w", err)
+	}
+	var attempt StudentMissionAttemptDocument
+	if err := attemptSnapshot.DataTo(&attempt); err != nil {
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, fmt.Errorf("decode learning attempt: %w", err)
+	}
+	if attempt.ID == "" {
+		attempt.ID = attemptSnapshot.Ref.ID
+	}
+	if attempt.StudentID != studentID {
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, ErrStudentMissionMismatch
+	}
+
+	userSnapshot, err := repository.client.Collection(usersCollectionName).Doc(studentID).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, ErrStudentNotFound
+	}
+	if err != nil {
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, fmt.Errorf("read student user: %w", err)
+	}
+	var user UserDocument
+	if err := userSnapshot.DataTo(&user); err != nil {
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, fmt.Errorf("decode student user: %w", err)
+	}
+	if user.ID == "" {
+		user.ID = userSnapshot.Ref.ID
+	}
+
+	return attempt, user, true, nil
+}
+
+func (repository *Repository) MarkStudentAttemptAbandoned(
+	ctx context.Context,
+	studentID string,
+	attemptID string,
+	expectedLastActivity time.Time,
+	timestamp time.Time,
+) (StudentMissionAttemptDocument, bool, error) {
+	userRef := repository.client.Collection(usersCollectionName).Doc(studentID)
+	attemptRef := repository.client.Collection(studentAttemptsCollectionName).Doc(attemptID)
+	var attempt StudentMissionAttemptDocument
+	marked := false
+	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		snapshot, err := tx.Get(attemptRef)
+		if status.Code(err) == codes.NotFound {
+			return ErrStudentAttemptNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read learning attempt: %w", err)
+		}
+		if err := snapshot.DataTo(&attempt); err != nil {
+			return fmt.Errorf("decode learning attempt: %w", err)
+		}
+		if attempt.StudentID != studentID {
+			return ErrStudentMissionMismatch
+		}
+		if attempt.Status == "completed" || attempt.Status == "abandoned" || attempt.Trace.Finalized {
+			return nil
+		}
+		if attempt.LastActivityAt.After(expectedLastActivity) {
+			return nil
+		}
+
+		attempt.Status = "abandoned"
+		attempt.AbandonedAt = timestamp
+		attempt.TraceState = "pending"
+		attempt.FinalizeRequestedAt = timestamp
+		attempt.UpdatedAt = timestamp
+		marked = true
+		if err := tx.Set(attemptRef, map[string]any{
+			"status":                attempt.Status,
+			"abandoned_at":          attempt.AbandonedAt,
+			"trace_state":           attempt.TraceState,
+			"finalize_requested_at": attempt.FinalizeRequestedAt,
+			"updated_at":            attempt.UpdatedAt,
+		}, firestore.MergeAll); err != nil {
+			return fmt.Errorf("mark learning attempt abandoned: %w", err)
+		}
+		return tx.Set(userRef, map[string]any{
+			"activity": map[string]any{
+				"current_game": map[string]any{
+					"status": "abandoned",
+				},
+			},
+			"updated_at": timestamp,
+		}, firestore.MergeAll)
+	})
+	if err != nil {
+		return StudentMissionAttemptDocument{}, false, fmt.Errorf("abandon student learning attempt: %w", err)
+	}
+
+	return attempt, marked, nil
+}
+
+func (repository *Repository) SetStudentAttemptTraceState(
+	ctx context.Context,
+	attemptID string,
+	state string,
+	timestamp time.Time,
+) error {
+	_, err := repository.client.Collection(studentAttemptsCollectionName).Doc(attemptID).Set(ctx, map[string]any{
+		"trace_state": state,
+		"updated_at":  timestamp,
+	}, firestore.MergeAll)
+	if err != nil {
+		return fmt.Errorf("set learning trace state: %w", err)
+	}
+
+	return nil
+}
+
+func (repository *Repository) ListLatestFinalizedAttemptsByClassID(
+	ctx context.Context,
+	classID string,
+	limit int,
+) ([]StudentMissionAttemptDocument, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	iter := repository.client.Collection(studentAttemptsCollectionName).
+		Where("class_id", "==", classID).
+		Documents(ctx)
+	defer iter.Stop()
+
+	latest := make(map[string]StudentMissionAttemptDocument)
+	for {
+		snapshot, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("iterate class learning attempts: %w", err)
+		}
+		var attempt StudentMissionAttemptDocument
+		if err := snapshot.DataTo(&attempt); err != nil {
+			return nil, fmt.Errorf("decode class learning attempt %s: %w", snapshot.Ref.ID, err)
+		}
+		if !attempt.Trace.Finalized {
+			continue
+		}
+		current, exists := latest[attempt.StudentID]
+		if !exists || studentAttemptEvidenceTime(attempt).After(studentAttemptEvidenceTime(current)) {
+			latest[attempt.StudentID] = attempt
+		}
+	}
+	result := make([]StudentMissionAttemptDocument, 0, len(latest))
+	for _, attempt := range latest {
+		result = append(result, attempt)
+	}
+	sort.SliceStable(result, func(left int, right int) bool {
+		return studentAttemptEvidenceTime(result[left]).After(studentAttemptEvidenceTime(result[right]))
+	})
+	if len(result) > limit {
+		result = result[:limit]
+	}
+
+	return result, nil
+}
+
+func (repository *Repository) SaveClassLearningSynthesis(
+	ctx context.Context,
+	document ClassLearningSynthesisDocument,
+) error {
+	ref := repository.client.Collection(classLearningCollectionName).Doc(document.ClassID)
+	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		snapshot, err := tx.Get(ref)
+		if err == nil {
+			var existing ClassLearningSynthesisDocument
+			if err := snapshot.DataTo(&existing); err != nil {
+				return fmt.Errorf("decode class learning synthesis: %w", err)
+			}
+			if existing.EvidenceUpdatedAt.After(document.EvidenceUpdatedAt) ||
+				existing.EvidenceUpdatedAt.Equal(document.EvidenceUpdatedAt) &&
+					existing.AttemptCount > document.AttemptCount {
+				return nil
+			}
+		} else if status.Code(err) != codes.NotFound {
+			return fmt.Errorf("read class learning synthesis: %w", err)
+		}
+
+		return tx.Set(ref, map[string]any{
+			"class_id":            document.ClassID,
+			"synthesis":           document.Synthesis,
+			"attempt_count":       document.AttemptCount,
+			"evidence_updated_at": document.EvidenceUpdatedAt,
+			"updated_at":          document.UpdatedAt,
+		}, firestore.MergeAll)
+	})
+	if err != nil {
+		return fmt.Errorf("save class learning synthesis: %w", err)
+	}
+
+	return nil
+}
+
 func (repository *Repository) FinalizeStudentLearningTrace(
 	ctx context.Context,
 	studentID string,
@@ -376,14 +715,19 @@ func (repository *Repository) FinalizeStudentLearningTrace(
 		}
 
 		attempt.Trace = trace
+		attempt.TraceState = "ready"
 		attempt.UpdatedAt = timestamp
 		memory.UpdatedAt = timestamp
 
 		if err := tx.Set(attemptRef, map[string]any{
-			"trace":      trace,
-			"updated_at": timestamp,
+			"trace":       trace,
+			"trace_state": "ready",
+			"updated_at":  timestamp,
 		}, firestore.MergeAll); err != nil {
 			return fmt.Errorf("write learning trace: %w", err)
+		}
+		if user.Student.LearningMemory.EvidenceAt.After(memory.EvidenceAt) {
+			return nil
 		}
 		return tx.Set(userRef, map[string]any{
 			"student": map[string]any{
@@ -521,23 +865,119 @@ func learningAttemptID(studentID string, missionID string, revision int64) strin
 	return fmt.Sprintf("attempt-%x", digest[:12])
 }
 
+func studentAttemptEvidenceTime(attempt StudentMissionAttemptDocument) time.Time {
+	if !attempt.LastActivityAt.IsZero() {
+		return attempt.LastActivityAt
+	}
+
+	return attempt.UpdatedAt
+}
+
+func tutorTurnID(eventID string) string {
+	digest := sha256.Sum256([]byte(eventID))
+
+	return fmt.Sprintf("turn-%x", digest[:12])
+}
+
+func mergeLearningSnapshots(
+	existing StudentLearningSnapshot,
+	incoming StudentLearningSnapshot,
+) StudentLearningSnapshot {
+	incoming.Notes = mergeLearningNotes(existing.Notes, incoming.Notes)
+	incoming.Decisions = mergeStudentDecisions(existing.Decisions, incoming.Decisions)
+	incoming.Events = mergeLearningEvents(existing.Events, incoming.Events)
+
+	return incoming
+}
+
+func mergeLearningNotes(existing []StudentLearningNote, incoming []StudentLearningNote) []StudentLearningNote {
+	byID := make(map[string]StudentLearningNote, len(existing)+len(incoming))
+	order := make([]string, 0, len(existing)+len(incoming))
+	for _, note := range append(append([]StudentLearningNote{}, existing...), incoming...) {
+		if note.ID == "" {
+			continue
+		}
+		if _, exists := byID[note.ID]; !exists {
+			order = append(order, note.ID)
+		}
+		byID[note.ID] = note
+	}
+	result := make([]StudentLearningNote, 0, min(len(order), 40))
+	start := max(0, len(order)-40)
+	for _, id := range order[start:] {
+		result = append(result, byID[id])
+	}
+
+	return result
+}
+
+func mergeStudentDecisions(existing []StudentDecision, incoming []StudentDecision) []StudentDecision {
+	byID := make(map[string]StudentDecision, len(existing)+len(incoming))
+	for _, decision := range append(append([]StudentDecision{}, existing...), incoming...) {
+		if decision.ID != "" {
+			byID[decision.ID] = decision
+		}
+	}
+	result := make([]StudentDecision, 0, len(byID))
+	for _, decision := range byID {
+		result = append(result, decision)
+	}
+	sort.SliceStable(result, func(left int, right int) bool {
+		return result[left].At > result[right].At
+	})
+	if len(result) > 40 {
+		result = result[:40]
+	}
+
+	return result
+}
+
+func mergeLearningEvents(existing []StudentLearningEvent, incoming []StudentLearningEvent) []StudentLearningEvent {
+	byID := make(map[string]StudentLearningEvent, len(existing)+len(incoming))
+	for _, event := range append(append([]StudentLearningEvent{}, existing...), incoming...) {
+		if event.ID != "" {
+			byID[event.ID] = event
+		}
+	}
+	result := make([]StudentLearningEvent, 0, len(byID))
+	for _, event := range byID {
+		result = append(result, event)
+	}
+	sort.SliceStable(result, func(left int, right int) bool {
+		if result[left].Sequence == result[right].Sequence {
+			return result[left].OccurredAt < result[right].OccurredAt
+		}
+
+		return result[left].Sequence < result[right].Sequence
+	})
+	if len(result) > 160 {
+		result = result[len(result)-160:]
+	}
+
+	return result
+}
+
 func learningAttemptFirestoreMap(attempt StudentMissionAttemptDocument) map[string]any {
 	return map[string]any{
-		"id":                 attempt.ID,
-		"student_id":         attempt.StudentID,
-		"student_name":       attempt.StudentName,
-		"class_id":           attempt.ClassID,
-		"mission_id":         attempt.MissionID,
-		"mission_code":       attempt.MissionCode,
-		"published_revision": attempt.PublishedRevision,
-		"subject":            attempt.Subject,
-		"status":             attempt.Status,
-		"snapshot":           attempt.Snapshot,
-		"trace":              attempt.Trace,
-		"started_at":         attempt.StartedAt,
-		"last_activity_at":   attempt.LastActivityAt,
-		"completed_at":       attempt.CompletedAt,
-		"created_at":         attempt.CreatedAt,
-		"updated_at":         attempt.UpdatedAt,
+		"id":                    attempt.ID,
+		"student_id":            attempt.StudentID,
+		"student_name":          attempt.StudentName,
+		"class_id":              attempt.ClassID,
+		"mission_id":            attempt.MissionID,
+		"mission_code":          attempt.MissionCode,
+		"published_revision":    attempt.PublishedRevision,
+		"subject":               attempt.Subject,
+		"status":                attempt.Status,
+		"snapshot":              attempt.Snapshot,
+		"tutor_turns":           attempt.TutorTurns,
+		"trace":                 attempt.Trace,
+		"trace_state":           attempt.TraceState,
+		"finalize_requested_at": attempt.FinalizeRequestedAt,
+		"started_at":            attempt.StartedAt,
+		"last_activity_at":      attempt.LastActivityAt,
+		"completed_at":          attempt.CompletedAt,
+		"abandoned_at":          attempt.AbandonedAt,
+		"created_at":            attempt.CreatedAt,
+		"updated_at":            attempt.UpdatedAt,
 	}
 }

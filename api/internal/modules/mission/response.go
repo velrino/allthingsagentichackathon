@@ -24,6 +24,7 @@ type MissionResponse struct {
 	TargetStudentIDs         []string                         `json:"target_student_ids"`
 	Attachments              []MissionAttachment              `json:"attachments"`
 	PreviewQuestions         []orchestrator.PreviewQuestion   `json:"preview_questions"`
+	KnowledgeChunks          []orchestrator.KnowledgeChunk    `json:"knowledge_chunks"`
 	SuggestedDurationMinutes int                              `json:"suggested_duration_minutes"`
 	Stages                   []orchestrator.MissionStage      `json:"stages"`
 	Suggestions              []orchestrator.MissionSuggestion `json:"suggestions"`
@@ -75,6 +76,7 @@ func ToResponse(mission MissionDocument) MissionResponse {
 		TargetStudentIDs:         mission.TargetStudentIDs,
 		Attachments:              mission.Attachments,
 		PreviewQuestions:         mission.PreviewQuestions,
+		KnowledgeChunks:          mission.KnowledgeChunks,
 		SuggestedDurationMinutes: mission.SuggestedDurationMinutes,
 		Stages:                   mission.Stages,
 		Suggestions:              mission.Suggestions,

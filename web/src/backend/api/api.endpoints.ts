@@ -11,6 +11,8 @@ import {
   type IApiStudentSessionResponse,
   type IApiStudentLearningResponse,
   type IApiStudentLearningSnapshotRequest,
+  type IApiStudentTutorTurnRequest,
+  type IApiStudentTutorTurnResponse,
   type IApiTeacherClassMissionsResponse,
   type IApiTeacherClassMissionResponse,
   type IApiTeacherClassesResponse,
@@ -82,10 +84,12 @@ export const API = {
     async saveStudentLearning(
       access_token: string,
       data: IApiStudentLearningSnapshotRequest,
+      options?: { keepalive?: boolean },
     ): Promise<IApiStudentLearningResponse> {
       const res = await ApiResources.request({
         access_token,
         data,
+        keepalive: options?.keepalive,
         method: IApiRequestMethod.POST,
         path: "/users/student-learning",
       });
@@ -95,6 +99,23 @@ export const API = {
       }
 
       return (await res.json()) as IApiStudentLearningResponse;
+    },
+    async studentTutorTurn(
+      access_token: string,
+      data: IApiStudentTutorTurnRequest,
+    ): Promise<IApiStudentTutorTurnResponse> {
+      const res = await ApiResources.request({
+        access_token,
+        data,
+        method: IApiRequestMethod.POST,
+        path: "/users/student-tutor-turn",
+      });
+
+      if (!res.ok) {
+        throw await apiError(res, "STUDENT_TUTOR_TURN_FAILED");
+      }
+
+      return (await res.json()) as IApiStudentTutorTurnResponse;
     },
   },
   dashboard: {

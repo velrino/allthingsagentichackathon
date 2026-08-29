@@ -18,6 +18,7 @@ func missionBlueprintSchema() map[string]any {
 			"suggested_duration_minutes",
 			"stages",
 			"preview_questions",
+			"knowledge_chunks",
 			"suggestions",
 			"positive_signals",
 			"improvement_signals",
@@ -73,19 +74,40 @@ func missionBlueprintSchema() map[string]any {
 					"additionalProperties": false,
 					"required": []string{
 						"id",
+						"stage_id",
 						"prompt",
 						"answer_type",
 						"options",
 						"expected_answer",
+						"explanation_steps",
 						"misconception_traps",
 					},
 					"properties": map[string]any{
 						"id":                  map[string]any{"type": "string"},
+						"stage_id":            map[string]any{"type": "string"},
 						"prompt":              map[string]any{"type": "string"},
 						"answer_type":         map[string]any{"type": "string", "enum": []string{"multiple_choice", "next_step", "short_text"}},
 						"options":             stringArray,
 						"expected_answer":     map[string]any{"type": "string"},
+						"explanation_steps":   stringArray,
 						"misconception_traps": stringArray,
+					},
+				},
+			},
+			"knowledge_chunks": map[string]any{
+				"type":     "array",
+				"minItems": 3,
+				"maxItems": 12,
+				"items": map[string]any{
+					"type":                 "object",
+					"additionalProperties": false,
+					"required":             []string{"id", "source", "title", "content", "keywords"},
+					"properties": map[string]any{
+						"id":       map[string]any{"type": "string"},
+						"source":   map[string]any{"type": "string"},
+						"title":    map[string]any{"type": "string"},
+						"content":  map[string]any{"type": "string"},
+						"keywords": stringArray,
 					},
 				},
 			},
@@ -246,7 +268,7 @@ func learningTraceSchema() map[string]any {
 						"items": map[string]any{
 							"type":                 "object",
 							"additionalProperties": false,
-							"required":             []string{"id", "kind", "label", "description", "position"},
+							"required":             []string{"id", "kind", "label", "description", "evidence_event_ids", "position"},
 							"properties": map[string]any{
 								"id": map[string]any{"type": "string"},
 								"kind": map[string]any{
@@ -264,6 +286,11 @@ func learningTraceSchema() map[string]any {
 								},
 								"label":       map[string]any{"type": "string"},
 								"description": map[string]any{"type": "string"},
+								"evidence_event_ids": map[string]any{
+									"type":     "array",
+									"maxItems": 12,
+									"items":    map[string]any{"type": "string"},
+								},
 								"position": map[string]any{
 									"type":                 "object",
 									"additionalProperties": false,
@@ -294,6 +321,91 @@ func learningTraceSchema() map[string]any {
 					},
 				},
 			},
+		},
+	}
+}
+
+func tutorTurnSchema() map[string]any {
+	stringArray := map[string]any{
+		"type":     "array",
+		"maxItems": 6,
+		"items":    map[string]any{"type": "string"},
+	}
+
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required": []string{
+			"message",
+			"why_prompt",
+			"explanation_steps",
+			"explanation_style",
+			"difficulty_bias",
+			"next_action",
+			"teacher_observation",
+			"retrieved_chunk_ids",
+			"evidence_event_ids",
+		},
+		"properties": map[string]any{
+			"message":           map[string]any{"type": "string"},
+			"why_prompt":        map[string]any{"type": "string"},
+			"explanation_steps": stringArray,
+			"explanation_style": map[string]any{
+				"type": "string",
+				"enum": []string{"steps", "visual"},
+			},
+			"difficulty_bias": map[string]any{
+				"type":    "integer",
+				"minimum": -1,
+				"maximum": 1,
+			},
+			"next_action": map[string]any{
+				"type": "string",
+				"enum": []string{"continue", "ask_reasoning", "explain", "retry", "complete"},
+			},
+			"teacher_observation": map[string]any{"type": "string"},
+			"retrieved_chunk_ids": stringArray,
+			"evidence_event_ids":  stringArray,
+		},
+	}
+}
+
+func classLearningSynthesisSchema() map[string]any {
+	cluster := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"label", "student_ids", "evidence_labels"},
+		"properties": map[string]any{
+			"label": map[string]any{"type": "string"},
+			"student_ids": map[string]any{
+				"type":     "array",
+				"maxItems": 100,
+				"items":    map[string]any{"type": "string"},
+			},
+			"evidence_labels": map[string]any{
+				"type":     "array",
+				"maxItems": 20,
+				"items":    map[string]any{"type": "string"},
+			},
+		},
+	}
+
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"common_strengths", "common_needs", "next_adaptation"},
+		"properties": map[string]any{
+			"common_strengths": map[string]any{
+				"type":     "array",
+				"maxItems": 4,
+				"items":    cluster,
+			},
+			"common_needs": map[string]any{
+				"type":     "array",
+				"maxItems": 4,
+				"items":    cluster,
+			},
+			"next_adaptation": map[string]any{"type": "string"},
 		},
 	}
 }
