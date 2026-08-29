@@ -585,7 +585,7 @@ export interface IApiStudentProgress {
   completed_questions: number;
   total_questions: number;
   percentage: number;
-  status: "completed" | "in_progress" | "needs_attention" | string;
+  status: "completed" | "in_progress" | "needs_attention" | "not_started" | string;
 }
 
 export interface IApiDashboardStudent {

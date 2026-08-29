@@ -193,7 +193,7 @@ func buildStudentDashboardItems(
 			return studentAttempts[left].LastActivityAt.After(studentAttempts[right].LastActivityAt)
 		})
 		latestAttempt := latestStudentAttempt(studentAttempts, activeMission)
-		progress := buildStudentProgress(student, latestAttempt)
+		progress := buildStudentProgress(latestAttempt, activeMission)
 		session := buildStudentGameSession(student.Activity.CurrentGame, activeMission, now)
 		lastActivityAt := student.Activity.LastSeenAt
 		if session.LastHeartbeatAt.After(lastActivityAt) {
@@ -308,8 +308,8 @@ func buildMetrics(students []StudentDashboardItem) DashboardMetrics {
 }
 
 func buildStudentProgress(
-	student studentUserDocument,
 	attempt *users.StudentMissionAttemptDocument,
+	activeMission *mission.MissionDocument,
 ) StudentProgress {
 	if attempt != nil {
 		totalQuestions := 0
@@ -355,31 +355,20 @@ func buildStudentProgress(
 		}
 	}
 
-	return buildMockProgress(student)
+	return StudentProgress{
+		CompletedQuestions: 0,
+		TotalQuestions:     activeMissionQuestionCount(activeMission),
+		Percentage:         0,
+		Status:             "not_started",
+	}
 }
 
-func buildMockProgress(student studentUserDocument) StudentProgress {
-	totalQuestions := 12
-	seed := int(student.Activity.LoginCount)*13 + len(resolveStudentName(student))*7
-	completed := 3 + seed%10
-	if completed > totalQuestions {
-		completed = totalQuestions
+func activeMissionQuestionCount(activeMission *mission.MissionDocument) int {
+	if activeMission == nil {
+		return 0
 	}
 
-	percentage := int(math.Round(float64(completed) / float64(totalQuestions) * 100))
-	status := "in_progress"
-	if percentage >= 100 {
-		status = "completed"
-	} else if percentage < 45 {
-		status = "needs_attention"
-	}
-
-	return StudentProgress{
-		CompletedQuestions: completed,
-		TotalQuestions:     totalQuestions,
-		Percentage:         percentage,
-		Status:             status,
-	}
+	return len(activeMission.PreviewQuestions)
 }
 
 func latestStudentAttempt(

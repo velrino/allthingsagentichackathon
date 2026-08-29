@@ -153,6 +153,9 @@ function statusLabel(status: string) {
   if (status === "abandoned") {
     return "Left early";
   }
+  if (status === "not_started") {
+    return "Not started";
+  }
 
   return "In progress";
 }
@@ -168,6 +171,9 @@ function statusClassName(status: string) {
   }
   if (status === "abandoned") {
     return `${base} bg-amber-50 text-amber-800`;
+  }
+  if (status === "not_started") {
+    return `${base} bg-slate-100 text-slate-700`;
   }
 
   return `${base} bg-cyan-50 text-cyan-700`;
