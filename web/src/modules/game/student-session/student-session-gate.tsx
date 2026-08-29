@@ -109,9 +109,14 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       void restoreStoredSession(user);
     });
+    const restoreSessionFromAnotherTab = () => {
+      void restoreStoredSession(auth.currentUser);
+    };
+    window.addEventListener("storage", restoreSessionFromAnotherTab);
     return () => {
       cancelled = true;
       unsubscribe();
+      window.removeEventListener("storage", restoreSessionFromAnotherTab);
       window.removeEventListener(
         studentClassUnavailableEvent,
         showClassUnavailable,

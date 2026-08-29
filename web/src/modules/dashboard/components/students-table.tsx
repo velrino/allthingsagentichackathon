@@ -48,7 +48,7 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
             </div>
             <div className="mt-2 h-2 rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-cyan-500"
+                className="h-full rounded-full bg-[#9164f9]"
                 style={{ width: `${row.original.progress.percentage}%` }}
               />
             </div>
@@ -65,7 +65,7 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
       {
         id: "strengths",
         accessorFn: (row) => row.strengths.join(", "),
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Positive signals" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Doing well" />,
         cell: ({ row }) => (
           <span className="block max-w-[260px] truncate text-muted-foreground">{row.original.strengths.join(", ")}</span>
         ),
@@ -77,7 +77,7 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
       {
         id: "improvement_areas",
         accessorFn: (row) => row.improvement_areas.join(", "),
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Improve" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Needs practice" />,
         cell: ({ row }) => (
           <span className="block max-w-[260px] truncate text-muted-foreground">
             {row.original.improvement_areas.join(", ")}
@@ -91,13 +91,13 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
       {
         id: "attempts",
         accessorFn: (row) => row.attempts.length,
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Tasks" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Mission history" />,
         cell: ({ row }) => (
           <div>
-            <span className="rounded-md bg-violet-50 px-2 py-1 font-semibold text-violet-700">
-              {row.original.attempts.length} {row.original.attempts.length === 1 ? "attempt" : "attempts"}
+            <span className="rounded-md bg-[#d2c2e9]/35 px-2 py-1 font-semibold text-[#6841c4]">
+              {row.original.attempts.length} {row.original.attempts.length === 1 ? "try" : "tries"}
             </span>
-            <p className="mt-2 text-xs font-medium text-cyan-700">View learning path</p>
+            <p className="mt-2 text-xs font-medium text-[#6841c4]">Open details</p>
           </div>
         ),
         meta: {
@@ -126,7 +126,7 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
     <DataTable
       columns={columns}
       data={students}
-      emptyMessage="No students yet."
+      emptyMessage="No students have joined this class yet."
       getGlobalFilterText={(student) =>
         [
           student.student_name,
@@ -138,7 +138,7 @@ export function StudentsTable({ students, onStudentClick }: StudentsTableProps) 
       }
       minWidthClassName="min-w-[980px]"
       onRowClick={onStudentClick}
-      searchPlaceholder="Filter students..."
+      searchPlaceholder="Search students..."
     />
   );
 }
@@ -164,17 +164,17 @@ function statusClassName(status: string) {
   const base = "rounded-md px-2 py-1 text-xs font-bold";
 
   if (status === "completed") {
-    return `${base} bg-emerald-50 text-emerald-700`;
+    return `${base} bg-[#c9b3ec]/30 text-[#6841c4]`;
   }
   if (status === "needs_attention") {
-    return `${base} bg-rose-50 text-rose-700`;
+    return `${base} bg-[#9164f9] text-white`;
   }
   if (status === "abandoned") {
-    return `${base} bg-amber-50 text-amber-800`;
+    return `${base} bg-[#aa84f4]/25 text-[#6841c4]`;
   }
   if (status === "not_started") {
-    return `${base} bg-slate-100 text-slate-700`;
+    return `${base} bg-[#e2e2e2] text-foreground`;
   }
 
-  return `${base} bg-cyan-50 text-cyan-700`;
+  return `${base} bg-[#b593f2]/25 text-[#6841c4]`;
 }

@@ -1,21 +1,12 @@
-import { ArrowRight, type LucideIcon } from "lucide-react";
-import { AlertTriangle, CheckCircle2, Gamepad2, Hourglass, RotateCcw } from "lucide-react";
+"use client";
 
-import { cn } from "@/lib/utils";
+import { ArrowRight, Gamepad2, RotateCcw, UsersRound } from "lucide-react";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import type { ClassGlance } from "../analytics/analytics-data";
-
-type Tone = "amber" | "cyan" | "violet" | "emerald" | "rose";
-
-type GlanceTile = {
-  readonly action?: { readonly label: string; readonly onClick: () => void };
-  readonly detail: string;
-  readonly icon: LucideIcon;
-  readonly label: string;
-  readonly tone: Tone;
-  readonly total: number;
-  readonly value: number;
-};
 
 type ClassGlanceTilesProps = {
   readonly glance: ClassGlance;
@@ -24,117 +15,112 @@ type ClassGlanceTilesProps = {
   readonly onShareCode: () => void;
 };
 
-const toneStyles: Record<Tone, { readonly surface: string; readonly label: string; readonly value: string; readonly action: string }> = {
-  amber: {
-    surface: "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40",
-    label: "text-amber-700 dark:text-amber-300",
-    value: "text-amber-900 dark:text-amber-100",
-    action: "text-amber-800 hover:text-amber-950 dark:text-amber-200",
-  },
-  cyan: {
-    surface: "border-cyan-200 bg-cyan-50 dark:border-cyan-900 dark:bg-cyan-950/40",
-    label: "text-cyan-700 dark:text-cyan-300",
-    value: "text-cyan-900 dark:text-cyan-100",
-    action: "text-cyan-800 hover:text-cyan-950 dark:text-cyan-200",
-  },
-  violet: {
-    surface: "border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950/40",
-    label: "text-violet-700 dark:text-violet-300",
-    value: "text-violet-900 dark:text-violet-100",
-    action: "text-violet-800 hover:text-violet-950 dark:text-violet-200",
-  },
-  emerald: {
-    surface: "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40",
-    label: "text-emerald-700 dark:text-emerald-300",
-    value: "text-emerald-900 dark:text-emerald-100",
-    action: "text-emerald-800 hover:text-emerald-950 dark:text-emerald-200",
-  },
-  rose: {
-    surface: "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/40",
-    label: "text-rose-700 dark:text-rose-300",
-    value: "text-rose-900 dark:text-rose-100",
-    action: "text-rose-800 hover:text-rose-950 dark:text-rose-200",
-  },
-};
+const STATUS_COLORS = ["#e2e2e2", "#b593f2", "#9164f9", "#c9b3ec"];
 
-export function ClassGlanceTiles({ glance, onPlanFollowUp, onShareCode, shareCodeLabel }: ClassGlanceTilesProps) {
-  const tiles: GlanceTile[] = [
-    {
-      tone: "amber",
-      icon: Hourglass,
-      label: "Not started",
-      value: glance.notStarted.length,
-      total: glance.total,
-      detail: glance.notStarted.length > 0 ? "Joined the class, haven't opened the mission" : "Everyone has opened the mission",
-      action: { label: shareCodeLabel, onClick: onShareCode },
-    },
-    {
-      tone: "cyan",
-      icon: Gamepad2,
-      label: "Playing now",
-      value: glance.playingNow.length,
-      total: glance.total,
-      detail: `${glance.atTheDesk.length} at the desk with Emily`,
-    },
-    {
-      tone: "violet",
-      icon: RotateCcw,
-      label: "In a review",
-      value: glance.inReview.length,
-      total: glance.total,
-      detail: "Emily reopened an earlier topic for them",
-    },
-    {
-      tone: "rose",
-      icon: AlertTriangle,
-      label: "Left early",
-      value: glance.leftEarly.length,
-      total: glance.total,
-      detail: "Stopped before completing; exact step was saved",
-    },
-    {
-      tone: "emerald",
-      icon: CheckCircle2,
-      label: "Completed",
-      value: glance.completed.length,
-      total: glance.total,
-      detail: "Finished the whole mission",
-      action: { label: "Plan follow-up", onClick: onPlanFollowUp },
-    },
+export function ClassGlanceTiles({
+  glance,
+  onPlanFollowUp,
+  onShareCode,
+  shareCodeLabel,
+}: ClassGlanceTilesProps) {
+  const statusData = [
+    { label: "Not started", value: glance.notStarted.length },
+    { label: "Working on it", value: glance.inProgress.length },
+    { label: "May need support", value: glance.needsAttention.length },
+    { label: "Finished", value: glance.completed.length },
   ];
 
   return (
-    <section aria-label="Class at a glance" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      {tiles.map((tile) => {
-        const style = toneStyles[tile.tone];
-        const Icon = tile.icon;
+    <Card className="min-w-0 gap-0 overflow-hidden py-0">
+      <CardHeader className="border-b border-[#dad2e6] bg-[#d2c2e9]/20 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-[#9164f9]">RIGHT NOW</p>
+            <CardTitle className="mt-1">How the class is doing</CardTitle>
+          </div>
+          <div className="flex items-center gap-2 rounded-full bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm">
+            <span className="size-2 rounded-full bg-[#9164f9]" aria-hidden />
+            {glance.playingNow.length} playing now
+          </div>
+        </div>
+      </CardHeader>
 
-        return (
-          <article key={tile.label} className={cn("flex min-h-28 flex-col justify-between rounded-lg border p-4", style.surface)}>
-            <div className="flex items-start justify-between gap-2">
-              <p className={cn("text-[11px] font-bold tracking-wide uppercase", style.label)}>{tile.label}</p>
-              <Icon className={cn("size-4 shrink-0", style.label)} aria-hidden />
-            </div>
-            <p className={cn("mt-2 text-3xl font-bold leading-none", style.value)}>
-              {tile.value}
-              <span className={cn("ms-1 text-sm font-semibold opacity-70", style.value)}>/ {tile.total}</span>
-            </p>
-            <div className="mt-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-              <p className="text-xs text-muted-foreground">{tile.detail}</p>
-              {tile.action ? (
-                <button
-                  type="button"
-                  onClick={tile.action.onClick}
-                  className={cn("inline-flex items-center gap-1 text-xs font-semibold underline-offset-4 hover:underline", style.action)}
+      <CardContent className="grid min-w-0 gap-5 p-5 md:grid-cols-[190px_minmax(0,1fr)] md:items-center">
+        {glance.total > 0 ? (
+          <div className="relative mx-auto size-44" aria-label={`${glance.total} students in this class`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart accessibilityLayer>
+                <Pie
+                  data={statusData}
+                  dataKey="value"
+                  innerRadius={58}
+                  outerRadius={82}
+                  paddingAngle={2}
+                  stroke="none"
+                  isAnimationActive={false}
                 >
-                  {tile.action.label}
-                  <ArrowRight className="size-3" aria-hidden />
-                </button>
-              ) : null}
+                  {statusData.map((item, index) => (
+                    <Cell key={item.label} fill={STATUS_COLORS[index]} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+              <strong className="text-3xl leading-none">{glance.total}</strong>
+              <span className="mt-1 text-xs text-muted-foreground">
+                {glance.total === 1 ? "student" : "students"}
+              </span>
             </div>
-          </article>
-        );
-      })}
-    </section>
+          </div>
+        ) : (
+          <div className="mx-auto grid size-40 place-content-center rounded-full border-8 border-[#e2e2e2] text-center">
+            <UsersRound className="mx-auto size-6 text-[#9164f9]" aria-hidden />
+            <span className="mt-2 text-sm font-semibold">No students yet</span>
+          </div>
+        )}
+
+        <div className="min-w-0">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {statusData.map((item, index) => (
+              <div
+                key={item.label}
+                className="flex items-center gap-3 rounded-xl border border-[#dad2e6] bg-card p-3"
+              >
+                <span
+                  className="size-3 shrink-0 rounded-full ring-4 ring-[#d2c2e9]/25"
+                  style={{ backgroundColor: STATUS_COLORS[index] }}
+                  aria-hidden
+                />
+                <div className="min-w-0">
+                  <p className="text-xl font-bold leading-none">{item.value}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{item.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d2c2e9]/30 px-3 py-1.5">
+              <Gamepad2 className="size-3.5 text-[#9164f9]" aria-hidden />
+              {glance.atTheDesk.length} learning with Emily
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d2c2e9]/30 px-3 py-1.5">
+              <RotateCcw className="size-3.5 text-[#9164f9]" aria-hidden />
+              {glance.inReview.length} reviewing a topic
+            </span>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onShareCode}>
+              {shareCodeLabel}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={onPlanFollowUp}>
+              Plan the next lesson
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

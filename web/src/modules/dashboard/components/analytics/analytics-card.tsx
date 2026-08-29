@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-export type AnalyticsSource = "demo" | "estimated" | "live";
+export type AnalyticsSource = "estimated" | "live";
 
 type AnalyticsCardProps = {
   readonly children: ReactNode;
@@ -15,15 +15,13 @@ type AnalyticsCardProps = {
 };
 
 const sourceLabels: Record<AnalyticsSource, string> = {
-  demo: "Example",
-  estimated: "Based on class signals",
-  live: "Live class data",
+  estimated: "From student work",
+  live: "Updates automatically",
 };
 
 const sourceStyles: Record<AnalyticsSource, string> = {
-  demo: "bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
-  estimated: "bg-cyan-50 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200",
-  live: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
+  estimated: "bg-[#d2c2e9]/35 text-[#6841c4]",
+  live: "bg-[#c0a3ef]/25 text-[#6841c4]",
 };
 
 export function AnalyticsCard({
@@ -35,8 +33,8 @@ export function AnalyticsCard({
   title,
 }: AnalyticsCardProps) {
   return (
-    <Card className={cn("min-w-0", className)}>
-      <CardHeader className="gap-2">
+    <Card className={cn("min-w-0 border-[#dad2e6]", className)}>
+      <CardHeader className="gap-2 border-b border-[#dad2e6] bg-[#d2c2e9]/10">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>{title}</CardTitle>
           {source ? (

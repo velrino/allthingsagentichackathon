@@ -2,10 +2,15 @@
 
 import {
   AlertTriangle,
+  ArrowRight,
   BookOpenCheck,
   CheckCircle2,
+  CircleAlert,
+  ClipboardCopy,
   Gamepad2,
   NotebookTabs,
+  PartyPopper,
+  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
@@ -50,6 +55,7 @@ import {
   buildNextMissionPrompt,
   buildStrengthPatterns,
   planSuggestions,
+  type ClassGlance,
 } from "../components/analytics/analytics-data";
 import { ClassMissionsTable } from "../components/class-missions-table";
 import { DashboardShell } from "../components/dashboard-shell";
@@ -70,7 +76,7 @@ import {
 
 type DashboardTab = "overview" | "mission" | "students" | "notebook";
 
-const defaultDashboardTab: DashboardTab = "mission";
+const defaultDashboardTab: DashboardTab = "overview";
 
 const hashByTab: Record<DashboardTab, string> = {
   mission: "#mission-builder",
@@ -97,6 +103,8 @@ export function DashboardPage({
     useState<IApiDashboardOverviewResponse | null>(null);
   const [teacherClasses, setTeacherClasses] = useState<IApiTeacherClass[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [classesLoading, setClassesLoading] = useState(true);
+  const [overviewLoading, setOverviewLoading] = useState(false);
   const [missionBuilderOpen, setMissionBuilderOpen] = useState(false);
   const [previewMission, setPreviewMission] =
     useState<IApiTeacherClassMission | null>(null);
@@ -137,6 +145,7 @@ export function DashboardPage({
 
     Promise.resolve()
       .then(async () => {
+        setClassesLoading(true);
         setError(null);
 
         const token = await user.getIdToken();
@@ -166,6 +175,7 @@ export function DashboardPage({
       })
       .finally(() => {
         if (!cancelled) {
+          setClassesLoading(false);
         }
       });
 
@@ -188,6 +198,8 @@ export function DashboardPage({
 
     Promise.resolve()
       .then(async () => {
+        setOverviewLoading(true);
+        setOverview(null);
         setError(null);
 
         const token = await user.getIdToken();
@@ -220,6 +232,7 @@ export function DashboardPage({
       })
       .finally(() => {
         if (!cancelled) {
+          setOverviewLoading(false);
         }
       });
 
@@ -418,10 +431,7 @@ export function DashboardPage({
     [students],
   );
   const patternSource = growthPatterns.source;
-  const summaryStudentCount =
-    students.length > 0
-      ? students.length
-      : demoStudentCount(growthPatterns.data, strengthPatterns.data);
+  const summaryStudentCount = students.length;
   const classSummary = useMemo(
     () =>
       buildClassSummary(
@@ -486,7 +496,7 @@ export function DashboardPage({
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Could not process class mission.",
+          : "Could not save this mission.",
       );
     } finally {
       setProcessing(false);
@@ -517,7 +527,7 @@ export function DashboardPage({
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Could not publish class mission.",
+          : "Could not share this mission.",
       );
     } finally {
       setApproving(false);
@@ -589,7 +599,7 @@ export function DashboardPage({
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Could not remove class mission.",
+          : "Could not remove this mission.",
       );
     } finally {
       setDeletingMissionId(null);
@@ -622,6 +632,10 @@ export function DashboardPage({
         .getElementById("next-lesson")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  }
+
+  function handleOpenStudents() {
+    setActiveDashboardTab("students");
   }
 
   async function handleShareCode() {
@@ -659,17 +673,22 @@ export function DashboardPage({
       user={auth.user!}
       onSignOut={handleSignOut}
     >
-      <Main id="main-content" className="space-y-4">
+      <Main id="main-content" className="space-y-5">
         <div
           id="overview"
-          className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+          className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
         >
           <div>
-            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-xs font-semibold text-[#9164f9]">CLASS HOME</p>
+            <h1 className="mt-1 text-2xl font-bold">
+              {selectedClass?.class_name || "Your class"}
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {selectedClass
-                ? `${selectedClass.class_name || selectedClass.class_code} - ${selectedClass.subject}`
-                : "Create a class before publishing missions to students."}
+                ? [selectedClass.subject, selectedClass.grade_level]
+                    .filter(Boolean)
+                    .join(" · ")
+                : "Create a class to get started."}
             </p>
           </div>
 
@@ -678,14 +697,14 @@ export function DashboardPage({
             <Button variant="outline" asChild>
               <Link href="/home" target="_blank" rel="noopener noreferrer">
                 <Gamepad2 className="size-4" aria-hidden />
-                Open game
+                Student view
               </Link>
             </Button>
           </div>
         </div>
 
         {error ? (
-          <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          <p className="rounded-xl border border-[#9164f9]/35 bg-[#d2c2e9]/20 px-4 py-3 text-sm font-semibold text-foreground">
             {error}
           </p>
         ) : null}
@@ -697,11 +716,11 @@ export function DashboardPage({
           }
         >
           <div className="overflow-x-auto pb-1">
-            <TabsList className="min-w-max">
+            <TabsList className="min-w-max bg-[#d2c2e9]/25">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="mission">Missions</TabsTrigger>
               <TabsTrigger value="students">Students</TabsTrigger>
-              <TabsTrigger value="notebook">Notebook</TabsTrigger>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="notebook">Teacher notes</TabsTrigger>
             </TabsList>
           </div>
 
@@ -733,127 +752,152 @@ export function DashboardPage({
             />
           </TabsContent>
 
-          <TabsContent value="overview" className="mt-2 space-y-4">
-            <SectionHeading
-              eyebrow="Overview"
-              title="Class at a glance"
-              detail={
-                students.length > 0
-                  ? `${students.length} students joined with the class code. Counts come from live game presence.`
-                  : "Counts come from live game presence and will fill in as students join with the class code."
-              }
-            />
-            <ClassGlanceTiles
-              glance={glance}
-              shareCodeLabel={shareCodeLabel}
-              onPlanFollowUp={handlePlanFollowUp}
-              onShareCode={handleShareCode}
-            />
-
-            <AnalyticsCard
-              title="Where the class is in the mission"
-              description="Each column is a stage of the mission. Students move right as Emily unlocks the next stage; a review sends them back one column for a moment."
-              source={funnel.source}
-            >
-              <MissionFunnel
-                steps={funnel.data}
-                totalStudents={
-                  students.length > 0 ? students.length : summaryStudentCount
-                }
-              />
-            </AnalyticsCard>
-
-            <SectionHeading
-              eyebrow="Patterns"
-              title="What stood out across the class"
-              detail="Emily writes down how each student reasons. These are the patterns she saw most often."
-              source={patternSource}
-            />
-            <ClassPatternsSummary
-              growth={growthPatterns.data}
-              strengths={strengthPatterns.data}
-              summary={classSummary}
-              totalStudents={summaryStudentCount}
-            />
-
-            <SectionHeading
-              eyebrow="Areas for growth"
-              title="See where students need to grow"
-              detail="Grouped by pattern. Strong need means Emily saw it repeatedly; mild means it showed up once."
-              source={patternSource}
-            />
-            <PatternGroups
-              variant="growth"
-              groups={growthPatterns.data}
-              totalStudents={summaryStudentCount}
-              emptyMessage="No growth patterns yet. They appear after students answer and explain their reasoning to Emily."
-            />
-
-            <SectionHeading
-              eyebrow="Strengths"
-              title="See who's showing each strength"
-              detail="Use this to pair students, or to pick who can explain a step to the class."
-              source={patternSource}
-            />
-            <PatternGroups
-              variant="strength"
-              groups={strengthPatterns.data}
-              totalStudents={summaryStudentCount}
-              emptyMessage="No strengths recorded yet. Emily notes them as students explain answers and finish stages."
-            />
-
-            <div id="next-lesson" className="scroll-mt-24">
-              <SectionHeading
-                eyebrow="Next lesson"
-                title="Plan the follow-up"
-                detail="Emily's suggestions for reteaching, the whole class, and the students who are ahead."
-                source={
-                  activeMission
-                    ? overview?.generated_by_ai
-                      ? "live"
-                      : "estimated"
-                    : undefined
-                }
-              />
-            </div>
-            <NextLessonPlan
-              canBuild={hasSelectedClass}
-              suggestions={plannedSuggestions}
-              onBuildNextMission={handleBuildNextMission}
-            />
-
-            <Card className="gap-0 py-0">
-              <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <CardTitle>Recent players</CardTitle>
-                    <CardDescription className="mt-2">
-                      Live game presence for the 10 most recently active
-                      students in this class.
-                    </CardDescription>
-                  </div>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Newest first
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <RecentPlayersTable
-                  fallbackSubject={
-                    activeMission?.subject ?? selectedClass?.subject
+          <TabsContent value="overview" className="mt-3 space-y-5">
+            {classesLoading || overviewLoading ? (
+              <DashboardLoadingState />
+            ) : (
+              <>
+                <TodayGuide
+                  activeMission={activeMission}
+                  classCode={classCode}
+                  glance={glance}
+                  hasSelectedClass={hasSelectedClass}
+                  teacherName={
+                    overview?.teacher.display_name ??
+                    auth.user?.displayName ??
+                    ""
                   }
-                  students={students}
+                  onCreateMission={handleOpenMissionBuilder}
+                  onOpenStudents={handleOpenStudents}
+                  onPlanFollowUp={handlePlanFollowUp}
+                  onShareCode={handleShareCode}
                 />
-              </CardContent>
-            </Card>
 
-            <ActiveMissionCard
-              activeMission={activeMission}
-              classCode={classCode}
-              generatedByAi={overview?.generated_by_ai ?? false}
-              generatedByMock={overview?.generated_by_mock ?? false}
-              teacherClass={selectedClass}
-            />
+                <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+                  <ClassGlanceTiles
+                    glance={glance}
+                    shareCodeLabel={shareCodeLabel}
+                    onPlanFollowUp={handlePlanFollowUp}
+                    onShareCode={handleShareCode}
+                  />
+
+                  <AnalyticsCard
+                    title="Where students are in today's mission"
+                    description={
+                      activeMission
+                        ? "The longer the bar, the more students are at that step. Names below help you know who to check in with."
+                        : "Publish a mission to see each student's current step here."
+                    }
+                    source={activeMission ? funnel.source : undefined}
+                  >
+                    <MissionFunnel
+                      steps={funnel.data}
+                      totalStudents={summaryStudentCount}
+                    />
+                  </AnalyticsCard>
+                </div>
+
+                <SectionHeading
+                  eyebrow="WHAT EMILY NOTICED"
+                  title="What students found easy — and difficult"
+                  detail="These notes come from students' answers and explanations, so you can plan without reading every response."
+                  source={students.length > 0 ? patternSource : undefined}
+                />
+                <ClassPatternsSummary
+                  growth={growthPatterns.data}
+                  strengths={strengthPatterns.data}
+                  summary={classSummary}
+                  totalStudents={summaryStudentCount}
+                />
+
+                <div className="grid gap-x-5 gap-y-2 xl:grid-cols-2">
+                  <section className="min-w-0">
+                    <SectionHeading
+                      eyebrow="REVIEW"
+                      title="Students who may need help"
+                      detail="Start with “check in soon”, then use the names to make a small group."
+                    />
+                    <div className="mt-3">
+                      <PatternGroups
+                        variant="growth"
+                        groups={growthPatterns.data}
+                        limit={4}
+                        totalStudents={summaryStudentCount}
+                        emptyMessage="Nothing to review yet. This section fills in after students explain their answers."
+                      />
+                    </div>
+                  </section>
+
+                  <section className="min-w-0">
+                    <SectionHeading
+                      eyebrow="BUILD ON"
+                      title="Students showing confidence"
+                      detail="Use these names for peer explanations, pairs, or an extra challenge."
+                    />
+                    <div className="mt-3">
+                      <PatternGroups
+                        variant="strength"
+                        groups={strengthPatterns.data}
+                        limit={4}
+                        totalStudents={summaryStudentCount}
+                        emptyMessage="Strengths will appear as students explain answers and finish steps."
+                      />
+                    </div>
+                  </section>
+                </div>
+
+                <div id="next-lesson" className="scroll-mt-24">
+                  <SectionHeading
+                    eyebrow="NEXT LESSON"
+                    title="Ready-to-use ideas"
+                    detail="Choose a suggestion as-is, adapt it, or let Emily turn the class results into the next mission."
+                    source={
+                      plannedSuggestions.length > 0
+                        ? overview?.generated_by_ai
+                          ? "live"
+                          : "estimated"
+                        : undefined
+                    }
+                  />
+                </div>
+                <NextLessonPlan
+                  canBuild={hasSelectedClass}
+                  suggestions={plannedSuggestions}
+                  onBuildNextMission={handleBuildNextMission}
+                />
+
+                <ActiveMissionCard
+                  activeMission={activeMission}
+                  classCode={classCode}
+                  generatedByAi={overview?.generated_by_ai ?? false}
+                  teacherClass={selectedClass}
+                />
+
+                <Card className="gap-0 border-[#dad2e6] py-0">
+                  <CardHeader className="border-b border-[#dad2e6] bg-[#d2c2e9]/10 px-4 py-4 sm:px-6">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <CardTitle>Latest student activity</CardTitle>
+                        <CardDescription className="mt-2">
+                          The 10 students who were active most recently.
+                        </CardDescription>
+                      </div>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Newest first
+                      </span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <RecentPlayersTable
+                      fallbackSubject={
+                        activeMission?.subject ?? selectedClass?.subject
+                      }
+                      students={students}
+                    />
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
         </Tabs>
 
@@ -888,35 +932,167 @@ export function DashboardPage({
   );
 }
 
+function TodayGuide({
+  activeMission,
+  classCode,
+  glance,
+  hasSelectedClass,
+  onCreateMission,
+  onOpenStudents,
+  onPlanFollowUp,
+  onShareCode,
+  teacherName,
+}: {
+  readonly activeMission: IApiTeacherClassMission | null;
+  readonly classCode: string;
+  readonly glance: ClassGlance;
+  readonly hasSelectedClass: boolean;
+  readonly onCreateMission: () => void;
+  readonly onOpenStudents: () => void;
+  readonly onPlanFollowUp: () => void;
+  readonly onShareCode: () => void;
+  readonly teacherName: string;
+}) {
+  const firstName = teacherName.trim().split(/\s+/)[0] || "there";
+  const everyoneFinished =
+    glance.total > 0 && glance.completed.length === glance.total;
+
+  let guide = {
+    detail: "Create a class, then Emily will help you prepare a mission for your students.",
+    icon: BookOpenCheck,
+    label: "Create a class",
+    onClick: onCreateMission,
+    title: "Start with your first class",
+  };
+
+  if (hasSelectedClass && !activeMission) {
+    guide = {
+      detail: "Tell Emily the subject and what you want students to learn. You will review the mission before anyone sees it.",
+      icon: Sparkles,
+      label: "Create today's mission",
+      onClick: onCreateMission,
+      title: "Let's prepare something for today",
+    };
+  } else if (activeMission && glance.total === 0) {
+    guide = {
+      detail: `Share code ${classCode || "from your class"}. Student progress will appear here automatically when they join.`,
+      icon: ClipboardCopy,
+      label: "Copy class code",
+      onClick: onShareCode,
+      title: "Your mission is ready — invite your students",
+    };
+  } else if (glance.needsAttention.length > 0) {
+    const count = glance.needsAttention.length;
+    guide = {
+      detail: "Open the student list to see names, recent work, and where a quick conversation may help.",
+      icon: CircleAlert,
+      label: "See who needs help",
+      onClick: onOpenStudents,
+      title: `${count} ${count === 1 ? "student may" : "students may"} need a check-in`,
+    };
+  } else if (everyoneFinished) {
+    guide = {
+      detail: "Use what Emily noticed to choose a review, a whole-class activity, or an extra challenge.",
+      icon: PartyPopper,
+      label: "Plan the next lesson",
+      onClick: onPlanFollowUp,
+      title: "Everyone finished — nice work!",
+    };
+  } else if (glance.playingNow.length > 0) {
+    guide = {
+      detail: "The charts below update as students work. You can keep teaching and check back whenever you need to.",
+      icon: Gamepad2,
+      label: "View student details",
+      onClick: onOpenStudents,
+      title: "Your class is working right now",
+    };
+  } else if (activeMission) {
+    guide = {
+      detail: "The mission is published. Share the code when class starts, then progress will update here automatically.",
+      icon: ClipboardCopy,
+      label: "Share class code",
+      onClick: onShareCode,
+      title: "Everything is ready for your students",
+    };
+  }
+
+  const GuideIcon = guide.icon;
+
+  return (
+    <section className="relative overflow-hidden rounded-2xl border border-[#c0a3ef] bg-gradient-to-br from-[#9164f9] via-[#9e74f7] to-[#b593f2] p-5 text-white shadow-sm sm:p-6">
+      <div
+        className="pointer-events-none absolute -top-20 -right-12 size-56 rounded-full border-[32px] border-white/10"
+        aria-hidden
+      />
+      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex max-w-3xl items-start gap-4">
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/18 ring-1 ring-white/25">
+            <GuideIcon className="size-5" aria-hidden />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-white/75">
+              HI {firstName.toLocaleUpperCase("en")} · HERE&apos;S WHAT MATTERS TODAY
+            </p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
+              {guide.title}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/85">
+              {guide.detail}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          onClick={guide.onClick}
+          className="shrink-0 bg-white text-[#6841c4] hover:bg-[#e2e2e2]"
+        >
+          {guide.label}
+          <ArrowRight className="size-4" aria-hidden />
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function DashboardLoadingState() {
+  return (
+    <div className="space-y-5" aria-label="Loading class dashboard" aria-busy="true">
+      <div className="h-40 animate-pulse rounded-2xl bg-[#d2c2e9]/45" />
+      <div className="grid gap-5 xl:grid-cols-2">
+        <div className="h-96 animate-pulse rounded-xl bg-[#e2e2e2]" />
+        <div className="h-96 animate-pulse rounded-xl bg-[#e2e2e2]" />
+      </div>
+    </div>
+  );
+}
+
 function ActiveMissionCard({
   activeMission,
   classCode,
   generatedByAi,
-  generatedByMock,
   teacherClass,
 }: {
   readonly activeMission: IApiTeacherClassMission | null;
   readonly classCode: string;
   readonly generatedByAi: boolean;
-  readonly generatedByMock: boolean;
   readonly teacherClass: IApiTeacherClass | null;
 }) {
   return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
+    <Card className="gap-0 border-[#dad2e6] py-0">
+      <CardHeader className="border-b border-[#dad2e6] bg-[#d2c2e9]/10 px-4 py-4 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase text-cyan-700">
-              Current class plan
+            <p className="text-xs font-bold uppercase text-[#9164f9]">
+              TODAY&apos;S PLAN
             </p>
             <CardTitle className="mt-2 text-2xl">
-              {activeMission?.title ?? "Set today's class mission"}
+              {activeMission?.title ?? "No mission shared yet"}
             </CardTitle>
             <CardDescription className="mt-2 max-w-2xl leading-6">
               {teacherClass
                 ? (activeMission?.summary ??
-                  "Tell Emily what students should study or reinforce. She will ask for the right context, generate a preview, and keep the class mission grounded in your goal.")
-                : "Create a class first. Each class gets its own code, assignments, students, and notebook."}
+                  "Tell Emily what students should practice. You can review every question before sharing it with the class.")
+                : "Create a class first. It will have its own code, missions, students, and notes."}
             </CardDescription>
           </div>
         </div>
@@ -927,11 +1103,8 @@ function ActiveMissionCard({
           <StatusBadge
             value={activeMission?.status ?? teacherClass?.status ?? "draft"}
           />
-          {generatedByAi ? <BadgeTone tone="emerald">Gemini</BadgeTone> : null}
-          {generatedByMock ? (
-            <BadgeTone tone="amber">Fallback</BadgeTone>
-          ) : null}
-          <BadgeTone tone="cyan">
+          {generatedByAi ? <BadgeTone tone="violet">Built with Emily</BadgeTone> : null}
+          <BadgeTone tone="soft">
             {activeMission?.subject ??
               teacherClass?.subject ??
               "No subject yet"}
@@ -957,31 +1130,36 @@ function ActiveMissionCard({
               }
             />
             <InfoPanel
-              label="Duration"
+              label="Suggested time"
               value={`${activeMission.suggested_duration_minutes} minutes`}
             />
           </div>
         ) : (
-          <div className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-[#c9b3ec] bg-[#d2c2e9]/15 p-4 text-sm leading-6 text-muted-foreground">
             {teacherClass
-              ? "No published mission yet. Open the Mission Builder to create a preview and publish the code students will use inside the game."
-              : "No class selected. Create a class, then publish the first mission for that specific class code."}
+              ? "No mission has been shared yet. Create one, review it, and then share it with students."
+              : "No class selected. Create a class, then prepare its first mission."}
           </div>
         )}
 
         {activeMission ? (
           <div className="grid gap-3">
-            <h3 className="text-sm font-semibold">Learning flow</h3>
+            <h3 className="text-sm font-semibold">What students will do</h3>
             <div className="grid gap-2">
-              {activeMission.stages.map((stage) => (
+              {activeMission.stages.map((stage, index) => (
                 <div
                   key={stage.id}
-                  className="rounded-md border border-border bg-muted/40 p-3"
+                  className="flex gap-3 rounded-xl border border-[#dad2e6] bg-[#d2c2e9]/10 p-3"
                 >
-                  <p className="font-semibold">{stage.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {stage.goal}
-                  </p>
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#9164f9] text-xs font-bold text-white">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <p className="font-semibold">{stage.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {stage.goal}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1000,7 +1178,7 @@ function SectionHeading({
 }: {
   readonly detail: string;
   readonly eyebrow: string;
-  readonly source?: "demo" | "estimated" | "live";
+  readonly source?: "estimated" | "live";
   readonly title: string;
 }) {
   return (
@@ -1022,17 +1200,15 @@ function SectionHeading({
 function SourceBadge({
   source,
 }: {
-  readonly source: "demo" | "estimated" | "live";
+  readonly source: "estimated" | "live";
 }) {
   const label = {
-    demo: "Example data",
-    estimated: "Based on class signals",
-    live: "Live class data",
+    estimated: "From student work",
+    live: "Updates automatically",
   }[source];
   const className = {
-    demo: "bg-amber-50 text-amber-800",
-    estimated: "bg-cyan-50 text-cyan-800",
-    live: "bg-emerald-50 text-emerald-800",
+    estimated: "bg-[#d2c2e9]/35 text-[#6841c4]",
+    live: "bg-[#c0a3ef]/25 text-[#6841c4]",
   }[source];
 
   return (
@@ -1063,51 +1239,50 @@ function StudentsTableSection({
       </div>
       {classLearning && classLearning.students_with_evidence > 0 ? (
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-md border border-border bg-muted/30 p-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase">
-              Persistent evidence
+          <div className="rounded-xl border border-[#dad2e6] bg-[#d2c2e9]/15 p-4">
+            <p className="text-xs font-semibold text-[#6841c4] uppercase">
+              LEARNING HISTORY
             </p>
             <p className="mt-2 text-2xl font-black">
               {classLearning.students_with_evidence}/{students.length}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              students with recorded learning paths
+              students with work Emily can summarize
             </p>
             <p className="mt-2 text-xs font-medium text-muted-foreground">
               {classLearning.completed_attempts}/{classLearning.total_attempts}{" "}
-              attempts completed
+              missions finished
             </p>
             {classLearning.abandoned_attempts > 0 ? (
-              <p className="mt-1 text-xs font-semibold text-amber-700">
+              <p className="mt-1 text-xs font-semibold text-[#6841c4]">
                 {classLearning.abandoned_attempts} left before finishing
               </p>
             ) : null}
           </div>
-          <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-4">
-            <p className="text-xs font-semibold text-emerald-700 uppercase">
-              Common strength
+          <div className="rounded-xl border border-[#c9b3ec] bg-[#c9b3ec]/20 p-4">
+            <p className="text-xs font-semibold text-[#6841c4] uppercase">
+              A STRENGTH SHOWING UP OFTEN
             </p>
-            <p className="mt-2 text-sm font-bold text-emerald-950">
+            <p className="mt-2 text-sm font-bold text-foreground">
               {classLearning.common_strengths[0]?.label ??
                 "More completed evidence needed"}
             </p>
-            <p className="mt-1 text-xs text-emerald-800">
+            <p className="mt-1 text-xs text-muted-foreground">
               {classLearning.common_strengths[0]?.count ?? 0} students
             </p>
           </div>
-          <div className="rounded-md border border-amber-200 bg-amber-50/60 p-4">
-            <p className="text-xs font-semibold text-amber-700 uppercase">
-              Next class adaptation
+          <div className="rounded-xl border border-[#b593f2] bg-[#b593f2]/15 p-4">
+            <p className="text-xs font-semibold text-[#6841c4] uppercase">
+              TRY NEXT
             </p>
-            <p className="mt-2 text-sm leading-6 font-semibold text-amber-950">
+            <p className="mt-2 text-sm leading-6 font-semibold text-foreground">
               {classLearning.next_adaptation}
             </p>
           </div>
         </div>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Click a student to inspect attempts, learning flow, evidence and
-        persistent memory.
+        Select a student to see progress, recent answers, and Emily&apos;s notes.
       </p>
       <StudentsTable students={students} onStudentClick={onStudentClick} />
     </section>
@@ -1134,17 +1309,16 @@ function NotebookPanel({
 
   return (
     <section className="grid gap-4 lg:grid-cols-3">
-      <Card className="gap-0 py-0 lg:col-span-2">
-        <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
+      <Card className="gap-0 border-[#dad2e6] py-0 lg:col-span-2">
+        <CardHeader className="border-b border-[#dad2e6] bg-[#d2c2e9]/10 px-4 py-4 sm:px-6">
           <div className="flex items-start gap-3">
-            <div className="grid size-10 place-items-center rounded-md bg-cyan-50 text-cyan-700">
+            <div className="grid size-10 place-items-center rounded-lg bg-[#9164f9] text-white">
               <NotebookTabs className="size-5" aria-hidden />
             </div>
             <div>
-              <CardTitle>Class notebook</CardTitle>
+              <CardTitle>Teacher notes</CardTitle>
               <CardDescription className="mt-2 leading-6">
-                Emily captures how students solve problems, where they hesitate,
-                and what should change in the next mission.
+                A short, readable summary of what students are learning and what may help next.
               </CardDescription>
             </div>
           </div>
@@ -1160,11 +1334,11 @@ function NotebookPanel({
           />
           <NotebookRow
             icon={CheckCircle2}
-            title="Positive signal"
+            title="A positive sign"
             value={
               completedStudents.length > 0
                 ? `${completedStudents.length} students completed the mission.`
-                : "Completion signals will appear after students play."
+                : "Completed missions will appear after students play."
             }
           />
           <NotebookRow
@@ -1181,11 +1355,11 @@ function NotebookPanel({
         </CardContent>
       </Card>
 
-      <Card className="gap-0 py-0">
-        <CardHeader className="border-b border-border px-4 py-4 sm:px-6">
+      <Card className="gap-0 border-[#dad2e6] py-0">
+        <CardHeader className="border-b border-[#dad2e6] bg-[#d2c2e9]/10 px-4 py-4 sm:px-6">
           <CardTitle>Next lesson notes</CardTitle>
           <CardDescription className="mt-2 leading-6">
-            A short planning queue for the teacher.
+            Ideas you can use or adapt.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 px-4 py-5 sm:px-6">
@@ -1193,7 +1367,7 @@ function NotebookPanel({
             (suggestion) => (
               <div
                 key={suggestion.id}
-                className="rounded-md border border-border p-3"
+                className="rounded-xl border border-[#dad2e6] p-3"
               >
                 <p className="text-sm font-semibold">{suggestion.title}</p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -1204,8 +1378,7 @@ function NotebookPanel({
           )}
           {suggestions.length === 0 ? (
             <p className="text-sm leading-6 text-muted-foreground">
-              Publish a mission and collect student attempts to unlock better
-              lesson notes.
+              Share a mission and collect student work to unlock lesson ideas.
             </p>
           ) : null}
         </CardContent>
@@ -1224,8 +1397,8 @@ function NotebookRow({
   readonly value: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-md border border-border p-3">
-      <Icon className="mt-0.5 size-4 shrink-0 text-cyan-700" aria-hidden />
+    <div className="flex gap-3 rounded-xl border border-[#dad2e6] p-3">
+      <Icon className="mt-0.5 size-4 shrink-0 text-[#9164f9]" aria-hidden />
       <div>
         <p className="text-sm font-semibold">{title}</p>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{value}</p>
@@ -1242,7 +1415,7 @@ function InfoPanel({
   readonly value: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-muted/40 p-3">
+    <div className="rounded-xl border border-[#dad2e6] bg-[#d2c2e9]/10 p-3">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold">{value}</p>
     </div>
@@ -1258,11 +1431,11 @@ function ClassCodeBadge({
 }) {
   if (compact) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm">
+      <div className="flex items-center gap-2 rounded-xl border border-[#c9b3ec] bg-[#d2c2e9]/20 px-3 py-1.5 text-sm">
         <span className="text-[11px] font-bold uppercase text-primary">
           Code
         </span>
-        <span className="font-mono text-base font-black text-[#3f20c8]">
+        <span className="font-mono text-base font-black text-[#6841c4]">
           {value}
         </span>
       </div>
@@ -1270,31 +1443,20 @@ function ClassCodeBadge({
   }
 
   return (
-    <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm">
+    <div className="rounded-xl border border-[#c9b3ec] bg-[#d2c2e9]/20 px-3 py-2 text-sm">
       <span className="block text-xs font-bold uppercase text-primary">
         Class code
       </span>
-      <span className="mt-1 block font-mono text-lg font-black text-[#3f20c8]">
+      <span className="mt-1 block font-mono text-lg font-black text-[#6841c4]">
         {value}
       </span>
     </div>
   );
 }
 
-function demoStudentCount(...groups: { students: { id: string }[] }[][]) {
-  const ids = new Set<string>();
-  for (const group of groups.flat()) {
-    for (const student of group.students) {
-      ids.add(student.id);
-    }
-  }
-
-  return ids.size;
-}
-
 function StatusBadge({ value }: { readonly value: string }) {
   return (
-    <BadgeTone tone={value === "published" ? "emerald" : "slate"}>
+    <BadgeTone tone={value === "published" ? "violet" : "muted"}>
       {statusLabel(value)}
     </BadgeTone>
   );
@@ -1305,13 +1467,12 @@ function BadgeTone({
   tone,
 }: {
   readonly children: string;
-  readonly tone: "amber" | "cyan" | "emerald" | "slate";
+  readonly tone: "muted" | "soft" | "violet";
 }) {
   const classNameByTone = {
-    amber: "bg-amber-50 text-amber-700",
-    cyan: "bg-cyan-50 text-cyan-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-    slate: "bg-slate-100 text-slate-700",
+    muted: "bg-[#e2e2e2] text-foreground",
+    soft: "bg-[#d2c2e9]/35 text-[#6841c4]",
+    violet: "bg-[#9164f9] text-white",
   };
 
   return (
@@ -1325,11 +1486,11 @@ function BadgeTone({
 
 function statusLabel(value: string) {
   if (value === "published") {
-    return "Published";
+    return "Shared with students";
   }
 
   if (value === "preview") {
-    return "Preview";
+    return "Ready to review";
   }
 
   if (value === "draft") {

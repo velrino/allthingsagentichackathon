@@ -77,11 +77,13 @@ export function useStudentClassMissions(
       studentClassSessionChangedEvent,
       refreshClassSession,
     );
+    window.addEventListener("storage", refreshClassSession);
     return () => {
       window.removeEventListener(
         studentClassSessionChangedEvent,
         refreshClassSession,
       );
+      window.removeEventListener("storage", refreshClassSession);
     };
   }, []);
 

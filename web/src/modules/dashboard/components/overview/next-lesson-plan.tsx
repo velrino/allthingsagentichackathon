@@ -13,22 +13,22 @@ type NextLessonPlanProps = {
 
 const tierMeta: Record<SuggestionTier, { readonly detail: string; readonly icon: LucideIcon; readonly iconClassName: string; readonly label: string }> = {
   reteaching: {
-    label: "Reteaching",
-    detail: "Tier 2 · targeted small-group support",
+    label: "Review together",
+    detail: "A quick activity for students who need help",
     icon: LifeBuoy,
-    iconClassName: "bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-200",
+    iconClassName: "bg-[#9164f9]/12 text-[#9164f9]",
   },
   whole_class: {
-    label: "Next steps",
-    detail: "Tier 1 · whole-class next moves",
+    label: "Try with everyone",
+    detail: "A simple next step for the whole class",
     icon: Users,
-    iconClassName: "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-200",
+    iconClassName: "bg-[#b593f2]/20 text-[#9164f9]",
   },
   enrichment: {
-    label: "Enrichment",
-    detail: "Tier 1 · extend for advanced learners",
+    label: "Add a challenge",
+    detail: "For students who are ready to go further",
     icon: Sparkles,
-    iconClassName: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
+    iconClassName: "bg-[#d2c2e9]/35 text-[#9164f9]",
   },
 };
 
@@ -42,7 +42,7 @@ export function NextLessonPlan({ canBuild, onBuildNextMission, suggestions }: Ne
             const Icon = meta.icon;
 
             return (
-              <article key={suggestion.id} className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-4">
+              <article key={suggestion.id} className="flex min-w-0 flex-col rounded-xl border border-[#dad2e6] bg-card p-4">
                 <div className="flex items-start gap-3">
                   <span className={cn("grid size-9 shrink-0 place-items-center rounded-md", meta.iconClassName)}>
                     <Icon className="size-4" aria-hidden />
@@ -61,7 +61,7 @@ export function NextLessonPlan({ canBuild, onBuildNextMission, suggestions }: Ne
                   </p>
                 ) : null}
                 {suggestion.questions.length > 0 ? (
-                  <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
+                  <ul className="mt-3 space-y-1.5 border-t border-[#dad2e6] pt-3">
                     {suggestion.questions.slice(0, 2).map((question) => (
                       <li key={question} className="flex gap-2 text-xs leading-5 text-muted-foreground">
                         <span aria-hidden>“</span>
@@ -73,7 +73,7 @@ export function NextLessonPlan({ canBuild, onBuildNextMission, suggestions }: Ne
                 {suggestion.focus_skills.length > 0 ? (
                   <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
                     {suggestion.focus_skills.map((skill) => (
-                      <span key={skill} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                      <span key={skill} className="rounded-md bg-[#d2c2e9]/30 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                         {skill}
                       </span>
                     ))}
@@ -90,17 +90,16 @@ export function NextLessonPlan({ canBuild, onBuildNextMission, suggestions }: Ne
         </p>
       )}
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-[#c9b3ec] bg-[#d2c2e9]/20 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold">Turn these patterns into tomorrow&apos;s mission</p>
+          <p className="text-sm font-semibold">Turn this into tomorrow&apos;s mission</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Opens the Mission Builder with the class patterns already written into the teacher prompt. You can edit before
-            Emily processes it.
+            Emily starts a draft using what the class found easy and difficult. You can review everything before sharing it.
           </p>
         </div>
         <Button type="button" disabled={!canBuild} onClick={onBuildNextMission} className="shrink-0">
           <BookOpenCheck className="size-4" aria-hidden />
-          Build tomorrow&apos;s mission
+          Draft the next mission
         </Button>
       </div>
     </div>

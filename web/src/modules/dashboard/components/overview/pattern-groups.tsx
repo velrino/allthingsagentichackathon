@@ -23,21 +23,21 @@ const levelOrder: PatternLevel[] = ["high", "medium", "low"];
 
 const levelStyles: Record<PatternVariant, Record<PatternLevel, LevelStyle>> = {
   growth: {
-    high: { label: "Strong need", dot: "bg-rose-500", row: "bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200" },
-    medium: { label: "Moderate", dot: "bg-orange-400", row: "bg-orange-50 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200" },
-    low: { label: "Mild", dot: "bg-amber-400", row: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" },
+    high: { label: "Check in soon", dot: "bg-[#9164f9]", row: "bg-[#9164f9]/12 text-foreground" },
+    medium: { label: "Keep an eye on", dot: "bg-[#aa84f4]", row: "bg-[#aa84f4]/15 text-foreground" },
+    low: { label: "Small reminder", dot: "bg-[#c9b3ec]", row: "bg-[#c9b3ec]/20 text-foreground" },
   },
   strength: {
-    high: { label: "Excels", dot: "bg-emerald-600", row: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100" },
-    medium: { label: "Solid", dot: "bg-emerald-400", row: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200" },
-    low: { label: "Emerging", dot: "bg-teal-300", row: "bg-teal-50 text-teal-800 dark:bg-teal-950/30 dark:text-teal-200" },
+    high: { label: "Very confident", dot: "bg-[#9164f9]", row: "bg-[#9164f9]/12 text-foreground" },
+    medium: { label: "Confident", dot: "bg-[#b593f2]", row: "bg-[#b593f2]/15 text-foreground" },
+    low: { label: "Getting there", dot: "bg-[#d2c2e9]", row: "bg-[#d2c2e9]/25 text-foreground" },
   },
 };
 
 export function PatternGroups({ emptyMessage, groups, limit = 6, totalStudents, variant }: PatternGroupsProps) {
   const visibleGroups = groups.slice(0, limit);
   const styles = levelStyles[variant];
-  const countVerb = variant === "growth" ? "need work" : "demonstrate";
+  const countVerb = variant === "growth" ? "showed this pattern" : "showed this strength";
 
   return (
     <div className="space-y-3">
@@ -57,8 +57,8 @@ export function PatternGroups({ emptyMessage, groups, limit = 6, totalStudents, 
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visibleGroups.map((group) => (
-            <article key={group.pattern} className="flex min-w-0 flex-col rounded-lg border border-border bg-card">
-              <header className="border-b border-border px-4 py-3">
+            <article key={group.pattern} className="flex min-w-0 flex-col rounded-xl border border-[#dad2e6] bg-card">
+              <header className="border-b border-[#dad2e6] px-4 py-3">
                 <h3 className="text-sm font-semibold leading-5">{group.pattern}</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {group.students.length} of {totalStudents} {countVerb}

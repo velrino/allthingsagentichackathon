@@ -109,7 +109,7 @@ export const dashboardTopNav = [
     disabled: false,
   },
   {
-    title: "Notebook",
+    title: "Teacher notes",
     href: "/dashboard#notebook",
     isActive: false,
     disabled: false,

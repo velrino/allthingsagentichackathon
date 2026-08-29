@@ -38,13 +38,24 @@ export function saveStudentClassSession(
     gradeLevel: studentClass.grade_level,
     studentName,
   };
-  window.sessionStorage.setItem(studentClassSessionKey, JSON.stringify(session));
+  window.localStorage.setItem(studentClassSessionKey, JSON.stringify(session));
+  window.sessionStorage.removeItem(studentClassSessionKey);
   window.dispatchEvent(new Event(studentClassSessionChangedEvent));
 }
 
 export function readStudentClassSession(): StudentClassSession | null {
   try {
+    const localValue = window.localStorage.getItem(studentClassSessionKey);
+    if (localValue) {
+      return JSON.parse(localValue) as StudentClassSession;
+    }
+
+    // Preserve a session created before class sessions were shared across tabs.
     const value = window.sessionStorage.getItem(studentClassSessionKey);
+    if (value) {
+      window.localStorage.setItem(studentClassSessionKey, value);
+      window.sessionStorage.removeItem(studentClassSessionKey);
+    }
     return value ? (JSON.parse(value) as StudentClassSession) : null;
   } catch {
     return null;
@@ -69,6 +80,7 @@ export function clearStudentMissionSession() {
 }
 
 export function clearStudentSession() {
+  window.localStorage.removeItem(studentClassSessionKey);
   window.sessionStorage.removeItem(studentClassSessionKey);
   clearStudentMissionSession();
   window.dispatchEvent(new Event(studentClassSessionChangedEvent));

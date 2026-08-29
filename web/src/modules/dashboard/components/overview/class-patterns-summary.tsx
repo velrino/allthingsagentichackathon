@@ -15,29 +15,29 @@ export function ClassPatternsSummary({ growth, strengths, summary, totalStudents
   return (
     <div className="grid gap-3 lg:grid-cols-3">
       <PatternList
-        eyebrow="Tier 1 · whole-class wins to build on"
+        eyebrow="Use these wins to build confidence"
         groups={strengths}
         icon={TrendingUp}
-        iconClassName="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200"
-        markerClassName="bg-emerald-500"
-        title="Strengths"
+        iconClassName="bg-[#d2c2e9]/40 text-[#9164f9]"
+        markerClassName="bg-[#b593f2]"
+        title="What students understand"
         totalStudents={totalStudents}
       />
       <PatternList
-        eyebrow="Tier 2 lens · use this to plan small-group review"
+        eyebrow="Good topics for a quick review"
         groups={growth}
         icon={Target}
-        iconClassName="bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-200"
-        markerClassName="bg-orange-400"
-        title="Areas for growth"
+        iconClassName="bg-[#c0a3ef]/35 text-[#9164f9]"
+        markerClassName="bg-[#9164f9]"
+        title="What to revisit"
         totalStudents={totalStudents}
       />
-      <article className="rounded-lg border border-border bg-card p-4">
+      <article className="rounded-xl border border-[#dad2e6] bg-[#d2c2e9]/15 p-4">
         <div className="flex items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-200">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#9164f9] text-white">
             <Sparkles className="size-4" aria-hidden />
           </span>
-          <h3 className="text-sm font-semibold">Overall assessment</h3>
+          <h3 className="text-sm font-semibold">In plain language</h3>
         </div>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{summary}</p>
       </article>
@@ -65,7 +65,7 @@ function PatternList({
   const visibleGroups = groups.slice(0, 3);
 
   return (
-    <article className="rounded-lg border border-border bg-card p-4">
+    <article className="rounded-xl border border-[#dad2e6] bg-card p-4">
       <div className="flex items-start gap-3">
         <span className={cn("grid size-9 shrink-0 place-items-center rounded-md", iconClassName)}>
           <Icon className="size-4" aria-hidden />

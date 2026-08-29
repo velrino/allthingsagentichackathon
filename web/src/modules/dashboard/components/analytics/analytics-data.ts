@@ -5,7 +5,7 @@ import type {
 } from "@/backend/api/api.interface";
 import { POD_LABELS, POD_ORDER, type PodId } from "@/modules/game/types/game";
 
-export type AnalyticsSource = "demo" | "estimated" | "live";
+export type AnalyticsSource = "estimated" | "live";
 
 export type AnalyticsDataset<T> = {
   readonly data: T;
@@ -17,10 +17,12 @@ export type StudentRef = {
   readonly name: string;
 };
 
-/** Class glance: computed from live game presence only. */
+/** Class glance: computed only from students returned by the dashboard API. */
 export type ClassGlance = {
   readonly total: number;
   readonly notStarted: StudentRef[];
+  readonly inProgress: StudentRef[];
+  readonly needsAttention: StudentRef[];
   readonly playingNow: StudentRef[];
   readonly atTheDesk: StudentRef[];
   readonly inReview: StudentRef[];
@@ -55,94 +57,10 @@ export type PlannedSuggestion = IApiSuggestion & {
   readonly tier: SuggestionTier;
 };
 
-const demoStudents: StudentRef[] = [
-  { id: "demo-maya", name: "Maya Silva" },
-  { id: "demo-theo", name: "Theo Park" },
-  { id: "demo-ana", name: "Ana Costa" },
-  { id: "demo-luca", name: "Luca Rossi" },
-  { id: "demo-noor", name: "Noor Haddad" },
-  { id: "demo-ravi", name: "Ravi Menon" },
-  { id: "demo-june", name: "June Okafor" },
-  { id: "demo-eli", name: "Eli Brandt" },
-];
-
-const demoGrowthPatterns: PatternGroup[] = [
-  {
-    pattern: "Divides instead of multiplying to clear a denominator",
-    students: [
-      { ...demoStudents[3], level: "high" },
-      { ...demoStudents[0], level: "medium" },
-      { ...demoStudents[5], level: "medium" },
-      { ...demoStudents[7], level: "low" },
-    ],
-  },
-  {
-    pattern: "Adds numerators and denominators straight across",
-    students: [
-      { ...demoStudents[3], level: "high" },
-      { ...demoStudents[4], level: "medium" },
-      { ...demoStudents[1], level: "low" },
-    ],
-  },
-  {
-    pattern: "Moves a term without doing the same on both sides",
-    students: [
-      { ...demoStudents[2], level: "medium" },
-      { ...demoStudents[6], level: "low" },
-    ],
-  },
-];
-
-const demoStrengthPatterns: PatternGroup[] = [
-  {
-    pattern: "Explains the reason before seeing the answer",
-    students: [
-      { ...demoStudents[1], level: "high" },
-      { ...demoStudents[2], level: "high" },
-      { ...demoStudents[6], level: "medium" },
-      { ...demoStudents[4], level: "medium" },
-      { ...demoStudents[0], level: "low" },
-    ],
-  },
-  {
-    pattern: "Keeps trying after a wrong answer",
-    students: [
-      { ...demoStudents[0], level: "high" },
-      { ...demoStudents[5], level: "high" },
-      { ...demoStudents[7], level: "medium" },
-      { ...demoStudents[3], level: "low" },
-    ],
-  },
-  {
-    pattern: "Picks the right next move in two-step equations",
-    students: [
-      { ...demoStudents[1], level: "high" },
-      { ...demoStudents[2], level: "medium" },
-      { ...demoStudents[6], level: "medium" },
-    ],
-  },
-];
-
-const demoFunnel: FunnelStep[] = [
-  { id: "not_started", label: "Not started", kind: "not_started", students: [demoStudents[7]] },
-  { id: "fractions", label: POD_LABELS.fractions, kind: "stage", students: [demoStudents[3], demoStudents[4]] },
-  {
-    id: "simple-equations",
-    label: POD_LABELS["simple-equations"],
-    kind: "stage",
-    students: [demoStudents[0], demoStudents[5]],
-  },
-  {
-    id: "two-step-equations",
-    label: POD_LABELS["two-step-equations"],
-    kind: "stage",
-    students: [demoStudents[2]],
-  },
-  { id: "completed", label: "Completed", kind: "completed", students: [demoStudents[1], demoStudents[6]] },
-];
-
 export function buildClassGlance(students: IApiDashboardStudent[]): ClassGlance {
   const notStarted: StudentRef[] = [];
+  const inProgress: StudentRef[] = [];
+  const needsAttention: StudentRef[] = [];
   const playingNow: StudentRef[] = [];
   const atTheDesk: StudentRef[] = [];
   const inReview: StudentRef[] = [];
@@ -154,11 +72,23 @@ export function buildClassGlance(students: IApiDashboardStudent[]): ClassGlance 
     const session = student.session;
     const status = session?.status ?? "";
 
-    if (!session || !session.started_at) {
+    if (
+      student.progress.status === "completed" ||
+      status === "completed"
+    ) {
+      completed.push(ref);
+    } else if (
+      student.progress.status === "needs_attention" ||
+      student.progress.status === "abandoned" ||
+      status === "abandoned"
+    ) {
+      needsAttention.push(ref);
+    } else if (!session || !session.started_at) {
       notStarted.push(ref);
-      continue;
+    } else {
+      inProgress.push(ref);
     }
-    if (session.is_online) {
+    if (session?.is_online) {
       playingNow.push(ref);
     }
     if (status === "learning" || status === "thinking" || status === "reviewing") {
@@ -170,14 +100,13 @@ export function buildClassGlance(students: IApiDashboardStudent[]): ClassGlance 
     if (status === "abandoned" || student.progress.status === "abandoned") {
       leftEarly.push(ref);
     }
-    if (status === "completed") {
-      completed.push(ref);
-    }
   }
 
   return {
     total: students.length,
     notStarted,
+    inProgress,
+    needsAttention,
     playingNow,
     atTheDesk,
     inReview,
@@ -190,10 +119,6 @@ export function buildMissionFunnel(
   students: IApiDashboardStudent[],
   activeMission: IApiTeacherClassMission | null,
 ): AnalyticsDataset<FunnelStep[]> {
-  if (students.length === 0) {
-    return { data: demoFunnel, source: "demo" };
-  }
-
   const notStarted: StudentRef[] = [];
   const completed: StudentRef[] = [];
   const byStage = new Map<string, { label: string; students: StudentRef[] }>();
@@ -202,12 +127,15 @@ export function buildMissionFunnel(
     const ref = toStudentRef(student);
     const session = student.session;
 
-    if (!session || !session.started_at) {
-      notStarted.push(ref);
+    if (
+      student.progress.status === "completed" ||
+      session?.status === "completed"
+    ) {
+      completed.push(ref);
       continue;
     }
-    if (session.status === "completed") {
-      completed.push(ref);
+    if (!session || !session.started_at) {
+      notStarted.push(ref);
       continue;
     }
 
@@ -248,10 +176,6 @@ export function buildMissionFunnel(
 }
 
 export function buildGrowthPatterns(students: IApiDashboardStudent[]): AnalyticsDataset<PatternGroup[]> {
-  if (students.length === 0) {
-    return { data: demoGrowthPatterns, source: "demo" };
-  }
-
   return {
     source: "estimated",
     data: groupPatterns(students, (student) => student.improvement_areas, growthLevel),
@@ -259,10 +183,6 @@ export function buildGrowthPatterns(students: IApiDashboardStudent[]): Analytics
 }
 
 export function buildStrengthPatterns(students: IApiDashboardStudent[]): AnalyticsDataset<PatternGroup[]> {
-  if (students.length === 0) {
-    return { data: demoStrengthPatterns, source: "demo" };
-  }
-
   return {
     source: "estimated",
     data: groupPatterns(students, (student) => student.strengths, strengthLevel),
