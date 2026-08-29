@@ -232,8 +232,10 @@ function convertQuestion(
   idSuffix = "",
 ): Question {
   const id = `${safeID(source.id || `question-${index + 1}`)}${idSuffix}`;
-  const expected = source.expected_answer.trim();
-  const options = uniqueStrings([expected, ...source.options, ...source.misconception_traps])
+  const expected = cleanText(source.expected_answer);
+  const sourceOptions = cleanTextList(source.options);
+  const sourceTraps = cleanTextList(source.misconception_traps);
+  const options = uniqueStrings([expected, ...sourceOptions, ...sourceTraps])
     .filter(Boolean)
     .slice(0, 4);
   if (options.length < 2) {
@@ -246,7 +248,9 @@ function convertQuestion(
       return { text, correct: true as const };
     }
     const misconceptionId = `${id}-choice-${optionIndex + 1}`;
-    const trap = source.misconception_traps[optionIndex] ?? `Chose “${text}” instead of checking the mission evidence.`;
+    const trap =
+      sourceTraps[optionIndex] ??
+      `Chose “${text}” instead of checking the mission evidence.`;
     misconceptions.push({
       id: misconceptionId,
       skill: slot,
@@ -257,8 +261,9 @@ function convertQuestion(
     return { text, misconception: misconceptionId };
   });
 
-  const explanationSteps = source.explanation_steps.length
-    ? source.explanation_steps
+  const explanationSteps = cleanTextList(source.explanation_steps);
+  const steps = explanationSteps.length
+    ? explanationSteps
     : [`Connect the question to the learning goal.`, `The expected answer is: ${expected}`];
 
   return {
@@ -266,16 +271,24 @@ function convertQuestion(
     id,
     skill: slot,
     difficulty: difficultyForIndex(index),
-    prompt: source.prompt,
+    prompt: cleanText(source.prompt) || "Answer the mission question.",
     options: choiceOptions,
     explanation: {
-      steps: explanationSteps,
+      steps,
       visual: {
         kind: "chain",
-        lines: [source.prompt, ...explanationSteps, expected],
+        lines: [cleanText(source.prompt), ...steps, expected].filter(Boolean),
       },
     },
   };
+}
+
+function cleanText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function cleanTextList(value: unknown) {
+  return Array.isArray(value) ? value.map(cleanText).filter(Boolean) : [];
 }
 
 function difficultyForIndex(index: number): 1 | 2 | 3 {

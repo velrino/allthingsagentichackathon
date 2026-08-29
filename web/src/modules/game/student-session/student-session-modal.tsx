@@ -98,9 +98,7 @@ export function StudentSessionModal({
               onChange={(event) => handleMissionCodeChange(event.target.value)}
               disabled={loading}
               autoFocus
-              autoComplete="one-time-code"
               inputMode="numeric"
-              pattern="[0-9]*"
               maxLength={MISSION_CODE_MASKED_LENGTH}
               placeholder="123 456"
               aria-describedby={missionCodeHintId}
@@ -127,7 +125,6 @@ export function StudentSessionModal({
               value={studentName}
               onChange={(event) => setStudentName(event.target.value)}
               disabled={loading}
-              autoComplete="given-name"
               maxLength={80}
               placeholder="What should Emily call you?"
               aria-describedby={studentNameHintId}
