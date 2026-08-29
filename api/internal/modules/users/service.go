@@ -366,7 +366,7 @@ func (service *Service) SaveStudentLearningSnapshot(
 	liveTrace := orchestrator.BuildObservedLearningTrace(liveInput, "")
 	liveTrace.Finalized = false
 
-	attempt, _, err := service.repository.SaveStudentLearningSnapshot(ctx, SaveStudentLearningSnapshotInput{
+	attempt, _, completionStarted, err := service.repository.SaveStudentLearningSnapshot(ctx, SaveStudentLearningSnapshotInput{
 		Identity:  identity,
 		MissionID: normalizeText(missionID),
 		Status:    normalizedStatus,
@@ -382,6 +382,10 @@ func (service *Service) SaveStudentLearningSnapshot(
 	}
 
 	if normalizedStatus == "completed" {
+		shouldFinalize := completionStarted || attempt.TraceState == "failed"
+		if !shouldFinalize {
+			return attempt, nil
+		}
 		if service.learningTaskEnqueuer != nil {
 			if err := service.learningTaskEnqueuer.EnqueueFinalization(ctx, attempt); err == nil {
 				return attempt, nil
@@ -393,7 +397,7 @@ func (service *Service) SaveStudentLearningSnapshot(
 		return service.finalizeStudentAttempt(ctx, attempt.StudentID, attempt.ID)
 	}
 
-	if service.learningTaskEnqueuer != nil {
+	if normalizedStatus == "paused" && service.learningTaskEnqueuer != nil {
 		if err := service.learningTaskEnqueuer.EnqueueWatchdog(ctx, attempt); err != nil {
 			slog.Warn("student abandonment watchdog enqueue failed", "error", err, "attempt_id", attempt.ID)
 		}

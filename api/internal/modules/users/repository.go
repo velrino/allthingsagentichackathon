@@ -206,12 +206,14 @@ func (repository *Repository) UpdateStudentPresence(
 func (repository *Repository) SaveStudentLearningSnapshot(
 	ctx context.Context,
 	input SaveStudentLearningSnapshotInput,
-) (StudentMissionAttemptDocument, UserDocument, error) {
+) (StudentMissionAttemptDocument, UserDocument, bool, error) {
 	userRef := repository.client.Collection(usersCollectionName).Doc(input.Identity.ProviderUserID)
 	var attempt StudentMissionAttemptDocument
 	var user UserDocument
+	completionStarted := false
 
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		completionStarted = false
 		userSnapshot, err := tx.Get(userRef)
 		if status.Code(err) == codes.NotFound {
 			return ErrStudentNotFound
@@ -293,6 +295,7 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 
 		if input.Status == "completed" && completedAt.IsZero() {
 			completedAt = input.Timestamp
+			completionStarted = true
 		}
 		if input.Status == "completed" && !trace.Finalized {
 			traceState = "pending"
@@ -359,10 +362,10 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 		}, firestore.MergeAll)
 	})
 	if err != nil {
-		return StudentMissionAttemptDocument{}, UserDocument{}, fmt.Errorf("save student learning snapshot: %w", err)
+		return StudentMissionAttemptDocument{}, UserDocument{}, false, fmt.Errorf("save student learning snapshot: %w", err)
 	}
 
-	return attempt, user, nil
+	return attempt, user, completionStarted, nil
 }
 
 func (repository *Repository) studentMissionCompletionRef(
