@@ -628,7 +628,7 @@ export function Chalkboard(props: ChalkboardProps) {
                   {mission.title} · {stageLabel(mission, lesson.pod)}
                 </p>
                 <p className="text-base text-chalk-ink/60 sm:text-base">
-                  Prof. {TUTOR_NAME} · {questionLabel(lesson.question)}
+                  {TUTOR_NAME} · {questionLabel(lesson.question)}
                 </p>
               </div>
               <PodDots progress={progress} className="mt-1 shrink-0" />

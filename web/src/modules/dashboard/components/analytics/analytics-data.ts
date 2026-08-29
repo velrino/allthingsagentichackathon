@@ -246,7 +246,7 @@ export function buildNextMissionPrompt(
     return `- ${group.pattern} (${group.students.length} students).${suffix}`;
   });
   if (growthLines.length > 0) {
-    lines.push("", "Patterns Emily noticed that students still need to work on:", ...growthLines);
+    lines.push("", "Patterns Mia noticed that students still need to work on:", ...growthLines);
   }
 
   const strengthLines = strengths.slice(0, 2).map((group) => `- ${group.pattern} (${group.students.length} students).`);

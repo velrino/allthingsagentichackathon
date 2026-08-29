@@ -82,12 +82,12 @@ export function LoginPage() {
             Teacher dashboard
           </h1>
           <p className="mx-auto mt-4 max-w-lg text-base leading-7 text-white/85 sm:text-lg sm:leading-8 lg:mx-0">
-            Set what your class should reinforce, then read Emily&apos;s
+            Set what your class should reinforce, then read Mia&apos;s
             notebook after students play.
           </p>
         </div>
         <p className="hidden text-sm text-white/60 lg:block">
-          Emily leads, asks why, takes notes. You read the notebook.
+          Mia leads, asks why, takes notes. You read the notebook.
         </p>
       </section>
 

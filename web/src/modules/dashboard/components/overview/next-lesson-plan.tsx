@@ -85,7 +85,7 @@ export function NextLessonPlan({ canBuild, onBuildNextMission, suggestions }: Ne
         </div>
       ) : (
         <p className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
-          Publish a mission and Emily will suggest what to reteach, what to do with the whole class, and how to stretch
+          Publish a mission and Mia will suggest what to reteach, what to do with the whole class, and how to stretch
           the students who are ahead.
         </p>
       )}
@@ -94,7 +94,7 @@ export function NextLessonPlan({ canBuild, onBuildNextMission, suggestions }: Ne
         <div>
           <p className="text-sm font-semibold">Turn this into tomorrow&apos;s mission</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Emily starts a draft using what the class found easy and difficult. You can review everything before sharing it.
+            Mia starts a draft using what the class found easy and difficult. You can review everything before sharing it.
           </p>
         </div>
         <Button type="button" disabled={!canBuild} onClick={onBuildNextMission} className="shrink-0">

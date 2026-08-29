@@ -326,7 +326,7 @@ function genericPreviewQuestions(
       ],
       expected_answer: "Explain the reasoning that supports it",
       explanation_steps: [
-        "Emily learns from the reason you give.",
+        "Mia learns from the reason you give.",
         "Your explanation helps the teacher see what to review next.",
       ],
       misconception_traps: [

@@ -253,8 +253,8 @@ func ensureMissionFlow(mission *MissionDocument) {
 		{
 			ID:          "preview",
 			Kind:        "setup",
-			Label:       "Emily builds preview",
-			Description: "Emily turns " + title + " into a short student-safe mission.",
+			Label:       "Mia builds preview",
+			Description: "Mia turns " + title + " into a short student-safe mission.",
 			Position:    orchestrator.MissionFlowPosition{X: 0, Y: 120},
 		},
 	}
@@ -287,14 +287,14 @@ func ensureMissionFlow(mission *MissionDocument) {
 			ID:          "check-understanding",
 			Kind:        "decision",
 			Label:       "Understanding check",
-			Description: "Emily checks whether the student can explain the answer and reasoning.",
+			Description: "Mia checks whether the student can explain the answer and reasoning.",
 			Position:    orchestrator.MissionFlowPosition{X: 0, Y: decisionY},
 		},
 		orchestrator.MissionFlowNode{
 			ID:          "adaptive-feedback",
 			Kind:        "feedback",
 			Label:       "Adaptive feedback",
-			Description: "Emily changes the explanation style when the student needs support.",
+			Description: "Mia changes the explanation style when the student needs support.",
 			Position:    orchestrator.MissionFlowPosition{X: 260, Y: decisionY},
 		},
 		orchestrator.MissionFlowNode{

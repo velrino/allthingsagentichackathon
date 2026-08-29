@@ -78,7 +78,7 @@ export function StudentSessionModal({
             Join your class
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Type the code your teacher gave you. Emily remembers where you
+            Type the code your teacher gave you. Mia remembers where you
             stop, so you can come back anytime.
           </p>
         </div>
@@ -137,7 +137,7 @@ export function StudentSessionModal({
               autoFocus={codeComplete}
               autoComplete="off"
               maxLength={INPUT_LIMITS.studentName}
-              placeholder="What should Emily call you?"
+              placeholder="What should Mia call you?"
               aria-describedby={studentNameHintId}
               className="mt-2 h-12 w-full rounded-xl border border-white/12 bg-white/8 px-4 text-center text-base font-semibold text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/70 focus:bg-white/12 disabled:opacity-60"
             />

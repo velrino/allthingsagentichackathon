@@ -260,7 +260,7 @@ func learningTraceSchema() map[string]any {
 			"improvement_areas": stringArray,
 			"next_adaptation": map[string]any{
 				"type":        "string",
-				"description": "One concrete adaptation Emily should retrieve and apply in the next interaction.",
+				"description": "One concrete adaptation Mia should retrieve and apply in the next interaction.",
 			},
 			"flow": map[string]any{
 				"type":                 "object",

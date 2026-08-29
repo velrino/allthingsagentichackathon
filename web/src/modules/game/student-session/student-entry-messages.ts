@@ -8,7 +8,7 @@ import { ApiError } from "@/backend/api/api.endpoints";
 export const studentEntryCopy = {
   codeHint: "6 numbers, like 123 456.",
   codeBlockedHint: "Use numbers only.",
-  nameHint: "So Emily knows who you are.",
+  nameHint: "So Mia knows who you are.",
   nameTooShort: "One more letter, please.",
   opening: "Opening the classroom...",
   errors: {
@@ -19,7 +19,7 @@ export const studentEntryCopy = {
     missionUnavailable:
       "This mission is no longer available. Ask your teacher for a new code.",
     codeFormat: "Class codes have 6 numbers, like 123 456.",
-    nameMissing: "Type your name so Emily knows who you are.",
+    nameMissing: "Type your name so Mia knows who you are.",
     tooManyTries: "Too many tries. Wait a minute and try again.",
     signIn: "Something went wrong signing you in. Refresh the page and try again.",
     offline: "We couldn't reach the classroom right now. Try again in a moment.",

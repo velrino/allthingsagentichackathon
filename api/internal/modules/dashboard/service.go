@@ -532,7 +532,7 @@ func buildStrengths(activeMission *mission.MissionDocument) []string {
 		return limitSignals(activeMission.PositiveSignals, 2)
 	}
 
-	return []string{"Keeps trying after feedback", "Responds to Emily's prompts"}
+	return []string{"Keeps trying after feedback", "Responds to Mia's prompts"}
 }
 
 func buildImprovementAreas(
@@ -554,11 +554,11 @@ func starterSuggestions() []orchestrator.MissionSuggestion {
 		{
 			ID:       "starter-diagnostic",
 			Title:    "Start with a short diagnostic",
-			Reason:   "Emily needs one visible misconception before adapting the path.",
+			Reason:   "Mia needs one visible misconception before adapting the path.",
 			Activity: "Ask three warm-up questions, then branch into review or challenge.",
 			Questions: []string{
 				"What did students practice today?",
-				"What mistake should Emily watch for?",
+				"What mistake should Mia watch for?",
 				"What would count as success after ten minutes?",
 			},
 			FocusSkills: []string{"diagnostic", "feedback"},

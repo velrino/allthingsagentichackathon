@@ -1,11 +1,9 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { useState } from "react";
 
-import {
-  getAvatarPreset,
-  teacherAvatarPresetId,
-} from "../avatars/avatar-presets";
+import { getAvatarPreset } from "../avatars/avatar-presets";
 import { TUTOR_NAME } from "../content/mission";
 import { stageLabel, type GameMission } from "../content/game-mission";
 import type { PodProgress } from "../state/student-memory";
@@ -80,7 +78,7 @@ const pill =
 
 /**
  * Roaming HUD. Four things, in the corners, and nothing in the middle:
- * where you are in the mission, the tutor's notebook, what Emily is saying,
+ * where you are in the mission, the tutor's notebook, what Mia is saying,
  * and the one action you can take right now.
  */
 export function GameHud({
@@ -106,7 +104,6 @@ export function GameHud({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [missionPickerOpen, setMissionPickerOpen] = useState(false);
   const avatar = getAvatarPreset(avatarPresetId);
-  const tutorAvatar = getAvatarPreset(teacherAvatarPresetId);
   const canChooseMission = nearSeat && pendingMissionCount > 0;
 
   return (
@@ -181,14 +178,13 @@ export function GameHud({
         />
       ) : null}
 
-      {/* The teacher speaks */}
+      {/* Mia speaks */}
       {missionActive && tutorLine ? (
         <div className="absolute bottom-[calc(190px+4rem+env(safe-area-inset-bottom))] left-3 right-3 sm:right-auto sm:bottom-7 sm:left-6 sm:max-w-md">
           <div className="glass animate-rise flex items-start gap-3 rounded-2xl px-4 py-3">
-            <AvatarPortrait
-              preset={tutorAvatar}
-              className="mt-0.5 size-10 shrink-0 shadow-[0_0_18px_rgba(103,232,249,0.45)]"
-            />
+            <span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-full border border-cyan-200/40 bg-cyan-300/15 text-cyan-100 shadow-[0_0_18px_rgba(103,232,249,0.45)]">
+              <Sparkles className="size-5" aria-hidden />
+            </span>
             <div className="min-w-0">
               <p className="font-display text-[0.62rem] font-semibold tracking-[0.2em] text-cyan-200/90 uppercase">
                 {TUTOR_NAME}

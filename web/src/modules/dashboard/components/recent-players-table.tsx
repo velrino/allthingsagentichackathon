@@ -136,10 +136,10 @@ function sessionStatusLabel(status: string) {
     completed: "Mission completed",
     abandoned: "Left before finishing",
     exploring: "Exploring the classroom",
-    learning: "Working with Emily",
+    learning: "Working with Mia",
     reviewing: "Reviewing a skill",
     paused: "Paused — progress saved",
-    thinking: "Emily is adapting",
+    thinking: "Mia is adapting",
   };
 
   return labels[status] ?? "Waiting to begin";

@@ -805,7 +805,7 @@ export function DashboardPage({
                 </div>
 
                 <SectionHeading
-                  eyebrow="WHAT EMILY NOTICED"
+                  eyebrow="WHAT MIA NOTICED"
                   title="What students found easy — and difficult"
                   detail="These notes come from students' answers and explanations, so you can plan without reading every response."
                   source={students.length > 0 ? patternSource : undefined}
@@ -857,7 +857,7 @@ export function DashboardPage({
                   <SectionHeading
                     eyebrow="NEXT LESSON"
                     title="Ready-to-use ideas"
-                    detail="Choose a suggestion as-is, adapt it, or let Emily turn the class results into the next mission."
+                    detail="Choose a suggestion as-is, adapt it, or let Mia turn the class results into the next mission."
                     source={
                       plannedSuggestions.length > 0
                         ? overview?.generated_by_ai
@@ -965,7 +965,7 @@ function TodayGuide({
     glance.total > 0 && glance.completed.length === glance.total;
 
   let guide = {
-    detail: "Create a class, then Emily will help you prepare a mission for your students.",
+    detail: "Create a class, then Mia will help you prepare a mission for your students.",
     icon: BookOpenCheck,
     label: "Create a class",
     onClick: onCreateMission,
@@ -974,7 +974,7 @@ function TodayGuide({
 
   if (hasSelectedClass && !activeMission) {
     guide = {
-      detail: "Tell Emily the subject and what you want students to learn. You will review the mission before anyone sees it.",
+      detail: "Tell Mia the subject and what you want students to learn. You will review the mission before anyone sees it.",
       icon: Sparkles,
       label: "Create today's mission",
       onClick: onCreateMission,
@@ -999,7 +999,7 @@ function TodayGuide({
     };
   } else if (everyoneFinished) {
     guide = {
-      detail: "Use what Emily noticed to choose a review, a whole-class activity, or an extra challenge.",
+      detail: "Use what Mia noticed to choose a review, a whole-class activity, or an extra challenge.",
       icon: PartyPopper,
       label: "Plan the next lesson",
       onClick: onPlanFollowUp,
@@ -1098,7 +1098,7 @@ function ActiveMissionCard({
             <CardDescription className="mt-2 max-w-2xl leading-6">
               {teacherClass
                 ? (activeMission?.summary ??
-                  "Tell Emily what students should practice. You can review every question before sharing it with the class.")
+                  "Tell Mia what students should practice. You can review every question before sharing it with the class.")
                 : "Create a class first. It will have its own code, missions, students, and notes."}
             </CardDescription>
           </div>
@@ -1110,7 +1110,7 @@ function ActiveMissionCard({
           <StatusBadge
             value={activeMission?.status ?? teacherClass?.status ?? "draft"}
           />
-          {generatedByAi ? <BadgeTone tone="violet">Built with Emily</BadgeTone> : null}
+          {generatedByAi ? <BadgeTone tone="violet">Built with Mia</BadgeTone> : null}
           <BadgeTone tone="soft">
             {activeMission?.subject ??
               teacherClass?.subject ??
@@ -1254,7 +1254,7 @@ function StudentsTableSection({
               {classLearning.students_with_evidence}/{students.length}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              students with work Emily can summarize
+              students with work Mia can summarize
             </p>
             <p className="mt-2 text-xs font-medium text-muted-foreground">
               {classLearning.completed_attempts}/{classLearning.total_attempts}{" "}
@@ -1289,7 +1289,7 @@ function StudentsTableSection({
         </div>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Select a student to see progress, recent answers, and Emily&apos;s notes.
+        Select a student to see progress, recent answers, and Mia&apos;s notes.
       </p>
       <StudentsTable students={students} onStudentClick={onStudentClick} />
     </section>

@@ -42,7 +42,7 @@ Students will strengthen Grade 5 math skills across place value, powers of ten, 
 Teacher prompt:
 
 ```text
-Use the attached Grade 5 math worksheets as the primary source. Create a short mission that mixes questions about building 5-digit numbers from parts, finding missing factors when multiplying by 10, 100, or 1,000, and classifying angles. Keep the difficulty at Grade 5 level and follow the exercise style from the files. Emily should ask students to explain their reasoning, give step-by-step feedback, and use simple visual language when students make mistakes. Include multiple-choice and next-step questions. Do not introduce concepts that are not represented in the attached worksheets.
+Use the attached Grade 5 math worksheets as the primary source. Create a short mission that mixes questions about building 5-digit numbers from parts, finding missing factors when multiplying by 10, 100, or 1,000, and classifying angles. Keep the difficulty at Grade 5 level and follow the exercise style from the files. Mia should ask students to explain their reasoning, give step-by-step feedback, and use simple visual language when students make mistakes. Include multiple-choice and next-step questions. Do not introduce concepts that are not represented in the attached worksheets.
 ```
 
 ### Math: build a 5-digit number from the parts
@@ -64,7 +64,7 @@ Students will build and read 5-digit numbers from expanded place-value parts.
 Teacher prompt:
 
 ```text
-Use the attached place value worksheet as the primary source. Create a Grade 5 mission where students build 5-digit numbers from thousands, hundreds, tens, and ones. Keep the examples close to the worksheet style. Emily should ask students to identify each place-value part before choosing the final number, then explain any mistake by separating the number into parts.
+Use the attached place value worksheet as the primary source. Create a Grade 5 mission where students build 5-digit numbers from thousands, hundreds, tens, and ones. Keep the examples close to the worksheet style. Mia should ask students to identify each place-value part before choosing the final number, then explain any mistake by separating the number into parts.
 ```
 
 ### Math: multiplying by 10, 100, or 1,000
@@ -86,7 +86,7 @@ Students will find missing factors in multiplication equations involving 10, 100
 Teacher prompt:
 
 ```text
-Use the attached multiplying by powers of ten worksheet as the primary source. Create a Grade 5 mission where students solve missing-factor problems involving 10, 100, and 1,000. Emily should help students notice place-value patterns, explain why digits shift, and check whether the answer is reasonable. Keep the questions short and similar to the worksheet.
+Use the attached multiplying by powers of ten worksheet as the primary source. Create a Grade 5 mission where students solve missing-factor problems involving 10, 100, and 1,000. Mia should help students notice place-value patterns, explain why digits shift, and check whether the answer is reasonable. Keep the questions short and similar to the worksheet.
 ```
 
 ### Math: classifying angles
@@ -108,7 +108,7 @@ Students will classify angles as acute, right, obtuse, or straight using visual 
 Teacher prompt:
 
 ```text
-Use the attached classifying angles worksheet as the primary source. Create a Grade 5 mission where students identify acute, right, obtuse, and straight angles. Emily should ask students to compare each angle to a right angle, explain the visual clue they used, and correct misconceptions with simple language. Keep the preview questions based on the worksheet style.
+Use the attached classifying angles worksheet as the primary source. Create a Grade 5 mission where students identify acute, right, obtuse, and straight angles. Mia should ask students to compare each angle to a right angle, explain the visual clue they used, and correct misconceptions with simple language. Keep the preview questions based on the worksheet style.
 ```
 
 ### Grammar: future perfect tense
@@ -132,7 +132,7 @@ Students will recognize and form future perfect tense sentences using "will have
 Teacher prompt:
 
 ```text
-Use the attached future perfect tense worksheet as the primary source. Create a Grade 5 grammar mission where students identify, complete, and explain future perfect tense sentences. Focus on the structure "will have" plus a past participle and on when the action will be completed in the future. Emily should give short explanations, ask students to justify their choice, and correct tense mistakes without introducing unrelated grammar topics.
+Use the attached future perfect tense worksheet as the primary source. Create a Grade 5 grammar mission where students identify, complete, and explain future perfect tense sentences. Focus on the structure "will have" plus a past participle and on when the action will be completed in the future. Mia should give short explanations, ask students to justify their choice, and correct tense mistakes without introducing unrelated grammar topics.
 ```
 
 ## References

@@ -1,6 +1,6 @@
 import type { PodId } from "../types/game";
 
-export const TUTOR_NAME = "Emily";
+export const TUTOR_NAME = "Mia";
 
 export type NoteKind = "misconception" | "habit";
 

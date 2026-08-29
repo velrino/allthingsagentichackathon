@@ -53,7 +53,7 @@ export function ClassMissionsTable({
           <div>
             <CardTitle>Class missions</CardTitle>
             <CardDescription className="mt-1.5 max-w-2xl leading-6">
-              Prepare a mission with Emily, review it, and choose when students can see it.
+              Prepare a mission with Mia, review it, and choose when students can see it.
             </CardDescription>
           </div>
           <Button type="button" className="shrink-0" onClick={onCreateMission}>
@@ -79,7 +79,7 @@ export function ClassMissionsTable({
                 No missions yet
               </h3>
               <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-                Tell Emily what students should learn. You can check every question before sharing it.
+                Tell Mia what students should learn. You can check every question before sharing it.
               </p>
               <Button type="button" className="mt-5" onClick={onCreateMission}>
                 <Plus className="size-4" aria-hidden />

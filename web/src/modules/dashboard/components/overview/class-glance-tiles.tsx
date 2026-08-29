@@ -102,7 +102,7 @@ export function ClassGlanceTiles({
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d2c2e9]/30 px-3 py-1.5">
               <Gamepad2 className="size-3.5 text-[#9164f9]" aria-hidden />
-              {glance.atTheDesk.length} learning with Emily
+              {glance.atTheDesk.length} learning with Mia
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d2c2e9]/30 px-3 py-1.5">
               <RotateCcw className="size-3.5 text-[#9164f9]" aria-hidden />

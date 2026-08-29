@@ -392,7 +392,7 @@ export function GameCanvas({
       seat.ring.material.opacity = directive.seated ? 0.25 : 0.9;
       seat.ring.scale.setScalar(pulse * (nearSeat ? 1.12 : 1));
 
-      // Emily stays at the board. Her aura pulses while she's thinking.
+      // The teacher, Emily, stays at the board while Mia is thinking.
       const think = directive.tutorThinking ? 1 + Math.sin(elapsed * 9) * 0.18 : 1 + Math.sin(elapsed * 2.2) * 0.03;
       tutorRing.scale.setScalar(think);
       tutorRing.rotation.z = elapsed * 0.7;

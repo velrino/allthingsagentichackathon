@@ -123,7 +123,7 @@ export function getMissionFlowKindStyle(kind: string): CSSProperties {
 
 export function MissionFlowPreview({
   className,
-  emptyMessage = "Generate a preview to see Emily's mission flow.",
+  emptyMessage = "Generate a preview to see Mia's mission flow.",
   flow,
   pending,
 }: MissionFlowPreviewProps) {

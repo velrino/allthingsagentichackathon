@@ -109,7 +109,7 @@ export function MissionBuilder({
     .join(" · ");
   const modalDescription = editingMission
     ? `${classContext}. Update this mission draft. Students keep the published revision until you approve the new preview.`
-    : `${classContext}. Emily will generate a student preview for you to review before publishing.`;
+    : `${classContext}. Mia will generate a student preview for you to review before publishing.`;
   const busy = processing || approving || uploading;
   const showPreview = processing || Boolean(visibleMission);
   const classDetailsReady = Boolean(
@@ -280,7 +280,7 @@ export function MissionBuilder({
                   }))
                 }
                 maxLength={INPUT_LIMITS.missionTeacherPrompt}
-                placeholder="What did students study today? What should Emily watch for? What should count as success?"
+                placeholder="What did students study today? What should Mia watch for? What should count as success?"
                 className="min-h-40 resize-none rounded-md border border-input bg-background px-3 py-3 text-sm leading-6 outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
               <CharacterCounter
@@ -371,7 +371,7 @@ export function MissionBuilder({
                       />
                     ) : (
                       <h3 className="mt-2 text-lg font-semibold">
-                        Waiting for Emily
+                        Waiting for Mia
                       </h3>
                     )}
                   </div>
@@ -455,7 +455,7 @@ export function MissionBuilder({
                   <PreviewLoadingState />
                 ) : (
                   <p className="text-sm leading-6 text-muted-foreground">
-                    The preview will appear here after Emily processes the
+                    The preview will appear here after Mia processes the
                     mission.
                   </p>
                 )}
@@ -702,7 +702,7 @@ function PreviewLoadingState() {
             Generating preview...
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Emily is reading the prompt and attachments.
+            Mia is reading the prompt and attachments.
           </p>
         </div>
       </div>

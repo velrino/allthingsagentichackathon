@@ -22,7 +22,6 @@ import {
   studentAvatarPresets,
   teacherAvatarPresetId,
 } from "../avatars/avatar-presets";
-import { TUTOR_NAME } from "../content/mission";
 import type { AvatarPreset } from "../types/avatar";
 
 export function AvatarPortrait({ preset, className = "" }: { readonly preset: AvatarPreset; readonly className?: string }) {
@@ -118,11 +117,7 @@ export function AvatarPicker({
               <AvatarPortrait preset={teacher} className="size-9" />
               <p className="text-xs leading-5 text-slate-300">
                 <span className="font-semibold text-white">{teacher.label}</span>{" "}
-                is{" "}
-                {TUTOR_NAME === teacher.label
-                  ? "your teacher"
-                  : `${TUTOR_NAME}, your teacher`}{" "}
-                — she stays at the board.
+                is your teacher — she stays at the board.
               </p>
             </div>
           </TabsContent>

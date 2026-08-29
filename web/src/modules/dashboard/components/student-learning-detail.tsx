@@ -33,7 +33,6 @@ import {
   defaultAvatarPresetId,
   getAvatarPortraitPath,
   getAvatarPreset,
-  teacherAvatarPresetId,
 } from "@/modules/game/avatars/avatar-presets";
 
 import { DashboardModal } from "./dashboard-modal";
@@ -155,7 +154,7 @@ export function StudentLearningDetail({
               </div>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 {attempt.trace?.summary ||
-                  "Emily is collecting observable evidence for this attempt."}
+                  "Mia is collecting observable evidence for this attempt."}
               </p>
             </div>
 
@@ -320,7 +319,7 @@ function LearningFlowPanel({
       id: "attempt-start",
       kind: "start",
       label: "Mission attempt starts",
-      description: `Emily begins collecting ${studentName}'s observable answers, feedback, and progress.`,
+      description: `Mia begins collecting ${studentName}'s observable answers, feedback, and progress.`,
       evidence_event_ids: [],
       position: { x: 0, y: 0 },
     };
@@ -654,8 +653,8 @@ function LearningConversation({
 
               {pendingEvent ? (
                 <li className="grid gap-3">
-                  <EmilyMessage
-                    label="Emily asked"
+                  <MiaMessage
+                    label="Mia asked"
                     text={pendingEvent.title || "Current activity"}
                   />
                   <StudentMessage
@@ -664,9 +663,9 @@ function LearningConversation({
                     text={pendingEvent.detail || "Answer submitted."}
                     timestamp={pendingEvent.occurred_at}
                   />
-                  <EmilyMessage
+                  <MiaMessage
                     conclusionLoading
-                    label="Emily is thinking"
+                    label="Mia is thinking"
                     loading
                     text="Reviewing the latest answer"
                   />
@@ -675,29 +674,29 @@ function LearningConversation({
 
               {processingConclusion ? (
                 <li>
-                  <EmilyMessage
+                  <MiaMessage
                     conclusionLoading
-                    label="Emily · Mission report"
+                    label="Mia · Mission report"
                     loading
                     text="Reviewing all answers"
                   />
                 </li>
               ) : conclusionReady ? (
                 <li>
-                  <EmilyMessage
+                  <MiaMessage
                     conclusion={
                       attempt.trace?.summary ||
                       "The observable learning report is ready."
                     }
-                    label="Emily · Mission report"
+                    label="Mia · Mission report"
                     text="I finished the learning report."
                   />
                 </li>
               ) : conclusionFailed ? (
                 <li>
-                  <EmilyMessage
+                  <MiaMessage
                     conclusion="The live answers above are still available for review."
-                    label="Emily · Mission report"
+                    label="Mia · Mission report"
                     text="I could not finish the AI conclusion."
                   />
                 </li>
@@ -757,7 +756,7 @@ function TutorConversationTurn({
   return (
     <li className="grid gap-3">
       {turn.prompt ? (
-        <EmilyMessage label="Emily asked" text={turn.prompt} />
+        <MiaMessage label="Mia asked" text={turn.prompt} />
       ) : null}
       <StudentMessage
         label={studentName}
@@ -765,10 +764,10 @@ function TutorConversationTurn({
         text={response}
         timestamp={turn.created_at}
       />
-      <EmilyMessage
+      <MiaMessage
         conclusion={turn.tutor?.teacher_observation}
         explanationSteps={turn.tutor?.explanation_steps}
-        label="Emily replied"
+        label="Mia replied"
         retrievedChunkIDs={turn.tutor?.retrieved_chunk_ids}
         text={turn.tutor?.message || "No AI reply was recorded."}
       />
@@ -776,7 +775,7 @@ function TutorConversationTurn({
   );
 }
 
-function EmilyMessage({
+function MiaMessage({
   conclusion,
   conclusionLoading = false,
   explanationSteps,
@@ -795,10 +794,9 @@ function EmilyMessage({
 }) {
   return (
     <div className="flex max-w-[92%] items-end gap-2 sm:max-w-[82%]">
-      <ChatAvatar
-        presetId={teacherAvatarPresetId}
-        className="border-violet-200 bg-violet-100"
-      />
+      <span className="grid size-8 shrink-0 place-items-center rounded-full border border-violet-200 bg-violet-100 text-violet-700">
+        <Sparkles className="size-4" aria-hidden />
+      </span>
       <div className="min-w-0">
         <p className="mb-1 text-xs font-semibold text-muted-foreground">
           {label}

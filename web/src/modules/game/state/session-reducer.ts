@@ -661,7 +661,7 @@ export function sessionReducer(session: Session, action: SessionAction): Session
           type: "feedback",
           stageId: lesson.pod,
           questionId: lesson.question.id,
-          title: "Student rated Emily's explanation",
+          title: "Student rated Mia's explanation",
           detail: `Feedback: ${action.value}.`,
           outcome: action.value === "helpful" ? "correct" : "support",
           occurredAt: action.now,

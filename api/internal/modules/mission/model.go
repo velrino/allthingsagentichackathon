@@ -74,7 +74,7 @@ type MissionDocument struct {
 }
 
 // MissionSnapshot is one immutable content revision. MissionDocument.Draft is
-// replaced whenever Emily regenerates a preview, while Published changes only
+// replaced whenever Mia regenerates a preview, while Published changes only
 // after an explicit approval.
 type MissionSnapshot struct {
 	Revision                 int64                            `firestore:"revision" json:"revision"`

@@ -1,6 +1,6 @@
 # ClassGame Web
 
-Mobile-first Next.js, React, TypeScript, Tailwind and Three.js frontend for **ClassGame** — the 3D classroom where **Emily**, the AI tutor, runs the review mission. See [`../README.md`](../README.md) for the product plan.
+Mobile-first Next.js, React, TypeScript, Tailwind and Three.js frontend for **ClassGame** — the 3D classroom where **Mia**, the **Multimodal Intelligence Agent**, runs the review mission. See [`../README.md`](../README.md) for the product plan.
 
 ## Development
 
@@ -92,16 +92,16 @@ Dev-only: `__classgameDebug()` in the browser console returns `{ cameraYaw, avat
 
 - Route `/home`: the game.
 - Route `/login`: Google sign-in for teachers.
-- Route `/dashboard`: teacher overview with reusable analytics, Emily suggestions, student metrics, and live recent-player presence.
+- Route `/dashboard`: teacher overview with reusable analytics, Mia suggestions, student metrics, and live recent-player presence.
 - Route `/dashboard/classes`: responsive class table, class creation/edit dialog, and mission builder dialog with optional Uploadcare files and an approve/publish flow.
 - 3D classroom (GLB) laid out at load time: shell stretched 2×, furniture spread apart, whiteboard recoloured, colliders derived from the geometry.
 - Third-person camera with orbit, wall pull-in and wall escape.
-- Six chibi characters; the student picks one from the top bar, Emily teaches from the whiteboard.
+- Six chibi characters; the student picks one from the top bar, and the teacher Emily stays at the whiteboard.
 - One desk. The whole Algebra Mission (Fractions → Simple equations → Two-step equations) happens seated there.
-- Chalkboard lesson loop, Emily's notebook, feedback, decisions with a stated *why*.
+- Chalkboard lesson loop, Mia's notebook, feedback, decisions with a stated *why*.
 - Student memory persisted in `localStorage` (`classgame.student.v1`), same shape as the planned Firestore document.
 
-Everything Emily "decides" today comes from `src/modules/game/agent/mock-tutor.ts`. That file is the boundary the Go/Gemini 3.5+ API replaces.
+Everything Mia "decides" today comes from `src/modules/game/agent/mock-tutor.ts`. That file is the boundary the Go/Gemini 3.5+ API replaces.
 
 ## Structure
 
@@ -113,7 +113,7 @@ src/modules/game/
   avatars/                     presets, localStorage choice, GLB loader, rig animation
   components/
     game-canvas.tsx            Three.js loop: movement, collision, camera, avatars
-    game-hud.tsx               mission chip, character menu, notebook button, Emily's line, CTA
+    game-hud.tsx               mission chip, character menu, notebook button, Mia's line, CTA
     chalkboard.tsx             the lesson: question / why / explain / feedback / decision
     tutor-notebook.tsx         notes, adaptation state, decision log
     avatar-picker.tsx          character menu

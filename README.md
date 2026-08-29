@@ -2,7 +2,7 @@
 
 **ClassGame is the optional homework that takes notes for the teacher.**
 
-A teacher types what the class covered today (and optionally attaches the worksheet). **Emily**, a Gemini tutor, turns it into a short 3D review mission. Students play it on their phones for ten minutes: Emily leads them question by question, asks *why* they picked a wrong answer, explains in the style that works for that student, and keeps a memory of each student that survives the tab, the session and the mission. The teacher opens the class page and sees — live — where every student is, what Emily observed, which patterns repeat across the class, and what to teach tomorrow.
+A teacher types what the class covered today (and optionally attaches the worksheet). **Mia**, the **Multimodal Intelligence Agent** powered by Gemini, turns it into a short 3D review mission. Students play it on their phones for ten minutes: Mia leads them question by question, asks *why* they picked a wrong answer, explains in the style that works for that student, and keeps a memory of each student that survives the tab, the session and the mission. The teacher opens the class page and sees — live — where every student is, what Mia observed, which patterns repeat across the class, and what to teach tomorrow.
 
 Built for the **All Things Agentic Hackathon**, category **The Collaborative Partner — in depth**.
 
@@ -23,11 +23,11 @@ ClassGame is that example, with a classroom around it: the "dense document" is t
 Homework tells you *who* got it wrong, never *why*. And most tutoring apps talk only to the student — the teacher never hears back. ClassGame puts the teacher at both ends of the loop and the agent's memory in the middle:
 
 ```txt
-Teacher                          Emily (agent)                          Student
+Teacher                            Mia (agent)                           Student
 ──────────                       ─────────────                          ───────
 "Today: two-step equations.      generates the mission                  plays 10 min on a phone
  Several slipped on fractions."  (questions, traps, knowledge chunks)   → answers → "why?" → feedback
- + worksheet PDF                 ───────────────────────────────────►   → Emily adapts, turn by turn
+ + worksheet PDF                 ───────────────────────────────────►   → Mia adapts, turn by turn
                                  remembers each student
                                  (attempt, checkpoint, memory)          closes the tab, comes back
                                  writes a learning trace                → resumes at the exact step
@@ -37,7 +37,7 @@ Teacher                          Emily (agent)                          Student
  "Build tomorrow's mission"
 ```
 
-Two people collaborate with Emily. The **student** gets a tutor who never starts over. The **teacher** gets an assistant who plans from evidence instead of guesses.
+Two people collaborate with Mia. The **student** gets a tutor who never starts over. The **teacher** gets an assistant who plans from evidence instead of guesses.
 
 ## Collaborative Partner alignment
 
@@ -46,19 +46,19 @@ Two people collaborate with Emily. The **student** gets a tutor who never starts
 | **Stateful, multi-turn dialogue** | Every answer, explicit "why" and feedback tap is one Gemini turn on the same attempt. Each turn receives the last 24 observable events and the last 12 tutor turns of that attempt, so "you marked *confusing* two questions ago" is real context, not a canned line. The teacher's loop is multi-turn too: prompt → preview → revise → approve, all on one mission document with numbered revisions. | `api/internal/modules/users/service.go` (`SaveStudentTutorTurn`), `api/internal/modules/mission` |
 | **Real-time context retrieval (RAG)** | At mission generation Gemini distils the teacher prompt and attachments into 3–12 **knowledge chunks** stored in the published revision. On every student turn the API retrieves the top 5 chunks for *this* question and *this* student response, plus the student's memory, the attempt history and the class-level patterns, and puts them in the prompt. The chunk ids Gemini actually used are stored with the turn and shown to the teacher as `RAG · chunk-id` chips. | `retrieveMissionKnowledge`, `orchestrator.BuildTutorTurn` |
 | **Persistent memory** | Three layers in Firestore: the **attempt** (`student_mission_attempts`: progress, notes, decisions, events, exact checkpoint, tutor turns, trace), the **student** (`users/{uid}.student.learning_memory`: strengths, improvement areas, preferred explanation, *next adaptation* — carried into the next mission), and the **class** (`class_learning_summaries/{class_id}`: clustered strengths and needs across students). | `api/internal/modules/users/repository.go` |
-| **Adapts from past interactions** | Explanation style (steps ↔ visual), difficulty bias and the next action change from feedback and repeated slips, and Emily says why. A returning student is put back at the exact question, phase and step. When a mission ends (or is abandoned), Gemini writes a learning trace whose `next_adaptation` tells the *next* turn what to retrieve and how to adapt. The teacher's "Build tomorrow's mission" button turns the class patterns into the next prompt. | `session-reducer.ts` (`restoreLesson`, `apply-tutor-turn`), `finalizeStudentAttempt` |
+| **Adapts from past interactions** | Explanation style (steps ↔ visual), difficulty bias and the next action change from feedback and repeated slips, and Mia says why. A returning student is put back at the exact question, phase and step. When a mission ends (or is abandoned), Gemini writes a learning trace whose `next_adaptation` tells the *next* turn what to retrieve and how to adapt. The teacher's "Build tomorrow's mission" button turns the class patterns into the next prompt. | `session-reducer.ts` (`restoreLesson`, `apply-tutor-turn`), `finalizeStudentAttempt` |
 
 ## The core loop (this is the product)
 
 ```txt
-1. Emily writes a question on the board                       ← leads
+1. Mia writes a question on the board                         ← leads
 2. Student answers
-3. Wrong? Emily asks "Why did you pick that?"                 ← clarifying question (why_prompt from Gemini)
+3. Wrong? Mia asks "Why did you pick that?"                   ← clarifying question (why_prompt from Gemini)
 4. Student picks a reason written in their voice, or types one
 5. API grounds the turn, retrieves chunks + memory, calls Gemini
-6. Emily explains in short steps or with a drawing            ← adapts style
+6. Mia explains in short steps or with a drawing              ← adapts style
 7. Student taps helpful / confusing / too easy / too hard     ← feedback
-8. Emily decides the next step and says why                   ← "You marked 'confusing' → I'll draw the next one."
+8. Mia decides the next step and says why                     ← "You marked 'confusing' → I'll draw the next one."
    Teacher-only: a one-line observation + the chunk ids used  ← notes (never shown to the student)
 → back to 1, until the mission is complete
 → close the tab: the checkpoint is saved; reopen: "Welcome back — last time you were on Fractions."
@@ -69,7 +69,7 @@ Two people collaborate with Emily. The **student** gets a tutor who never starts
 
 This is the part the category is about, so here is exactly what happens when a student taps an answer (`POST /users/student-tutor-turn`):
 
-1. **The game dispatches locally first** — the chalkboard moves on instantly with a deterministic tutor (`web/src/modules/game/agent/mock-tutor.ts`), so the lesson never waits on the network. The API turn then overwrites Emily's message, the "why" prompt, the explanation steps and the style/difficulty preferences when it lands. If Gemini is offline the deterministic copy simply stays.
+1. **The game dispatches locally first** — the chalkboard moves on instantly with a deterministic tutor (`web/src/modules/game/agent/mock-tutor.ts`), so the lesson never waits on the network. The API turn then overwrites Mia's message, the "why" prompt, the explanation steps and the style/difficulty preferences when it lands. If Gemini is offline the deterministic copy simply stays.
 2. **Grounding** — the server ignores the client's idea of the question. It loads the pinned published revision of the mission and overwrites `prompt`, `expected_answer` and `stage_id` from the real question; correctness is decided server-side. Unknown `question_id` → 400.
 3. **Retrieval** (`retrieveMissionKnowledge`) — a query is built from subject + learning goal + stage + question prompt + the student's response + their explicit reasoning, and scored against every `knowledge_chunk` of the published revision (title, content, keywords) by token overlap, with a boost when the chunk belongs to the current stage. Top 5 go into the prompt. This is lexical retrieval over model-distilled chunks — no vector store — which is deliberate: every chunk is traceable to the teacher's material and the teacher can read exactly what was retrieved.
 4. **Memory** — from `users/{uid}`: `learning_memory` (strengths, improvement areas, preferred explanation, next adaptation from the previous mission). From `student_mission_attempts/{attempt_id}`: progress per stage, the last 24 observable events, the last 12 tutor turns. From the class: the four most frequent strengths and needs across the latest finalized attempts of every classmate (`class_context`).
@@ -89,10 +89,10 @@ Status on **August 29, 2026**. Everything below is deployed on Cloud Run unless 
 - Enter the class's six-digit numeric code and a name. The code is validated (`POST /users/student-session/validate`), the browser signs in anonymously with a **student-only Firebase app instance** (so a teacher signed in on the same browser is untouched), and `POST /users/student-session` joins the class without selecting a mission.
 - The glowing desk and mission picker are driven by a student-safe Firestore realtime catalog. Publishing or deleting a mission updates the room immediately. The student chooses an unfinished mission; `POST /users/student-mission` authorizes that choice and returns its full published payload. Completed missions remain visible but cannot be started again unless the teacher publishes a new revision.
 - The published mission is converted into chalkboard questions (`content/game-mission.ts`): every non-expected option becomes a named trap that feeds the "why" card. Each game is **pinned to the published revision** it joined — the teacher can publish a new draft without changing a running attempt.
-- 3D classroom (Three.js): one desk for the student, Emily at the whiteboard, classmates seated at the other desks, joystick on phones, WASD on desktop, tap the glowing desk to walk. Six chibi avatars generated headless in Blender.
-- Chalkboard lesson UI (inspired by the classroom minigames in *Bully: Scholarship Edition*, without the timer): multiple choice, the "why" card, step or visual explanations, feedback pills, a decision card with its **why**, and a "thinking" pulse while Emily decides.
+- 3D classroom (Three.js): one desk for the student, the teacher Emily at the whiteboard, classmates seated at the other desks, joystick on phones, WASD on desktop, tap the glowing desk to walk. Six chibi avatars generated headless in Blender.
+- Chalkboard lesson UI (inspired by the classroom minigames in *Bully: Scholarship Edition*, without the timer): multiple choice, the "why" card, step or visual explanations, feedback pills, a decision card with its **why**, and a "thinking" pulse while Mia decides.
 - Live Gemini tutor turns (`POST /users/student-tutor-turn`) on every answer, explicit reasoning and feedback; exact resume; presence heartbeat every 15 s (`POST /users/student-presence`).
-- The student never sees Emily's notes, observations or the class memory — those are teacher-only by design (see *Safety*).
+- The student never sees Mia's notes, observations or the class memory — those are teacher-only by design (see *Safety*).
 
 **Teacher dashboard (`/login`, `/dashboard`, `/dashboard/class/{classId}`)**
 - Sign in with Google (Google Identity Services) or with the **pre-filled demo teacher account** on the login page — the jury can walk straight in.
@@ -100,7 +100,7 @@ Status on **August 29, 2026**. Everything below is deployed on Cloud Run unless 
 - `/dashboard/class/{classId}` — four tabs:
   - **Overview**: class at a glance (not started / playing now / in a review / left early / completed), where the class is in the mission (funnel with names), strengths and areas for growth across the class, a tiered next-lesson plan (reteaching / whole class / enrichment) with **"Build tomorrow's mission"**, recent players with online state, and the current class plan with a **Gemini** or **Fallback** provenance badge.
   - **Missions**: the mission builder — mission name, learning goal, teacher prompt, and up to 5 files (PDF/PNG/JPEG/DOCX/TXT, 20 MB each) with previews. *Generate preview* → Gemini; review questions, traps, the mission flow graph and the education guardrail; *Update preview* keeps every revision on the same mission; *Approve and assign* publishes it to the class's realtime mission catalog.
-  - **Students**: per-student progress, strengths, improvement areas, evidence counters, and a detail dialog with **Summary**, **Learning flow** (React Flow graph of the trace), **Evidence** (observable events + every tutor turn with Emily's reply, the teacher-only observation and the `RAG · chunk-id` chips) and **Memory** (next adaptive turn, provenance: "Generated by gemini-3.7-flash from 23 observable events" or "Built directly from events · reason").
+  - **Students**: per-student progress, strengths, improvement areas, evidence counters, and a detail dialog with **Summary**, **Learning flow** (React Flow graph of the trace), **Evidence** (observable events + every tutor turn with Mia's reply, the teacher-only observation and the `RAG · chunk-id` chips) and **Memory** (next adaptive turn, provenance: "Generated by gemini-3.7-flash from 23 observable events" or "Built directly from events · reason").
   - **Notebook**: class notebook (current focus, positive signal, who needs follow-up) and next-lesson notes.
 - Realtime: Firestore listeners on `student_mission_attempts` (this class) and `class_learning_summaries/{classId}` trigger a debounced refresh of the server-authorized overview; a 60 s poll and a refresh on tab focus are the fallback.
 
@@ -333,13 +333,13 @@ No paid account is needed. Two browser windows (or a laptop and a phone) work be
 
 **Student** (phone recommended)
 6. Open https://classgame-web-mzkj6f7g3a-ue.a.run.app/home, enter the class code and a name, pick a character, walk to the glowing desk, tap **START**, and choose the published mission.
-7. Answer the first question wrong on purpose. Emily asks *why* — pick a reason. Watch the explanation, then tap **Confusing**: Emily switches to a drawing and the decision card states why.
+7. Answer the first question wrong on purpose. Mia asks *why* — pick a reason. Watch the explanation, then tap **Confusing**: Mia switches to a drawing and the decision card states why.
 8. Answer a few more. Close the tab, reopen the same URL in the same browser: *"Welcome back — last time you were on …"*, and you are back at the exact question and step.
 9. Finish the mission (or just walk away for two minutes: the watchdog marks the attempt as left early and still writes a partial trace).
 
 **Teacher again**
 10. Back on the class page, the **Overview** updates live: the student moves through the funnel, appears in *Recent players* with online state, and the class strengths / areas for growth refresh when the trace lands.
-11. Open the student in the **Students** tab: *Summary* (Gemini's summary, strengths, areas to revisit), *Learning flow* (graph of the path), *Evidence* (every event and every tutor turn — Emily's reply, the teacher-only observation and the retrieved chunk ids), *Memory* (the next adaptive turn and provenance).
+11. Open the student in the **Students** tab: *Summary* (Gemini's summary, strengths, areas to revisit), *Learning flow* (graph of the path), *Evidence* (every event and every tutor turn — Mia's reply, the teacher-only observation and the retrieved chunk ids), *Memory* (the next adaptive turn and provenance).
 12. Click **Build tomorrow's mission**: the class patterns are pre-written into the next prompt in the mission builder.
 
 Smoke checks:
@@ -360,9 +360,9 @@ curl -X POST https://classgame-api-2057331207.us-east1.run.app/users/student-ses
 
 ## Demo script (video)
 
-1. **Teacher** signs in with the pre-filled demo account, opens a class, attaches a worksheet, types *"Today: solving two-step equations. Several students slipped on fractions."* → Emily generates the mission; show the traps, the knowledge chunks behind the flow graph, the guardrail and the class code.
+1. **Teacher** signs in with the pre-filled demo account, opens a class, attaches a worksheet, types *"Today: solving two-step equations. Several students slipped on fractions."* → Mia generates the mission; show the traps, the knowledge chunks behind the flow graph, the guardrail and the class code.
 2. **Student** on a phone enters the class code, picks a character, walks to the desk and chooses the mission from the realtime list.
-3. Gets a question wrong; Emily asks why; the student picks a reason; taps **confusing** → Emily draws it and explains why she changed.
+3. Gets a question wrong; Mia asks why; the student picks a reason; taps **confusing** → Mia draws it and explains why she changed.
 4. Close the tab, reopen → *"Welcome back"*, same question, same step.
 5. Finish. **Teacher** page updates live: funnel, recent players, class patterns.
 6. Open the student: Gemini's summary, the learning flow, the evidence timeline with `RAG · chunk` chips and teacher-only observations, the next adaptation.
@@ -374,7 +374,7 @@ curl -X POST https://classgame-api-2057331207.us-east1.run.app/users/student-ses
 - Published missions are played as multiple choice; the "pick the next move" equation mechanic exists only in the built-in algebra content.
 - The "why" reasons offered to the student are built locally from the mission's misconception traps; Gemini writes the *question* (`why_prompt`), the message and the explanation steps. The decision card's `why` line is deterministic.
 - Before a student's first checkpoint the dashboard shows placeholder progress; blocks with no data are labelled **Example data**.
-- Next: semantic retrieval, cross-mission memory surfaced to the teacher over weeks, signed uploads through the API, voice for Emily.
+- Next: semantic retrieval, cross-mission memory surfaced to the teacher over weeks, signed uploads through the API, voice for Mia.
 
 ## Repository layout
 
@@ -401,4 +401,4 @@ apps/
 
 ## Short pitch
 
-**ClassGame turns tonight's review into a game the teacher can read tomorrow. Emily, a Gemini tutor, builds the mission from what the teacher taught, leads each student through it, asks why they got things wrong, remembers how each one thinks across sessions, adapts every turn from retrieved lesson material and past interactions — and hands the teacher the evidence, live.**
+**ClassGame turns tonight's review into a game the teacher can read tomorrow. Mia, the Multimodal Intelligence Agent powered by Gemini, builds the mission from what the teacher taught, leads each student through it, asks why they got things wrong, remembers how each one thinks across sessions, adapts every turn from retrieved lesson material and past interactions — and hands the teacher the evidence, live.**
