@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowDown,
   BrainCircuit,
   CheckCircle2,
   History,
@@ -9,8 +10,8 @@ import {
   Route,
   Sparkles,
   Target,
-  UserRound,
 } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
@@ -21,6 +22,13 @@ import type {
 } from "@/backend/api/api.interface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/date";
+import {
+  type AvatarPresetId,
+  defaultAvatarPresetId,
+  getAvatarPortraitPath,
+  getAvatarPreset,
+  teacherAvatarPresetId,
+} from "@/modules/game/avatars/avatar-presets";
 
 import { DashboardModal } from "./dashboard-modal";
 import { MissionFlowPreview } from "./mission-flow-preview";
@@ -451,6 +459,8 @@ function LearningConversation({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const previousVersionRef = useRef("");
+  const pinnedToBottomRef = useRef(true);
+  const [hasUnseenMessages, setHasUnseenMessages] = useState(false);
   const turns = [...safeList(attempt.tutor_turns)].sort(
     (left, right) => left.sequence - right.sequence,
   );
@@ -476,20 +486,50 @@ function LearningConversation({
       return;
     }
 
+    const previousVersion = previousVersionRef.current;
+    const isFreshAttempt = !previousVersion.startsWith(`${attempt.id}:`);
+    previousVersionRef.current = version;
+
+    if (isFreshAttempt) {
+      pinnedToBottomRef.current = true;
+    }
+
+    // The teacher scrolled up to read: don't yank them down, just flag it.
+    if (!pinnedToBottomRef.current) {
+      setHasUnseenMessages(true);
+      return;
+    }
+
     const frame = window.requestAnimationFrame(() => {
-      const viewport = viewportRef.current;
-      if (!viewport) {
-        return;
-      }
-      viewport.scrollTo({
-        top: viewport.scrollHeight,
-        behavior: previousVersionRef.current ? "smooth" : "auto",
+      viewportRef.current?.scrollTo({
+        top: viewportRef.current.scrollHeight,
+        behavior: isFreshAttempt ? "auto" : "smooth",
       });
-      previousVersionRef.current = version;
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [active, version]);
+  }, [active, attempt.id, version]);
+
+  function handleViewportScroll() {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    pinnedToBottomRef.current = isNearBottom(viewport);
+    if (pinnedToBottomRef.current) {
+      setHasUnseenMessages(false);
+    }
+  }
+
+  function jumpToLatest() {
+    pinnedToBottomRef.current = true;
+    setHasUnseenMessages(false);
+    viewportRef.current?.scrollTo({
+      top: viewportRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }
 
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-muted/30">
@@ -498,95 +538,115 @@ function LearningConversation({
           <MessageCircleMore className="size-4" aria-hidden />
         </span>
         <div className="min-w-0">
-          <h3 className="text-sm font-bold">Emily and {studentName}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             New messages appear here automatically.
           </p>
         </div>
       </header>
 
-      <div
-        ref={viewportRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
-        aria-live="polite"
-      >
-        {hasMessages ? (
-          <ol className="grid gap-6">
-            {turns.map((turn) => (
-              <TutorConversationTurn
-                key={turn.id}
-                studentName={studentName}
-                turn={turn}
-              />
-            ))}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={viewportRef}
+          onScroll={handleViewportScroll}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
+          aria-live="polite"
+        >
+          {hasMessages ? (
+            <ol className="grid gap-6">
+              {turns.map((turn) => (
+                <TutorConversationTurn
+                  key={turn.id}
+                  studentName={studentName}
+                  turn={turn}
+                />
+              ))}
 
-            {pendingEvent ? (
-              <li className="grid gap-3">
-                <EmilyMessage
-                  label="Emily asked"
-                  text={pendingEvent.title || "Current activity"}
-                />
-                <StudentMessage
-                  label={studentName}
-                  outcome={pendingEvent.outcome}
-                  text={pendingEvent.detail || "Answer submitted."}
-                  timestamp={pendingEvent.occurred_at}
-                />
-                <EmilyMessage
-                  conclusionLoading
-                  label="Emily is thinking"
-                  loading
-                  text="Reviewing the latest answer"
-                />
-              </li>
-            ) : null}
+              {pendingEvent ? (
+                <li className="grid gap-3">
+                  <EmilyMessage
+                    label="Emily asked"
+                    text={pendingEvent.title || "Current activity"}
+                  />
+                  <StudentMessage
+                    label={studentName}
+                    outcome={pendingEvent.outcome}
+                    text={pendingEvent.detail || "Answer submitted."}
+                    timestamp={pendingEvent.occurred_at}
+                  />
+                  <EmilyMessage
+                    conclusionLoading
+                    label="Emily is thinking"
+                    loading
+                    text="Reviewing the latest answer"
+                  />
+                </li>
+              ) : null}
 
-            {processingConclusion ? (
-              <li>
-                <EmilyMessage
-                  conclusionLoading
-                  label="Emily · Mission report"
-                  loading
-                  text="Reviewing all answers"
+              {processingConclusion ? (
+                <li>
+                  <EmilyMessage
+                    conclusionLoading
+                    label="Emily · Mission report"
+                    loading
+                    text="Reviewing all answers"
+                  />
+                </li>
+              ) : conclusionReady ? (
+                <li>
+                  <EmilyMessage
+                    conclusion={
+                      attempt.trace?.summary ||
+                      "The observable learning report is ready."
+                    }
+                    label="Emily · Mission report"
+                    text="I finished the learning report."
+                  />
+                </li>
+              ) : conclusionFailed ? (
+                <li>
+                  <EmilyMessage
+                    conclusion="The live answers above are still available for review."
+                    label="Emily · Mission report"
+                    text="I could not finish the AI conclusion."
+                  />
+                </li>
+              ) : null}
+            </ol>
+          ) : (
+            <div className="grid h-full min-h-64 place-items-center text-center">
+              <div>
+                <MessageCircleMore
+                  className="mx-auto size-6 text-muted-foreground"
+                  aria-hidden
                 />
-              </li>
-            ) : conclusionReady ? (
-              <li>
-                <EmilyMessage
-                  conclusion={
-                    attempt.trace?.summary ||
-                    "The observable learning report is ready."
-                  }
-                  label="Emily · Mission report"
-                  text="I finished the learning report."
-                />
-              </li>
-            ) : conclusionFailed ? (
-              <li>
-                <EmilyMessage
-                  conclusion="The live answers above are still available for review."
-                  label="Emily · Mission report"
-                  text="I could not finish the AI conclusion."
-                />
-              </li>
-            ) : null}
-          </ol>
-        ) : (
-          <div className="grid h-full min-h-64 place-items-center text-center">
-            <div>
-              <MessageCircleMore
-                className="mx-auto size-6 text-muted-foreground"
-                aria-hidden
-              />
-              <p className="mt-3 text-sm font-semibold">No messages yet</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                The first answer will appear here while {studentName} plays.
-              </p>
+                <p className="mt-3 text-sm font-semibold">No messages yet</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  The first answer will appear here while {studentName} plays.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {hasUnseenMessages ? (
+          <button
+            type="button"
+            onClick={jumpToLatest}
+            className="absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-violet-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:bg-violet-700 focus-visible:ring-[3px] focus-visible:ring-violet-300 focus-visible:outline-none"
+          >
+            New messages
+            <ArrowDown className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
       </div>
     </section>
+  );
+}
+
+function isNearBottom(viewport: HTMLElement, threshold = 48) {
+  return (
+    viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <=
+    threshold
   );
 }
 
@@ -644,9 +704,10 @@ function EmilyMessage({
 }) {
   return (
     <div className="flex max-w-[92%] items-end gap-2 sm:max-w-[82%]">
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-700">
-        <Sparkles className="size-4" aria-hidden />
-      </span>
+      <ChatAvatar
+        presetId={teacherAvatarPresetId}
+        className="border-violet-200 bg-violet-100"
+      />
       <div className="min-w-0">
         <p className="mb-1 text-xs font-semibold text-muted-foreground">
           {label}
@@ -728,29 +789,50 @@ function StudentMessage({
 }) {
   return (
     <div className="ml-auto flex max-w-[92%] flex-row-reverse items-end gap-2 sm:max-w-[82%]">
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-cyan-100 text-cyan-700">
-        <UserRound className="size-4" aria-hidden />
-      </span>
+      <ChatAvatar
+        presetId={defaultAvatarPresetId}
+        className="border-primary/20 bg-primary/10"
+      />
       <div className="min-w-0">
-        <div className="mb-1 flex items-center justify-end gap-2 text-xs text-muted-foreground">
-          <span>
-            {formatDate(timestamp, {
-              fallback: "now",
-              preset: "time",
-            })}
-          </span>
-          <span className="font-semibold">{label}</span>
-        </div>
-        <div className="rounded-s-2xl rounded-tr-2xl bg-cyan-700 px-4 py-3 text-white shadow-sm">
+        <p className="mb-1 text-end text-xs font-semibold text-muted-foreground">
+          {label}
+        </p>
+        <div className="min-w-50 rounded-s-2xl rounded-tr-2xl bg-primary px-4 py-3 text-primary-foreground shadow-sm">
           <p className="text-sm leading-6">{text}</p>
           {outcome ? (
             <span className="mt-2 inline-flex rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
               {outcome}
             </span>
           ) : null}
+          <time
+            className="mt-1.5 block text-end text-[10px] whitespace-nowrap text-primary-foreground/70"
+            title={formatDate(timestamp, { preset: "date-time" })}
+          >
+            {formatDate(timestamp, { fallback: "now", relative: true })}
+          </time>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Same head-and-shoulders render the game spawns, so the chat matches who the student actually sees. */
+function ChatAvatar({
+  presetId,
+  className,
+}: {
+  readonly presetId: AvatarPresetId;
+  readonly className: string;
+}) {
+  return (
+    <Image
+      src={getAvatarPortraitPath(getAvatarPreset(presetId))}
+      alt=""
+      aria-hidden
+      width={192}
+      height={192}
+      className={`size-8 shrink-0 rounded-full border object-cover ${className}`}
+    />
   );
 }
 
