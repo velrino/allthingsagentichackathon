@@ -19,12 +19,7 @@ import type {
   IApiStudentLearningEvent,
   IApiStudentTutorTurn,
 } from "@/backend/api/api.interface";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/date";
 
 import { DashboardModal } from "./dashboard-modal";
@@ -61,218 +56,231 @@ export function StudentLearningDetail({
       title={student?.student_name ?? "Student learning path"}
       description="Observable answers, explicit explanations, feedback, and tutor adaptations. This view never invents or exposes private chain-of-thought."
       size="xl"
+      layout="fill"
     >
-      <section className="overflow-hidden rounded-lg border border-border">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase text-cyan-700">
-              Learning evidence
-            </p>
-            <h3 className="mt-2 text-xl font-semibold">
-              {attempt?.subject || "Student learning path"}
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {attempt
-                ? `Published revision ${attempt.published_revision} · ${attempt.trace_state || "live"}`
-                : "No mission attempt selected"}
-            </p>
-          </div>
-          {attempt ? (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <LiveUpdateStatus attempt={attempt} />
-              <AttemptStatus attempt={attempt} />
-            </div>
-          ) : null}
-        </header>
-
-        {attempt && isInsightProcessing(attempt.trace_state) ? (
-          <div
-            className="flex items-center gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-violet-950 sm:px-6"
-            role="status"
-            aria-live="polite"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white shadow-sm">
-              <LoaderCircle
-                className="size-4 animate-spin text-violet-600"
-                aria-hidden
+      {attempt ? (
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="min-h-0 flex-1 gap-0"
+        >
+          <div className="shrink-0 border-b border-border bg-muted/20 px-4 py-3 sm:px-6">
+            {attempts.length > 1 ? (
+              <AttemptSwitcher
+                attempts={attempts}
+                selectedId={attempt.id}
+                onSelect={setSelectedAttemptId}
               />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">
-                Emily is updating the learning report
-              </p>
-              <p className="mt-0.5 text-xs leading-5 text-violet-700">
-                New answers are already visible. The AI conclusion will appear
-                automatically.
-              </p>
-            </div>
-          </div>
-        ) : null}
+            ) : null}
 
-        {attempts.length > 1 ? (
-          <div className="flex gap-2 overflow-x-auto border-b border-border bg-muted/20 px-4 py-3 sm:px-6">
-            {attempts.map((item, index) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelectedAttemptId(item.id)}
-                className={`shrink-0 rounded-md border px-3 py-2 text-left text-xs transition ${
-                  attempt?.id === item.id
-                    ? "border-cyan-300 bg-cyan-50 text-cyan-950"
-                    : "border-border bg-background text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                <span className="block font-bold">
-                  Attempt {attempts.length - index}
-                </span>
-                <span className="mt-0.5 block">
-                  {item.subject || "Mission"} · rev. {item.published_revision}
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="p-4 sm:p-6">
-          {attempt ? (
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
-                <TabsTrigger value="conversation">Conversation</TabsTrigger>
-                <TabsTrigger value="summary">Summary</TabsTrigger>
-                <TabsTrigger value="flow">Learning flow</TabsTrigger>
-                <TabsTrigger value="memory">Memory</TabsTrigger>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <TabsList className="grid w-full grid-cols-4 sm:inline-flex sm:w-fit">
+                <TabsTrigger value="conversation">
+                  <MessageCircleMore aria-hidden />
+                  <span className="sr-only sm:not-sr-only">Conversation</span>
+                </TabsTrigger>
+                <TabsTrigger value="summary">
+                  <BrainCircuit aria-hidden />
+                  <span className="sr-only sm:not-sr-only">Summary</span>
+                </TabsTrigger>
+                <TabsTrigger value="flow">
+                  <Route aria-hidden />
+                  <span className="sr-only sm:not-sr-only">Learning flow</span>
+                </TabsTrigger>
+                <TabsTrigger value="memory">
+                  <Sparkles aria-hidden />
+                  <span className="sr-only sm:not-sr-only">Memory</span>
+                </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="summary" className="mt-5 grid gap-5">
-                {attempt.status === "abandoned" || attempt.status === "paused" ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
-                    <p className="text-sm font-bold">
-                      {attempt.status === "abandoned"
-                        ? "Student left before finishing"
-                        : "Student paused this mission"}
-                    </p>
-                    <p className="mt-2 text-sm leading-6">
-                      Last checkpoint: {checkpointLabel(attempt)}. Their next
-                      visit resumes from this exact step.
-                    </p>
-                  </div>
-                ) : null}
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    <BrainCircuit className="size-4 text-cyan-700" aria-hidden />
-                    Evidence-based summary
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    {attempt.trace?.summary ||
-                      "Emily is collecting observable evidence for this attempt."}
-                  </p>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <AttemptStatus attempt={attempt} />
+                <LiveUpdateStatus attempt={attempt} />
+              </div>
+            </div>
+          </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <SignalPanel
-                    icon={CheckCircle2}
-                    label="Strengths"
-                    tone="emerald"
-                    values={attempt.trace?.strengths}
-                  />
-                  <SignalPanel
-                    icon={Target}
-                    label="Areas to revisit"
-                    tone="amber"
-                    values={attempt.trace?.improvement_areas}
-                  />
-                </div>
+          <TabsContent
+            value="conversation"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <LearningConversation
+              active={activeTab === "conversation"}
+              attempt={attempt}
+              studentName={
+                student?.student_name || attempt.student_name || "Student"
+              }
+            />
+          </TabsContent>
 
-                <AttemptProgress attempt={attempt} />
-              </TabsContent>
+          <TabsContent
+            value="summary"
+            className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto p-4 sm:p-6"
+          >
+            {attempt.status === "abandoned" || attempt.status === "paused" ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                <p className="text-sm font-bold">
+                  {attempt.status === "abandoned"
+                    ? "Student left before finishing"
+                    : "Student paused this mission"}
+                </p>
+                <p className="mt-2 text-sm leading-6">
+                  Last checkpoint: {checkpointLabel(attempt)}. Their next visit
+                  resumes from this exact step.
+                </p>
+              </div>
+            ) : null}
 
-              <TabsContent value="flow" className="mt-5">
-                <div className="mb-3 flex items-start gap-3 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">
-                  <Route className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  <p className="leading-6">
-                    Nodes come from captured interactions. Gemini organizes the
-                    completed path and connects support, retries and mastery.
-                  </p>
-                </div>
-                <MissionFlowPreview
-                  emptyMessage="Learning events will appear here as the student works."
-                  flow={attempt.trace?.flow}
-                />
-              </TabsContent>
-
-              <TabsContent value="conversation" className="mt-5">
-                <LearningConversation
-                  active={activeTab === "conversation"}
-                  attempt={attempt}
-                  studentName={
-                    student?.student_name || attempt.student_name || "Student"
-                  }
-                />
-              </TabsContent>
-
-              <TabsContent value="memory" className="mt-5 grid gap-4">
-                <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 text-violet-950">
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    <Sparkles className="size-4" aria-hidden />
-                    Next adaptive turn
-                  </div>
-                  <p className="mt-3 text-sm leading-6">
-                    {attempt.trace?.next_adaptation ||
-                      "Retrieve this attempt before the next student interaction."}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <MemoryStat
-                    label="Recorded events"
-                    value={String(safeList(attempt.snapshot?.events).length)}
-                  />
-                  <MemoryStat
-                    label="Teacher notes"
-                    value={String(safeList(attempt.snapshot?.notes).length)}
-                  />
-                  <MemoryStat
-                    label="Tutor turns"
-                    value={String(safeList(attempt.tutor_turns).length)}
-                  />
-                </div>
-
-                <div className="rounded-lg border border-border p-4 text-sm leading-6 text-muted-foreground">
-                  <p className="font-semibold text-foreground">
-                    Trace provenance
-                  </p>
-                  <p className="mt-2">
-                    {attempt.trace?.generated_by_ai
-                      ? `Generated by ${attempt.trace.model || "Gemini"} from ${attempt.trace.event_count} observable events.`
-                      : `Built directly from ${attempt.trace?.event_count ?? 0} observable events${attempt.trace?.fallback_reason ? ` · ${attempt.trace.fallback_reason}` : ""}.`}
-                  </p>
-                  <p className="mt-1">
-                    Last activity:{" "}
-                    {formatDate(attempt.last_activity_at, {
-                      fallback: "Not available",
-                      preset: "date-time",
-                      relative: true,
-                    })}
-                  </p>
-                  <p className="mt-1">
-                    Processing state: {attempt.trace_state || "live"}
-                  </p>
-                </div>
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <div className="my-6 rounded-lg border border-dashed border-border px-6 py-12 text-center">
-              <History className="mx-auto size-6 text-muted-foreground" aria-hidden />
-              <p className="mt-3 font-semibold">No recorded attempt yet</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                The learning flow appears after this student starts answering
-                inside the mission.
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <BrainCircuit className="size-4 text-cyan-700" aria-hidden />
+                Evidence-based summary
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                {attempt.trace?.summary ||
+                  "Emily is collecting observable evidence for this attempt."}
               </p>
             </div>
-          )}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <SignalPanel
+                icon={CheckCircle2}
+                label="Strengths"
+                tone="emerald"
+                values={attempt.trace?.strengths}
+              />
+              <SignalPanel
+                icon={Target}
+                label="Areas to revisit"
+                tone="amber"
+                values={attempt.trace?.improvement_areas}
+              />
+            </div>
+
+            <AttemptProgress attempt={attempt} />
+          </TabsContent>
+
+          <TabsContent
+            value="flow"
+            className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"
+          >
+            <div className="mb-3 flex items-start gap-3 rounded-md border border-cyan-200 bg-cyan-50 p-3 text-sm text-cyan-950">
+              <Route className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <p className="leading-6">
+                Nodes come from captured interactions. Gemini organizes the
+                completed path and connects support, retries and mastery.
+              </p>
+            </div>
+            <MissionFlowPreview
+              emptyMessage="Learning events will appear here as the student works."
+              flow={attempt.trace?.flow}
+            />
+          </TabsContent>
+
+          <TabsContent
+            value="memory"
+            className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 sm:p-6"
+          >
+            <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 text-violet-950">
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <Sparkles className="size-4" aria-hidden />
+                Next adaptive turn
+              </div>
+              <p className="mt-3 text-sm leading-6">
+                {attempt.trace?.next_adaptation ||
+                  "Retrieve this attempt before the next student interaction."}
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MemoryStat
+                label="Recorded events"
+                value={String(safeList(attempt.snapshot?.events).length)}
+              />
+              <MemoryStat
+                label="Teacher notes"
+                value={String(safeList(attempt.snapshot?.notes).length)}
+              />
+              <MemoryStat
+                label="Tutor turns"
+                value={String(safeList(attempt.tutor_turns).length)}
+              />
+            </div>
+
+            <div className="rounded-lg border border-border p-4 text-sm leading-6 text-muted-foreground">
+              <p className="font-semibold text-foreground">Trace provenance</p>
+              <p className="mt-2">
+                {attempt.trace?.generated_by_ai
+                  ? `Generated by ${attempt.trace.model || "Gemini"} from ${attempt.trace.event_count} observable events.`
+                  : `Built directly from ${attempt.trace?.event_count ?? 0} observable events${attempt.trace?.fallback_reason ? ` · ${attempt.trace.fallback_reason}` : ""}.`}
+              </p>
+              <p className="mt-1">
+                Last activity:{" "}
+                {formatDate(attempt.last_activity_at, {
+                  fallback: "Not available",
+                  preset: "date-time",
+                  relative: true,
+                })}
+              </p>
+              <p className="mt-1">
+                Processing state: {attempt.trace_state || "live"}
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <div className="grid flex-1 place-items-center p-6 text-center">
+          <div className="max-w-sm">
+            <span className="mx-auto grid size-12 place-items-center rounded-full bg-muted">
+              <History className="size-5 text-muted-foreground" aria-hidden />
+            </span>
+            <p className="mt-4 font-semibold">No recorded attempt yet</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              The learning flow appears after this student starts answering
+              inside the mission.
+            </p>
+          </div>
         </div>
-      </section>
+      )}
     </DashboardModal>
+  );
+}
+
+function AttemptSwitcher({
+  attempts,
+  selectedId,
+  onSelect,
+}: {
+  readonly attempts: readonly IApiStudentLearningAttempt[];
+  readonly selectedId: string;
+  readonly onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+      <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+        Attempts
+      </span>
+      {attempts.map((item, index) => {
+        const selected = item.id === selectedId;
+
+        return (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onSelect(item.id)}
+            className={`shrink-0 rounded-full border px-3 py-1 text-xs transition ${
+              selected
+                ? "border-cyan-300 bg-cyan-50 font-bold text-cyan-950"
+                : "border-border bg-background text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            #{attempts.length - index} · {item.subject || "Mission"} · rev.{" "}
+            {item.published_revision}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -294,7 +302,7 @@ function AttemptStatus({
             ? "bg-rose-100 text-rose-800"
             : paused
               ? "bg-amber-100 text-amber-800"
-          : "bg-cyan-100 text-cyan-800"
+              : "bg-cyan-100 text-cyan-800"
       }`}
     >
       {completed
@@ -315,9 +323,7 @@ function LiveUpdateStatus({
 }) {
   const processing = isInsightProcessing(attempt.trace_state);
   const failed = attempt.trace_state === "failed";
-  const active = !["completed", "abandoned", "paused"].includes(
-    attempt.status,
-  );
+  const active = !["completed", "abandoned", "paused"].includes(attempt.status);
   const ready = attempt.trace_state === "ready";
   const label = processing
     ? "Updating insights"
@@ -381,14 +387,12 @@ function SignalPanel({
         {(safeValues.length > 0
           ? safeValues
           : ["More evidence is needed."]
-        ).map(
-          (value) => (
-            <li key={value} className="flex gap-2">
-              <span aria-hidden>•</span>
-              <span>{value}</span>
-            </li>
-          ),
-        )}
+        ).map((value) => (
+          <li key={value} className="flex gap-2">
+            <span aria-hidden>•</span>
+            <span>{value}</span>
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -410,7 +414,10 @@ function AttemptProgress({
               : 0;
 
         return (
-          <div key={stage.stage_id} className="rounded-lg border border-border p-4">
+          <div
+            key={stage.stage_id}
+            className="rounded-lg border border-border p-4"
+          >
             <p className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
               {stage.stage_id.replaceAll("-", " ")}
             </p>
@@ -485,29 +492,22 @@ function LearningConversation({
   }, [active, version]);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-slate-50/70">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MessageCircleMore
-            className="size-4 text-violet-700"
-            aria-hidden
-          />
-          <div>
-            <h3 className="text-sm font-bold">Emily and {studentName}</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              New messages appear here automatically.
-            </p>
-          </div>
-        </div>
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-700">
-          <span className="size-2 animate-pulse rounded-full bg-cyan-500" />
-          Live
+    <section className="flex min-h-0 flex-1 flex-col bg-muted/30">
+      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-4 py-3 sm:px-6">
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-700">
+          <MessageCircleMore className="size-4" aria-hidden />
         </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold">Emily and {studentName}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            New messages appear here automatically.
+          </p>
+        </div>
       </header>
 
       <div
         ref={viewportRef}
-        className="min-h-80 max-h-[52svh] overflow-y-auto overscroll-contain px-3 py-5 sm:px-5"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
         aria-live="polite"
       >
         {hasMessages ? (
@@ -572,7 +572,7 @@ function LearningConversation({
             ) : null}
           </ol>
         ) : (
-          <div className="grid min-h-64 place-items-center text-center">
+          <div className="grid h-full min-h-64 place-items-center text-center">
             <div>
               <MessageCircleMore
                 className="mx-auto size-6 text-muted-foreground"
@@ -668,7 +668,9 @@ function EmilyMessage({
             <ol className="mt-3 grid gap-1.5 border-t border-violet-100 pt-3 text-xs leading-5 text-muted-foreground">
               {safeList(explanationSteps).map((step, index) => (
                 <li key={`${index}:${step}`} className="flex gap-2">
-                  <span className="font-bold text-violet-600">{index + 1}.</span>
+                  <span className="font-bold text-violet-600">
+                    {index + 1}.
+                  </span>
                   <span>{step}</span>
                 </li>
               ))}
@@ -778,7 +780,13 @@ function latestPendingEvent(
   return latestTurnTimestamp >= latestEvent.occurred_at ? null : latestEvent;
 }
 
-function MemoryStat({ label, value }: { readonly label: string; readonly value: string }) {
+function MemoryStat({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}) {
   return (
     <div className="rounded-lg border border-border p-4">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -803,8 +811,7 @@ function dateValue(value: number | string) {
 function checkpointLabel(attempt: IApiStudentLearningAttempt) {
   const checkpoint = attempt.snapshot?.checkpoint;
   const stage = checkpoint?.stage_id?.replaceAll("-", " ") || "mission start";
-  const phase =
-    checkpoint?.phase?.replaceAll("-", " ") || "between questions";
+  const phase = checkpoint?.phase?.replaceAll("-", " ") || "between questions";
   return `${stage}, ${phase}${checkpoint?.question_id ? ` (${checkpoint.question_id})` : ""}`;
 }
 

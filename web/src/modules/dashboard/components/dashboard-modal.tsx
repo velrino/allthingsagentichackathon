@@ -11,6 +11,12 @@ import { cn } from "@/lib/utils";
 type DashboardModalProps = {
   readonly children: ReactNode;
   readonly description?: string;
+  /**
+   * `auto` (default): the modal grows with its content and the body scrolls.
+   * `fill`: the modal takes the viewport height and the body becomes a flex
+   * column that children own — use it for panels with pinned toolbars.
+   */
+  readonly layout?: "auto" | "fill";
   readonly open: boolean;
   readonly size?: "md" | "lg" | "xl";
   readonly title: string;
@@ -23,9 +29,21 @@ const sizeClassName = {
   xl: "max-w-6xl",
 };
 
+const layoutClassName = {
+  auto: {
+    dialog: "max-h-[calc(100svh-2rem)]",
+    body: "overflow-y-auto p-4 sm:p-6",
+  },
+  fill: {
+    dialog: "h-[calc(100svh-2rem)] max-h-[60rem]",
+    body: "flex flex-col overflow-hidden",
+  },
+};
+
 export function DashboardModal({
   children,
   description,
+  layout = "auto",
   open,
   onOpenChange,
   size = "lg",
@@ -64,27 +82,39 @@ export function DashboardModal({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         className={cn(
-          "dashboard-theme max-h-[calc(100svh-2rem)] w-full overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl",
+          "dashboard-theme flex w-full flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-2xl",
+          layoutClassName[layout].dialog,
           sizeClassName[size],
         )}
       >
-        <header className="flex items-start gap-4 border-b border-border px-4 py-4 sm:px-6">
+        <header className="flex shrink-0 items-start gap-4 border-b border-border px-4 py-4 sm:px-6">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-lg font-semibold">
               {title}
             </h2>
             {description ? (
-              <p id={descriptionId} className="mt-1 text-sm leading-6 text-muted-foreground">
+              <p
+                id={descriptionId}
+                className="mt-1 text-sm leading-6 text-muted-foreground"
+              >
                 {description}
               </p>
             ) : null}
           </div>
-          <Button type="button" variant="ghost" size="icon" aria-label="Close modal" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Close modal"
+            onClick={() => onOpenChange(false)}
+          >
             <X className="size-4" aria-hidden />
           </Button>
         </header>
 
-        <div className="max-h-[calc(100svh-8rem)] overflow-y-auto p-4 sm:p-6">{children}</div>
+        <div className={cn("min-h-0 flex-1", layoutClassName[layout].body)}>
+          {children}
+        </div>
       </section>
     </div>,
     document.body,
