@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { INPUT_LIMITS, limitInput } from "@/shared/input-limits";
 
 const subjectSuggestions = [
   "Mathematics",
@@ -83,9 +84,15 @@ export function ClassFormModal({
     useState<HTMLElement | null>(null);
   const [form, setForm] = useState<IApiUpsertTeacherClassRequest>(() => ({
     class_id: teacherClass?.class_id ?? "",
-    class_name: teacherClass?.class_name ?? "",
-    subject: teacherClass?.subject ?? "",
-    grade_level: teacherClass?.grade_level ?? "",
+    class_name: limitInput(
+      teacherClass?.class_name ?? "",
+      INPUT_LIMITS.className,
+    ),
+    subject: limitInput(teacherClass?.subject ?? "", INPUT_LIMITS.subject),
+    grade_level: limitInput(
+      teacherClass?.grade_level ?? "",
+      INPUT_LIMITS.gradeLevel,
+    ),
   }));
 
   const canSubmit = form.subject.trim().length >= 2 && !saving;
@@ -99,9 +106,12 @@ export function ClassFormModal({
 
     await onSubmit({
       ...(teacherClass ? { class_id: teacherClass.class_id } : {}),
-      class_name: form.class_name.trim(),
-      grade_level: form.grade_level.trim(),
-      subject: form.subject.trim(),
+      class_name: limitInput(form.class_name.trim(), INPUT_LIMITS.className),
+      grade_level: limitInput(
+        form.grade_level.trim(),
+        INPUT_LIMITS.gradeLevel,
+      ),
+      subject: limitInput(form.subject.trim(), INPUT_LIMITS.subject),
     });
   }
 
@@ -135,9 +145,13 @@ export function ClassFormModal({
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    class_name: event.target.value,
+                    class_name: limitInput(
+                      event.target.value,
+                      INPUT_LIMITS.className,
+                    ),
                   }))
                 }
+                maxLength={INPUT_LIMITS.className}
                 placeholder="Algebra Lab"
                 autoComplete="off"
                 disabled={saving}
@@ -148,6 +162,7 @@ export function ClassFormModal({
               <CreatableFieldCombobox
                 id={subjectInputId}
                 required
+                maxLength={INPUT_LIMITS.subject}
                 value={form.subject}
                 onValueChange={(subject) =>
                   setForm((current) => ({ ...current, subject }))
@@ -162,6 +177,7 @@ export function ClassFormModal({
             <FieldRow label="Grade level" htmlFor={gradeLevelInputId}>
               <CreatableFieldCombobox
                 id={gradeLevelInputId}
+                maxLength={INPUT_LIMITS.gradeLevel}
                 value={form.grade_level}
                 onValueChange={(gradeLevel) =>
                   setForm((current) => ({
@@ -202,6 +218,7 @@ type CreatableOption = {
 function CreatableFieldCombobox({
   disabled,
   id,
+  maxLength,
   onValueChange,
   placeholder,
   portalContainer,
@@ -211,6 +228,7 @@ function CreatableFieldCombobox({
 }: {
   readonly disabled: boolean;
   readonly id: string;
+  readonly maxLength: number;
   readonly onValueChange: (value: string) => void;
   readonly placeholder: string;
   readonly portalContainer: HTMLElement | null;
@@ -264,7 +282,9 @@ function CreatableFieldCombobox({
       isItemEqualToValue={(item, selected) => item.value === selected.value}
       itemToStringLabel={(item) => item.value}
       itemToStringValue={(item) => item.value}
-      onInputValueChange={(nextValue) => onValueChange(nextValue)}
+      onInputValueChange={(nextValue) =>
+        onValueChange(limitInput(nextValue, maxLength))
+      }
       onValueChange={(nextItem) => {
         if (nextItem) {
           commitValue(nextItem.value);
@@ -276,6 +296,7 @@ function CreatableFieldCombobox({
         required={required}
         placeholder={placeholder}
         autoComplete="off"
+        maxLength={maxLength}
       />
       <ComboboxContent container={portalContainer}>
         <ComboboxEmpty>Type a new value to use it.</ComboboxEmpty>
@@ -315,7 +336,7 @@ function CreatableFieldCombobox({
 
       return alreadyAvailable ? current : [...current, trimmedValue];
     });
-    onValueChange(trimmedValue);
+    onValueChange(limitInput(trimmedValue, maxLength));
   }
 }
 

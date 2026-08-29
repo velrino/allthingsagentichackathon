@@ -3,6 +3,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
+import { INPUT_LIMITS } from "@/shared/input-limits";
+
 import { DEMO_TEACHER } from "../auth/demo-account";
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import { GoogleIdentityButton } from "../components/google-identity-button";
@@ -134,6 +136,7 @@ export function LoginPage() {
                 readOnly
                 aria-readonly="true"
                 tabIndex={-1}
+                maxLength={INPUT_LIMITS.email}
                 className="mt-1 h-11 w-full cursor-default rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none select-all"
               />
             </label>
@@ -149,6 +152,7 @@ export function LoginPage() {
                 readOnly
                 aria-readonly="true"
                 tabIndex={-1}
+                maxLength={INPUT_LIMITS.password}
                 className="mt-1 h-11 w-full cursor-default rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none"
               />
             </label>

@@ -2,6 +2,8 @@
 
 import { useId, useState } from "react";
 
+import { INPUT_LIMITS, limitInput } from "@/shared/input-limits";
+
 import { studentEntryCopy } from "./student-entry-messages";
 
 export type StudentSessionFormValue = {
@@ -57,6 +59,10 @@ export function StudentSessionModal({
         cleaned.length < CLASS_CODE_LENGTH,
     );
     setClassCode(cleaned);
+  }
+
+  function handleStudentNameChange(rawValue: string) {
+    setStudentName(limitInput(rawValue, INPUT_LIMITS.studentName));
   }
 
   return (
@@ -124,10 +130,10 @@ export function StudentSessionModal({
             <input
               id={studentNameInputId}
               value={studentName}
-              onChange={(event) => setStudentName(event.target.value)}
+              onChange={(event) => handleStudentNameChange(event.target.value)}
               disabled={loading}
               autoComplete="off"
-              maxLength={80}
+              maxLength={INPUT_LIMITS.studentName}
               placeholder="What should Emily call you?"
               aria-describedby={studentNameHintId}
               className="mt-2 h-12 w-full rounded-xl border border-white/12 bg-white/8 px-4 text-center text-base font-semibold text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/70 focus:bg-white/12 disabled:opacity-60"

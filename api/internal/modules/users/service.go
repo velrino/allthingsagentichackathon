@@ -1228,7 +1228,7 @@ func normalizeClassCode(value string) string {
 }
 
 func normalizeStudentName(value string) string {
-	return strings.Join(strings.Fields(value), " ")
+	return truncateStudentText(value, studentNameMaxLength)
 }
 
 func normalizeText(value string) string {

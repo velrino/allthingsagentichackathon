@@ -20,6 +20,7 @@ import type {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { INPUT_LIMITS, limitInput } from "@/shared/input-limits";
 
 import { DashboardModal } from "./dashboard-modal";
 import { MissionFlowPreview } from "./mission-flow-preview";
@@ -115,7 +116,7 @@ export function MissionBuilder({
     }
 
     await onProcess({
-      ...form,
+      ...limitMissionBuilderDraft(form),
       audience_type: "all",
       target_student_ids: [],
       class_id: teacherClass.class_id || classId,
@@ -233,9 +234,13 @@ export function MissionBuilder({
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    mission_name: event.target.value,
+                    mission_name: limitInput(
+                      event.target.value,
+                      INPUT_LIMITS.missionName,
+                    ),
                   }))
                 }
+                maxLength={INPUT_LIMITS.missionName}
                 placeholder="Fractions in equations review"
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
@@ -250,9 +255,13 @@ export function MissionBuilder({
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    learning_goal: event.target.value,
+                    learning_goal: limitInput(
+                      event.target.value,
+                      INPUT_LIMITS.learningGoal,
+                    ),
                   }))
                 }
+                maxLength={INPUT_LIMITS.learningGoal}
                 placeholder="Help students review fractions inside two-step equations."
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
@@ -267,9 +276,13 @@ export function MissionBuilder({
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    teacher_prompt: event.target.value,
+                    teacher_prompt: limitInput(
+                      event.target.value,
+                      INPUT_LIMITS.missionTeacherPrompt,
+                    ),
                   }))
                 }
+                maxLength={INPUT_LIMITS.missionTeacherPrompt}
                 placeholder="What did students study today? What should Emily watch for? What should count as success?"
                 className="min-h-40 rounded-md border border-input bg-background px-3 py-3 text-sm leading-6 outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
@@ -355,6 +368,7 @@ export function MissionBuilder({
                       <EditablePreviewField
                         ariaLabel="Mission title"
                         disabled={busy}
+                        maxLength={INPUT_LIMITS.missionTitle}
                         value={previewDraft.title}
                         onChange={(title) =>
                           updateEditableMission((mission) => ({
@@ -435,7 +449,7 @@ export function MissionBuilder({
                               return;
                             }
 
-                            void onApprove(previewDraft);
+                            void onApprove(limitMissionPreview(previewDraft));
                           }}
                           className="bg-emerald-600 text-white hover:bg-emerald-500"
                         >
@@ -517,6 +531,7 @@ function EditableMissionPreview({
         <EditablePreviewField
           ariaLabel="Mission summary"
           disabled={disabled}
+          maxLength={INPUT_LIMITS.missionSummary}
           minRows={4}
           value={mission.summary}
           onChange={(summary) =>
@@ -547,6 +562,7 @@ function EditableMissionPreview({
                 <EditablePreviewField
                   ariaLabel={`Question ${index + 1} prompt`}
                   disabled={disabled}
+                  maxLength={INPUT_LIMITS.missionQuestionPrompt}
                   minRows={3}
                   value={question.prompt}
                   onChange={(prompt) =>
@@ -573,11 +589,15 @@ function EditableMissionPreview({
                           options: (current.options ?? []).map(
                             (currentOption, index) =>
                               index === optionIndex
-                                ? event.target.value
+                                ? limitInput(
+                                    event.target.value,
+                                    INPUT_LIMITS.missionQuestionOption,
+                                  )
                                 : currentOption,
                           ),
                         }))
                       }
+                      maxLength={INPUT_LIMITS.missionQuestionOption}
                       className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
                     />
                   ))}
@@ -589,6 +609,7 @@ function EditableMissionPreview({
                 <EditablePreviewField
                   ariaLabel={`Question ${index + 1} expected answer`}
                   disabled={disabled}
+                  maxLength={INPUT_LIMITS.missionExpectedAnswer}
                   minRows={2}
                   value={question.expected_answer}
                   onChange={(expectedAnswer) =>
@@ -612,6 +633,7 @@ function EditablePreviewField({
   ariaLabel,
   className,
   disabled,
+  maxLength,
   minRows = 1,
   onChange,
   value,
@@ -619,6 +641,7 @@ function EditablePreviewField({
   readonly ariaLabel: string;
   readonly className?: string;
   readonly disabled: boolean;
+  readonly maxLength?: number;
   readonly minRows?: number;
   readonly onChange: (value: string) => void;
   readonly value: string;
@@ -629,7 +652,14 @@ function EditablePreviewField({
       disabled={disabled}
       rows={minRows}
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) =>
+        onChange(
+          maxLength
+            ? limitInput(event.target.value, maxLength)
+            : event.target.value,
+        )
+      }
+      maxLength={maxLength}
       className={cn(
         "w-full resize-none rounded-md border border-transparent bg-transparent p-0 outline-none transition focus:border-ring focus:bg-background focus:px-3 focus:py-2 focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70",
         className,
@@ -690,6 +720,33 @@ function previewMissionCanBeApproved(mission: IApiTeacherClassMission) {
         question.expected_answer.trim().length > 0,
     )
   );
+}
+
+function limitMissionPreview(
+  mission: IApiTeacherClassMission,
+): IApiTeacherClassMission {
+  return {
+    ...mission,
+    title: limitInput(mission.title, INPUT_LIMITS.missionTitle),
+    summary: limitInput(mission.summary, INPUT_LIMITS.missionSummary),
+    preview_questions: normalizeMissionPreviewQuestions(
+      mission.preview_questions,
+    ).map((question) => ({
+      ...question,
+      prompt: limitInput(question.prompt, INPUT_LIMITS.missionQuestionPrompt),
+      options: question.options
+        ? question.options
+            .slice(0, 4)
+            .map((option) =>
+              limitInput(option, INPUT_LIMITS.missionQuestionOption),
+            )
+        : question.options,
+      expected_answer: limitInput(
+        question.expected_answer,
+        INPUT_LIMITS.missionExpectedAnswer,
+      ),
+    })),
+  };
 }
 
 type AttachmentKind = "docx" | "file" | "image" | "pdf" | "txt";
@@ -1004,12 +1061,35 @@ function buildMissionBuilderDraft(
   return {
     mission_id: mission?.id,
     expected_draft_revision: mission?.draft_revision,
-    mission_name: mission?.mission_name ?? "",
-    learning_goal: mission?.learning_goal ?? "",
-    teacher_prompt: mission?.teacher_prompt ?? draftPrompt ?? "",
+    mission_name: limitInput(
+      mission?.mission_name ?? "",
+      INPUT_LIMITS.missionName,
+    ),
+    learning_goal: limitInput(
+      mission?.learning_goal ?? "",
+      INPUT_LIMITS.learningGoal,
+    ),
+    teacher_prompt: limitInput(
+      mission?.teacher_prompt ?? draftPrompt ?? "",
+      INPUT_LIMITS.missionTeacherPrompt,
+    ),
     audience_type: "all",
     target_student_ids: [],
     attachments: mission?.attachments ?? [],
+  };
+}
+
+function limitMissionBuilderDraft(
+  draft: MissionBuilderDraft,
+): MissionBuilderDraft {
+  return {
+    ...draft,
+    mission_name: limitInput(draft.mission_name, INPUT_LIMITS.missionName),
+    learning_goal: limitInput(draft.learning_goal, INPUT_LIMITS.learningGoal),
+    teacher_prompt: limitInput(
+      draft.teacher_prompt,
+      INPUT_LIMITS.missionTeacherPrompt,
+    ),
   };
 }
 

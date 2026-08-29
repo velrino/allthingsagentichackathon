@@ -47,6 +47,25 @@ func TestStudentSessionRequestRejectsClassStyleID(t *testing.T) {
 	}
 }
 
+func TestStudentSessionRequestRejectsStudentNameOverMaxLength(t *testing.T) {
+	request := StudentSessionRequest{
+		ClassCode:   "123456",
+		StudentName: strings.Repeat("A", studentNameMaxLength+1),
+	}
+
+	if err := request.Validate(); err == nil {
+		t.Fatal("expected long student name to fail validation")
+	}
+}
+
+func TestNormalizeStudentNameLimitsLength(t *testing.T) {
+	name := normalizeStudentName(strings.Repeat("A", studentNameMaxLength+1))
+
+	if len([]rune(name)) != studentNameMaxLength {
+		t.Fatalf("name length = %d, want %d", len([]rune(name)), studentNameMaxLength)
+	}
+}
+
 func TestPostStudentSessionValidationDoesNotRequireFirebaseAuth(t *testing.T) {
 	service := &fakeUsersService{}
 	recorder := postStudentSessionValidation(t, &Handler{

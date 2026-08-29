@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { INPUT_LIMITS, limitInput } from "@/shared/input-limits";
+
 import { buildWhyOptions } from "../agent/mock-tutor";
 import {
   TUTOR_NAME,
@@ -192,6 +194,10 @@ function QuestionPhase({
   const [text, setText] = useState("");
   const { question } = lesson;
 
+  function handleAnswerTextChange(rawValue: string) {
+    setText(limitInput(rawValue, INPUT_LIMITS.studentAnswer));
+  }
+
   if (question.kind === "choice") {
     return (
       <>
@@ -209,7 +215,8 @@ function QuestionPhase({
             <textarea
               autoFocus
               value={text}
-              onChange={(event) => setText(event.target.value)}
+              onChange={(event) => handleAnswerTextChange(event.target.value)}
+              maxLength={INPUT_LIMITS.studentAnswer}
               rows={3}
               placeholder="Write your answer…"
               className="chalk chalk-line pointer-events-auto w-full resize-none rounded-sm border-2 bg-transparent px-[0.6em] py-[0.4em] text-[1.1em] outline-none placeholder:text-chalk-ink/40"
@@ -338,6 +345,10 @@ function WhyPhase({
   const [text, setText] = useState("");
   const wrong = lesson.wrong;
 
+  function handleReasoningTextChange(rawValue: string) {
+    setText(limitInput(rawValue, INPUT_LIMITS.studentReasoning));
+  }
+
   if (!wrong) {
     return null;
   }
@@ -397,7 +408,8 @@ function WhyPhase({
           <textarea
             autoFocus
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => handleReasoningTextChange(event.target.value)}
+            maxLength={INPUT_LIMITS.studentReasoning}
             rows={3}
             placeholder="Tell me how you were thinking…"
             className="chalk chalk-line pointer-events-auto w-full resize-none rounded-sm border-2 bg-transparent px-[0.6em] py-[0.4em] text-[1.1em] outline-none placeholder:text-chalk-ink/40"

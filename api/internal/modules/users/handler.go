@@ -25,6 +25,7 @@ const (
 	defaultStudentSessionRateLimitBurst   = 10
 	defaultStudentSessionRateLimitExpires = 5 * time.Minute
 	defaultStudentLearningTimeout         = 40 * time.Second
+	studentNameMaxLength                  = 40
 )
 
 var classCodePattern = regexp.MustCompile(`^[0-9]{6}$`)
@@ -619,10 +620,7 @@ func (request StudentSessionRequest) Validate() error {
 		validation.Field(&request.ClassCode,
 			validation.By(validateClassCode),
 		),
-		validation.Field(&request.StudentName,
-			validation.Required,
-			validation.Length(2, 80),
-		),
+		validation.Field(&request.StudentName, validation.By(validateStudentName)),
 	)
 }
 
@@ -638,7 +636,7 @@ func (request StudentMissionRequest) Validate() error {
 	return validation.ValidateStruct(&request,
 		validation.Field(&request.ClassCode, validation.By(validateClassCode)),
 		validation.Field(&request.MissionID, validation.Required, validation.Length(1, 120)),
-		validation.Field(&request.StudentName, validation.Required, validation.Length(2, 80)),
+		validation.Field(&request.StudentName, validation.By(validateStudentName)),
 	)
 }
 
@@ -866,6 +864,19 @@ func validateClassCode(value any) error {
 		validation.Required,
 		validation.Length(6, 6),
 		validation.Match(classCodePattern),
+	)
+}
+
+func validateStudentName(value any) error {
+	studentName, ok := value.(string)
+	if !ok {
+		return errors.New("student_name must be a string")
+	}
+
+	return validation.Validate(
+		normalizeText(studentName),
+		validation.Required,
+		validation.Length(2, studentNameMaxLength),
 	)
 }
 

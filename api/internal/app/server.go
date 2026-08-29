@@ -15,6 +15,8 @@ import (
 	"classgame-api/internal/modules/users"
 )
 
+const defaultRequestBodyLimitBytes int64 = 256 * 1024
+
 type Options struct {
 	Config              config.Config
 	Dashboard           dashboard.HandlerOptions
@@ -37,6 +39,7 @@ func New(options Options) *echo.Echo {
 	}
 
 	server.Use(middleware.Recover())
+	server.Use(middleware.BodyLimit(defaultRequestBodyLimitBytes))
 	server.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowHeaders: []string{
 			echo.HeaderAccept,

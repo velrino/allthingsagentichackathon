@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { INPUT_LIMITS, limitInput } from "@/shared/input-limits";
 
 import { DataTableViewOptions } from "./view-options";
 
@@ -23,7 +24,12 @@ export function DataTableToolbar<TData>({ searchPlaceholder = "Filter...", table
         <Input
           placeholder={searchPlaceholder}
           value={String(globalFilter)}
-          onChange={(event) => table.setGlobalFilter(event.target.value)}
+          onChange={(event) =>
+            table.setGlobalFilter(
+              limitInput(event.target.value, INPUT_LIMITS.search),
+            )
+          }
+          maxLength={INPUT_LIMITS.search}
           className="h-8 w-full sm:w-48 lg:w-64"
         />
         {isFiltered ? (
