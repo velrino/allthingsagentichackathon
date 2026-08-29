@@ -61,7 +61,8 @@ Two people collaborate with Emily: the teacher who plans, and the student who pl
 
 One repository, two Cloud Run services, one database.
 
-- **Frontend**: Next.js, React, TypeScript, Tailwind, Three.js. The classroom is a single merged GLB that we split into connected islands at load time to stretch the room, spread the desks and recolour the whiteboard; furniture colliders are derived from the same pass. Third-person camera with wall handling, a floating joystick, six chibi characters (Emily is the teacher).
+- **Frontend**: Next.js, React, TypeScript, Tailwind, Three.js. The classroom is a single merged GLB that we split into connected islands at load time to stretch the room, spread the desks and recolour the whiteboard; furniture colliders are derived from the same pass. Third-person camera with wall handling, a floating joystick, six chibi characters (Emily is the teacher). The other desks are occupied by classmates: chairs are recognised by size from the same layout pass, and each classmate is one of the six characters repainted per instance by rewriting its vertex colours — Emily's look-alike sits in the back as a brunette in blue.
+- **3D pipeline**: **Blender** generates the six chibi avatars headless — one shared skinned rig, flat colours baked into vertex colours, three materials, Draco-compressed. We used the **Blender MCP server** from Claude Code to inspect and iterate on the models, and Node scripts against the GLB to measure desk groups, chair seats and body landmarks before writing scene code.
 - **Lesson UI**: a chalkboard, inspired by the classroom minigames in *Bully: Scholarship Edition* — without the timer. Multiple choice for fractions; "pick the next move" for equations, so every wrong move has a name.
 - **Agent**: Go with the Google GenAI SDK calling Gemini with **structured output**. The orchestrator turns the teacher's request and any readable attachments into a mission blueprint — preview questions with misconception traps, stages, suggestions, positive and improvement signals — and falls back to a deterministic local blueprint if GenAI is unavailable, so the teacher never gets a dead end. The in-game tutor is deterministic today behind the JSON contract planned for Gemini tutor turns.
 - **Memory and state**: Firestore for everything durable — teacher profiles, classes, missions with revision history and published snapshots, a `mission_codes` index for student entry, student users, and live game presence (a heartbeat every 15 seconds; the dashboard derives online state server-side). Attachments are uploaded through Uploadcare as temporary files and, after approval, copied by **Cloud Tasks** into **Cloud Storage** under the class, mission and published revision. Redis handles health/cache.
@@ -111,6 +112,8 @@ Keeping the product to one loop. Every extra room, subject or chart we sketched 
 
 Making misconceptions *nameable*. The notebook is only useful if a wrong answer maps to a specific way of thinking. That drove the content design: every wrong option is a deliberate trap tied to a named misconception, and equations are solved move by move so the wrong *move* has a name too.
 
+Furnishing a room from one merged mesh. The classroom GLB is a single mesh, so "sit a classmate in every chair" meant splitting it into connected islands, recognising chairs and desk tops by their dimensions, and measuring the chibi rig's leg pivot so characters sit *on* the seat instead of hovering over it. Repainting characters hit 8-bit colour quantisation — a `#151515` hair and a `#151619` shoe become the same colour — solved by matching each vertex only against the parts that can exist at its height.
+
 Being honest about memory. It is easy to draw charts that *look* like an agent remembering. We labelled every dashboard block by its source — live class data, based on class signals, or example — so a teacher (or a judge) always knows what is real.
 
 ## What We Learned
@@ -144,6 +147,9 @@ Suggested Devpost tags:
 - React
 - TypeScript
 - Three.js
+- Blender
+- Blender MCP
+- Model Context Protocol (MCP)
 - Node.js
 - Education
 - AI Agents

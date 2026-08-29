@@ -66,7 +66,8 @@ The game loop still uses a mocked tutor agent, but student entry and live game p
 - **3D classroom** (Three.js, low-poly GLB). The merged mesh is split into connected islands at load time, the room shell is stretched 2× and the furniture spread apart so it's walkable; the whiteboard is recoloured to match the lesson board (`scene/classroom-layout.ts`).
 - **Third-person camera**: drag to orbit, returns behind the avatar while walking, slides along walls instead of clipping.
 - **Collision** with walls and furniture; joystick on phones, WASD + mouse on desktop; tap the glowing desk to walk to it.
-- **Characters**: six chibi avatars (from Unshatter's chibi-band set). The student picks one from the top bar; **Emily** is the teacher, standing at the whiteboard.
+- **Characters**: six chibi avatars (from Unshatter's chibi-band set), one skinned rig shared by every instance. The student picks one from the top bar; **Emily** is the teacher, standing at the whiteboard.
+- **Classmates**: the other desk groups are occupied. The layout pass reports every furniture piece, chairs and desk tops are recognised by their dimensions, and one classmate sits in the board-facing chair of each group — the player's group and the teacher's desk stay empty (`scene/desk-seats.ts`, `scene/classmates.ts`). Classmates are the same six characters **repainted**: vertex colours are rewritten per instance (hair, top, pants, shoes, cap), matched by body height band so near-black parts don't bleed into each other (`avatars/recolor-avatar.ts`, roster in `avatars/classmate-looks.ts`). Emily's look-alike sits in the class as a brunette in blue. Whoever the student plays as is left out of the roster.
 - **Student entry**: `/home` blocks the game with a centered modal for a six-digit `mission_code` and `student_name`; the web validates the mission code before signing in anonymously with a student-only Firebase app and posting to the API.
 - **Teacher login and dashboard**: `/dashboard` and `/dashboard/classes` are protected by Firebase Google sign-in; unauthenticated or anonymous users go to `/login`. Teachers can create classes, build missions with optional files, process them with Emily, review and approve a student-facing preview, inspect reusable learning charts, and see the 10 most recently active players with live presence.
 - **One desk**: the student sits at the desk in front of the teacher's; the whole mission happens there.
@@ -132,6 +133,7 @@ apps/
 - **Firestore** is the only database. Student memory, missions, notes and decisions live there. Firebase project: `allthingsagentichackatho-ee359`.
 - **Cloud Run** hosts `classgame-web` and `classgame-api`.
 - **Redis** protects GenAI preview generation with a distributed teacher rate limit. Mission file persistence runs asynchronously through Cloud Tasks after approval.
+- **3D pipeline**: the classroom is a Sketchfab GLB adapted at load time. The avatars are generated headless in **Blender** (`scripts/assets/3d/generate-chibi-band-avatar.py`: flat colours baked into `COLOR_0`, three materials for six characters, Draco-compressed). During development we drove **Blender through its MCP server** from Claude Code to inspect and iterate on the models, and measured the classroom layout (desk groups, chair seats, the rig's leg pivot) with Node scripts against the GLB before touching scene code.
 - **Cut from the MVP** (on purpose): multiple rooms, grades, deadlines, roster import and high-stakes scoring. The demo should show the teacher setting the learning goal, Emily generating the mission plan, and students reviewing it in the classroom.
 
 ### Data model (Firestore)
@@ -313,6 +315,7 @@ After the GitHub repository is connected to Cloud Build in the Google Cloud Cons
 - **Low Poly ClassRoom** by **Mumladze28** — [Sketchfab](https://sketchfab.com/3d-models/low-poly-classroom-8b1bf103c90349d981c9c2ae1c0596e5), [ArtStation](https://www.artstation.com/artwork/N5dg5q).
 - **Chibi band avatars** — generated set from the Unshatter project; base mesh, hair and cap licensing in `apps/assets/3d/avatars/chibi-band/README.md`.
 - Board interaction inspired by the classroom minigames in *Bully: Scholarship Edition* (minus the timer).
+- **Blender** (headless avatar generator) and the **Blender MCP server**, used from Claude Code to inspect models during development.
 
 ## Short pitch
 
