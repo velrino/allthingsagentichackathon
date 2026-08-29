@@ -6,6 +6,7 @@ import {
   signOut,
   type User,
 } from "firebase/auth";
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
@@ -185,14 +186,39 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       >
         {children}
       </div>
-      {!ready ? (
+      {status === "checking" ? (
+        <StudentSessionLoading />
+      ) : status === "needs_student_session" ? (
         <StudentSessionModal
           error={error}
-          loading={loading || status === "checking"}
+          loading={loading}
           onSubmit={handleSubmit}
         />
       ) : null}
     </>
+  );
+}
+
+function StudentSessionLoading() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-auto fixed inset-0 z-50 grid place-items-center bg-[#05070d] text-white"
+    >
+      <div className="text-center">
+        <LoaderCircle
+          className="mx-auto size-8 animate-spin text-[#9164f9]"
+          aria-hidden
+        />
+        <p className="mt-4 font-display text-sm font-semibold">
+          Opening your classroom...
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Checking your student session
+        </p>
+      </div>
+    </div>
   );
 }
 
