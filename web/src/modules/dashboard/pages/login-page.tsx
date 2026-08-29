@@ -29,32 +29,46 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-svh bg-slate-950 px-4 py-6 text-white sm:px-6">
-      <section className="mx-auto grid w-full max-w-6xl content-center gap-8 lg:grid-cols-[1fr_420px] lg:items-center">
-        <div className="max-w-2xl">
-          <p className="text-xs font-bold uppercase text-cyan-300">ClassGame</p>
-          <h1 className="mt-4 text-4xl font-bold sm:text-5xl">Teacher dashboard</h1>
-          <p className="mt-4 max-w-xl text-lg leading-8 text-slate-300">
-            Set what your class should reinforce, then read Emily&apos;s notebook after students play.
+    <main className="flex min-h-svh flex-col justify-center bg-primary text-slate-950 lg:grid lg:grid-cols-2 lg:bg-white">
+      {/* Brand half: solid primary, copy only. */}
+      <section className="flex flex-col items-center gap-8 bg-primary px-6 pt-8 pb-6 text-center text-primary-foreground sm:px-10 lg:items-start lg:justify-between lg:gap-10 lg:rounded-r-[25%] lg:px-16 lg:py-14 lg:text-left">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/80">
+          ClassGame
+        </p>
+        <div className="max-w-xl">
+          <h1 className="text-3xl font-bold sm:text-4xl lg:text-6xl">
+            Teacher dashboard
+          </h1>
+          <p className="mx-auto mt-4 max-w-lg text-base leading-7 text-white/85 sm:text-lg sm:leading-8 lg:mx-0">
+            Set what your class should reinforce, then read Emily&apos;s
+            notebook after students play.
           </p>
         </div>
+        <p className="hidden text-sm text-white/60 lg:block">
+          Emily leads, asks why, takes notes. You read the notebook.
+        </p>
+      </section>
 
-        <div className="rounded-lg border border-white/10 bg-white p-5 text-slate-950 shadow-2xl sm:p-6">
-          <div>
-            <h2 className="text-2xl font-bold">Sign in</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Teachers use Google. Students enter from the game.</p>
-          </div>
+      {/* Sign-in half: a white card on the purple page on phones, the plain white half on desktop. */}
+      <section className="flex justify-center px-4 pb-8 pt-2 text-center sm:px-10 lg:items-center lg:py-12 lg:text-left">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-slate-950 shadow-2xl shadow-black/20 sm:p-8 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
+          <h2 className="text-2xl font-bold">Sign in</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Teachers use Google. Students enter from the game.
+          </p>
 
           <button
             type="button"
             disabled={submitting || status === "checking"}
             onClick={handleGoogleSignIn}
-            className="mt-6 flex h-12 w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+            className="mt-8 flex h-12 w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
           >
-            <span className="grid size-5 place-items-center rounded-full border border-slate-300 text-xs font-black text-cyan-700">
+            <span className="grid size-5 place-items-center rounded-full border border-slate-300 text-xs font-black text-primary">
               G
             </span>
-            {submitting || status === "checking" ? "Checking..." : "Continue with Google"}
+            {submitting || status === "checking"
+              ? "Checking..."
+              : "Continue with Google"}
           </button>
 
           {error ? (
