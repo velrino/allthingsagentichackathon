@@ -11,6 +11,8 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"classgame-api/internal/modules/users"
 )
 
 type Repository struct {
@@ -120,6 +122,39 @@ func (repository *Repository) ListStudentsByClassID(
 	}
 
 	return students, nil
+}
+
+func (repository *Repository) ListLearningAttemptsByClassID(
+	ctx context.Context,
+	classID string,
+) ([]users.StudentMissionAttemptDocument, error) {
+	iter := repository.client.Collection("student_mission_attempts").
+		Where("class_id", "==", classID).
+		Limit(500).
+		Documents(ctx)
+	defer iter.Stop()
+
+	attempts := make([]users.StudentMissionAttemptDocument, 0)
+	for {
+		snapshot, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("iterate student learning attempts: %w", err)
+		}
+
+		var attempt users.StudentMissionAttemptDocument
+		if err := snapshot.DataTo(&attempt); err != nil {
+			return nil, fmt.Errorf("decode student learning attempt %s: %w", snapshot.Ref.ID, err)
+		}
+		if attempt.ID == "" {
+			attempt.ID = snapshot.Ref.ID
+		}
+		attempts = append(attempts, attempt)
+	}
+
+	return attempts, nil
 }
 
 func (teacher TeacherSummary) firestoreMap() map[string]any {

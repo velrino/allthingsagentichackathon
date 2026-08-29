@@ -28,6 +28,8 @@ curl http://localhost:4004/
 - `POST /users/student-session/validate` resolves a published, six-digit mission code before anonymous Firebase sign-in.
 - `POST /users/student-session` resolves a published, six-digit mission code, verifies an anonymous Firebase ID token, and upserts `users/{firebase_uid}` in Firestore.
 - `POST /users/student-presence` verifies the same anonymous token and updates the student's current game heartbeat.
+- `GET /users/student-learning?mission_id=...` restores the anonymous student's current persisted attempt.
+- `POST /users/student-learning` saves bounded observable events and memory; completing the mission asks Gemini for an evidence-based learning flow.
 - `GET /dashboard/overview` verifies a Google Firebase ID token and returns teacher dashboard data for one `class_id`.
 - `POST /teacher-classes` verifies a Google Firebase ID token and creates or updates a class. New classes receive a unique, six-character sharing code from the API.
 - `GET /teacher-classes/:class_id` returns one teacher-owned class.
@@ -71,7 +73,23 @@ Student records are stored in Firestore under `users/{firebase_uid}`. Payloads a
 }
 ```
 
-The web client reports presence every 15 seconds while the game tab is visible. Each active game is pinned to the published revision that the student joined, so a teacher can publish a newer draft without changing an in-progress session. Dashboard responses mark a student online when the latest heartbeat is no more than 45 seconds old.
+The web client reports presence every 15 seconds while the game tab is visible and debounces learning snapshots as answers, explicit explanations, feedback and tutor adaptations occur. Each active game is pinned to the published revision that the student joined, so a teacher can publish a newer draft without changing an in-progress session. Dashboard responses mark a student online when the latest heartbeat is no more than 45 seconds old.
+
+Learning evidence is stored separately so every mission revision remains available to the teacher:
+
+```txt
+student_mission_attempts/{attempt_id}
+  student_id, student_name, class_id, mission_id, published_revision, status
+  snapshot: { progress[], notes[], preferences, decisions[], events[], redirected, return_to, last_pod }
+  trace: { summary, strengths[], improvement_areas[], next_adaptation, flow, provenance }
+  started_at, last_activity_at, completed_at, created_at, updated_at
+
+users/{firebase_uid}.student.learning_memory
+  strengths[], improvement_areas[], preferred_explanation
+  next_adaptation, last_mission_id, updated_at
+```
+
+The current attempt is restored when the student rejoins. For a new mission, ClassGame retrieves the persistent explanation preference and pending improvement areas before initializing the tutor, so the interaction does not start from zero.
 
 ## Teacher Classes And Missions
 
@@ -199,6 +217,8 @@ For Cloud Run, prefer the service account identity and grant it Vertex AI permis
 Mission preview generation sends teacher text plus attachment metadata to Gemini. For `https://ucarecdn.com/...` files with supported MIME types (`application/pdf`, images, text, markdown and CSV), the API also downloads the file with a 20 MB limit and includes it as inline GenAI content. Other attachments remain metadata-only so the generation can still proceed.
 
 Generated previews include `education_guardrail` and `mission_flow`. The guardrail tells the dashboard whether the model used the attachments and whether the request stayed inside age-appropriate classroom learning scope. The flow is a small React Flow-ready graph (`nodes[]` and `edges[]`) used by the teacher dashboard to visualize the mission path. If uploaded material is empty, unrelated, unsafe or tries prompt injection, Emily must ignore it and keep the output educational; clearly unsafe requests receive a harmless remediation preview instead of student-facing exercises.
+
+Completed student attempts use a separate structured Gemini workflow. Gemini receives the mission context, previous persistent memory and only observable interaction evidence. It produces a teacher-facing `trace.flow`, summary, strengths, improvement areas and the next adaptation to retrieve on a future turn. Student text is treated as untrusted data, and the model is explicitly forbidden from inventing or claiming to reveal private chain-of-thought, diagnoses, grades, rankings or sensitive traits. If Gemini is unavailable, the API builds a truthful flow directly from the recorded events.
 
 The Uploadcare public key belongs in the web environment. The Uploadcare secret key must stay out of the repo; only add it to Secret Manager if signed uploads are implemented.
 

@@ -84,11 +84,21 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       });
 
       saveStudentMissionSession({
+        attemptId: response.user.activity.current_game.attempt_id,
         missionCode: response.user.student.mission_code,
         missionId: response.user.activity.current_game.mission_id,
         publishedRevision:
           response.user.activity.current_game.published_revision,
         subject: response.user.activity.current_game.subject,
+        learningMemory: {
+          strengths: response.user.student.learning_memory?.strengths ?? [],
+          improvementAreas:
+            response.user.student.learning_memory?.improvement_areas ?? [],
+          preferredExplanation:
+            response.user.student.learning_memory?.preferred_explanation ?? "",
+          nextAdaptation:
+            response.user.student.learning_memory?.next_adaptation ?? "",
+        },
       });
 
       setStatus("ready");

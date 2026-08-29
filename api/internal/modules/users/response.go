@@ -30,10 +30,20 @@ type UserProfileResponse struct {
 }
 
 type StudentProfileResponse struct {
-	ClassID     string `json:"class_id"`
-	MissionID   string `json:"mission_id"`
-	MissionCode string `json:"mission_code"`
-	StudentName string `json:"student_name"`
+	ClassID        string                        `json:"class_id"`
+	MissionID      string                        `json:"mission_id"`
+	MissionCode    string                        `json:"mission_code"`
+	StudentName    string                        `json:"student_name"`
+	LearningMemory StudentLearningMemoryResponse `json:"learning_memory"`
+}
+
+type StudentLearningMemoryResponse struct {
+	Strengths            []string `json:"strengths"`
+	ImprovementAreas     []string `json:"improvement_areas"`
+	PreferredExplanation string   `json:"preferred_explanation"`
+	NextAdaptation       string   `json:"next_adaptation"`
+	LastMissionID        string   `json:"last_mission_id"`
+	UpdatedAt            string   `json:"updated_at"`
 }
 
 type UserActivityResponse struct {
@@ -44,6 +54,7 @@ type UserActivityResponse struct {
 }
 
 type StudentGameSessionResponse struct {
+	AttemptID         string `json:"attempt_id"`
 	MissionID         string `json:"mission_id"`
 	PublishedRevision int64  `json:"published_revision"`
 	Subject           string `json:"subject"`
@@ -74,12 +85,21 @@ func ToResponse(user UserDocument) UserResponse {
 			MissionID:   user.Student.MissionID,
 			MissionCode: user.Student.MissionCode,
 			StudentName: user.Student.StudentName,
+			LearningMemory: StudentLearningMemoryResponse{
+				Strengths:            user.Student.LearningMemory.Strengths,
+				ImprovementAreas:     user.Student.LearningMemory.ImprovementAreas,
+				PreferredExplanation: user.Student.LearningMemory.PreferredExplanation,
+				NextAdaptation:       user.Student.LearningMemory.NextAdaptation,
+				LastMissionID:        user.Student.LearningMemory.LastMissionID,
+				UpdatedAt:            formatTime(user.Student.LearningMemory.UpdatedAt),
+			},
 		},
 		Activity: UserActivityResponse{
 			FirstSeenAt: formatTime(user.Activity.FirstSeenAt),
 			LastSeenAt:  formatTime(user.Activity.LastSeenAt),
 			LoginCount:  user.Activity.LoginCount,
 			CurrentGame: StudentGameSessionResponse{
+				AttemptID:         user.Activity.CurrentGame.AttemptID,
 				MissionID:         user.Activity.CurrentGame.MissionID,
 				PublishedRevision: user.Activity.CurrentGame.PublishedRevision,
 				Subject:           user.Activity.CurrentGame.Subject,

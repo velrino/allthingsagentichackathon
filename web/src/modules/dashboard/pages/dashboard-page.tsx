@@ -17,6 +17,7 @@ import { API } from "@/backend/api/api.endpoints";
 import type {
   IApiDashboardOverviewResponse,
   IApiDashboardStudent,
+  IApiClassLearningSummary,
   IApiSuggestion,
   IApiTeacherClass,
   IApiTeacherClassMission,
@@ -56,6 +57,7 @@ import { NextLessonPlan } from "../components/overview/next-lesson-plan";
 import { PatternGroups } from "../components/overview/pattern-groups";
 import { RecentPlayersTable } from "../components/recent-players-table";
 import { StudentsTable } from "../components/students-table";
+import { StudentLearningDetail } from "../components/student-learning-detail";
 import {
   rememberSelectedClass,
   resolveSelectedClassId,
@@ -99,6 +101,8 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
   const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
   const [draftVersion, setDraftVersion] = useState(0);
   const [shareCodeLabel, setShareCodeLabel] = useState("Share code");
+  const [selectedStudent, setSelectedStudent] =
+    useState<IApiDashboardStudent | null>(null);
 
   useEffect(() => {
     function syncTabFromHash() {
@@ -287,6 +291,12 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
         }
 
         setOverview(response);
+        setSelectedStudent((current) =>
+          current
+            ? response.students.find((student) => student.id === current.id) ??
+              null
+            : null,
+        );
         const teacherClass = response.teacher_class;
         if (teacherClass) {
           setTeacherClasses((current) =>
@@ -804,7 +814,11 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
           </TabsContent>
 
           <TabsContent id="students" value="students" className="mt-2">
-            <StudentsTableSection students={students} />
+            <StudentsTableSection
+              classLearning={overview?.class_learning}
+              students={students}
+              onStudentClick={setSelectedStudent}
+            />
           </TabsContent>
 
           <TabsContent id="notebook" value="notebook" className="mt-2">
@@ -832,6 +846,17 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
             onProcess={handleProcessMission}
           />
         ) : null}
+
+        <StudentLearningDetail
+          key={selectedStudent?.id ?? "no-student"}
+          open={selectedStudent !== null}
+          student={selectedStudent}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedStudent(null);
+            }
+          }}
+        />
 
         {loading ? (
           <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-xl">
@@ -1007,9 +1032,13 @@ function SourceBadge({
 }
 
 function StudentsTableSection({
+  classLearning,
   students,
+  onStudentClick,
 }: {
+  readonly classLearning?: IApiClassLearningSummary;
   readonly students: IApiDashboardStudent[];
+  readonly onStudentClick: (student: IApiDashboardStudent) => void;
 }) {
   return (
     <section className="flex flex-1 flex-col gap-4">
@@ -1019,7 +1048,48 @@ function StudentsTableSection({
           {students.length} in this class
         </p>
       </div>
-      <StudentsTable students={students} />
+      {classLearning && classLearning.students_with_evidence > 0 ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-md border border-border bg-muted/30 p-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">
+              Persistent evidence
+            </p>
+            <p className="mt-2 text-2xl font-black">
+              {classLearning.students_with_evidence}/{students.length}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              students with recorded learning paths
+            </p>
+            <p className="mt-2 text-xs font-medium text-muted-foreground">
+              {classLearning.completed_attempts}/{classLearning.total_attempts} attempts completed
+            </p>
+          </div>
+          <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-4">
+            <p className="text-xs font-semibold text-emerald-700 uppercase">
+              Common strength
+            </p>
+            <p className="mt-2 text-sm font-bold text-emerald-950">
+              {classLearning.common_strengths[0]?.label ??
+                "More completed evidence needed"}
+            </p>
+            <p className="mt-1 text-xs text-emerald-800">
+              {classLearning.common_strengths[0]?.count ?? 0} students
+            </p>
+          </div>
+          <div className="rounded-md border border-amber-200 bg-amber-50/60 p-4">
+            <p className="text-xs font-semibold text-amber-700 uppercase">
+              Next class adaptation
+            </p>
+            <p className="mt-2 text-sm leading-6 font-semibold text-amber-950">
+              {classLearning.next_adaptation}
+            </p>
+          </div>
+        </div>
+      ) : null}
+      <p className="text-xs text-muted-foreground">
+        Click a student to inspect attempts, learning flow, evidence and persistent memory.
+      </p>
+      <StudentsTable students={students} onStudentClick={onStudentClick} />
     </section>
   );
 }

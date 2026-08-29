@@ -9,6 +9,8 @@ import {
   type IApiStudentSessionValidationResponse,
   type IApiStudentPresence,
   type IApiStudentSessionResponse,
+  type IApiStudentLearningResponse,
+  type IApiStudentLearningSnapshotRequest,
   type IApiTeacherClassMissionsResponse,
   type IApiTeacherClassMissionResponse,
   type IApiTeacherClassesResponse,
@@ -59,6 +61,40 @@ export const API = {
       }
 
       return (await res.json()) as IApiStudentSessionResponse;
+    },
+    async studentLearning(
+      access_token: string,
+      mission_id: string,
+    ): Promise<IApiStudentLearningResponse> {
+      const res = await ApiResources.request({
+        access_token,
+        data: { mission_id },
+        method: IApiRequestMethod.GET,
+        path: "/users/student-learning",
+      });
+
+      if (!res.ok) {
+        throw await apiError(res, "STUDENT_LEARNING_GET_FAILED");
+      }
+
+      return (await res.json()) as IApiStudentLearningResponse;
+    },
+    async saveStudentLearning(
+      access_token: string,
+      data: IApiStudentLearningSnapshotRequest,
+    ): Promise<IApiStudentLearningResponse> {
+      const res = await ApiResources.request({
+        access_token,
+        data,
+        method: IApiRequestMethod.POST,
+        path: "/users/student-learning",
+      });
+
+      if (!res.ok) {
+        throw await apiError(res, "STUDENT_LEARNING_SAVE_FAILED");
+      }
+
+      return (await res.json()) as IApiStudentLearningResponse;
     },
   },
   dashboard: {

@@ -6,6 +6,7 @@ import (
 	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/users"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -59,6 +60,7 @@ type StudentDashboardItem struct {
 	LastActivityAt   time.Time
 	NotebookNotes    int64
 	Session          StudentGameSession
+	Attempts         []users.StudentMissionAttemptDocument
 }
 
 type StudentGameSession struct {
@@ -95,10 +97,27 @@ type DashboardOverview struct {
 	ActiveMission   *mission.MissionDocument
 	Metrics         DashboardMetrics
 	Students        []StudentDashboardItem
+	ClassLearning   ClassLearningSummary
 	Suggestions     []orchestrator.MissionSuggestion
 	GeneratedByAI   bool
 	GeneratedByMock bool
 	Teacher         TeacherSummary
+}
+
+type ClassLearningSummary struct {
+	TotalAttempts        int
+	CompletedAttempts    int
+	StudentsWithEvidence int
+	CommonStrengths      []ClassLearningPattern
+	CommonNeeds          []ClassLearningPattern
+	NextAdaptation       string
+}
+
+type ClassLearningPattern struct {
+	Label        string
+	Count        int
+	StudentIDs   []string
+	StudentNames []string
 }
 
 type studentUserDocument struct {

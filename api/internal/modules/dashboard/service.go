@@ -11,6 +11,7 @@ import (
 	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/users"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -99,7 +100,11 @@ func (service *Service) GetOverview(
 	if err != nil {
 		return DashboardOverview{}, err
 	}
-	students := buildStudentDashboardItems(studentDocuments, activeMission, time.Now())
+	attempts, err := service.repository.ListLearningAttemptsByClassID(ctx, normalizedClassID)
+	if err != nil {
+		return DashboardOverview{}, err
+	}
+	students := buildStudentDashboardItems(studentDocuments, attempts, activeMission, time.Now())
 
 	suggestions := starterSuggestions()
 	generatedByAI := false
@@ -122,6 +127,7 @@ func (service *Service) GetOverview(
 		ActiveMission:   activeMission,
 		Metrics:         buildMetrics(students),
 		Students:        students,
+		ClassLearning:   buildClassLearningSummary(students),
 		Suggestions:     suggestions,
 		GeneratedByAI:   generatedByAI,
 		GeneratedByMock: generatedByMock,
@@ -149,28 +155,51 @@ func (service *Service) teacher(ctx context.Context, identity sharedfirebase.Ide
 
 func buildStudentDashboardItems(
 	students []studentUserDocument,
+	attempts []users.StudentMissionAttemptDocument,
 	activeMission *mission.MissionDocument,
 	now time.Time,
 ) []StudentDashboardItem {
 	items := make([]StudentDashboardItem, 0, len(students))
+	attemptsByStudent := make(map[string][]users.StudentMissionAttemptDocument)
+	for _, attempt := range attempts {
+		attemptsByStudent[attempt.StudentID] = append(attemptsByStudent[attempt.StudentID], attempt)
+	}
 
 	for _, student := range students {
-		progress := buildMockProgress(student)
+		studentAttempts := attemptsByStudent[student.ID]
+		sort.SliceStable(studentAttempts, func(left int, right int) bool {
+			return studentAttempts[left].LastActivityAt.After(studentAttempts[right].LastActivityAt)
+		})
+		latestAttempt := latestStudentAttempt(studentAttempts, activeMission)
+		progress := buildStudentProgress(student, latestAttempt)
 		session := buildStudentGameSession(student.Activity.CurrentGame, activeMission, now)
 		lastActivityAt := student.Activity.LastSeenAt
 		if session.LastHeartbeatAt.After(lastActivityAt) {
 			lastActivityAt = session.LastHeartbeatAt
+		}
+		strengths := buildStrengths(activeMission)
+		improvementAreas := buildImprovementAreas(activeMission, progress)
+		notebookNotes := int64(math.Max(1, float64(student.Activity.LoginCount)))
+		if latestAttempt != nil {
+			if len(latestAttempt.Trace.Strengths) > 0 {
+				strengths = latestAttempt.Trace.Strengths
+			}
+			if len(latestAttempt.Trace.ImprovementAreas) > 0 {
+				improvementAreas = latestAttempt.Trace.ImprovementAreas
+			}
+			notebookNotes = int64(len(latestAttempt.Snapshot.Notes))
 		}
 		items = append(items, StudentDashboardItem{
 			ID:               student.ID,
 			StudentName:      resolveStudentName(student),
 			ClassID:          student.Student.ClassID,
 			Progress:         progress,
-			Strengths:        buildStrengths(activeMission),
-			ImprovementAreas: buildImprovementAreas(activeMission, progress),
+			Strengths:        strengths,
+			ImprovementAreas: improvementAreas,
 			LastActivityAt:   lastActivityAt,
-			NotebookNotes:    int64(math.Max(1, float64(student.Activity.LoginCount))),
+			NotebookNotes:    notebookNotes,
 			Session:          session,
+			Attempts:         studentAttempts,
 		})
 	}
 
@@ -249,6 +278,55 @@ func buildMetrics(students []StudentDashboardItem) DashboardMetrics {
 	}
 }
 
+func buildStudentProgress(
+	student studentUserDocument,
+	attempt *users.StudentMissionAttemptDocument,
+) StudentProgress {
+	if attempt != nil {
+		totalQuestions := 0
+		completedQuestions := 0
+		for _, stage := range attempt.Snapshot.Progress {
+			required := max(stage.Required, 0)
+			correct := max(stage.Correct, 0)
+			if correct > required && required > 0 {
+				correct = required
+			}
+			totalQuestions += required
+			completedQuestions += correct
+		}
+		if totalQuestions == 0 {
+			for _, event := range attempt.Snapshot.Events {
+				if event.Type == "answer" {
+					totalQuestions++
+					if event.Outcome == "correct" || event.Outcome == "complete" {
+						completedQuestions++
+					}
+				}
+			}
+		}
+		percentage := 0
+		if totalQuestions > 0 {
+			percentage = int(math.Round(float64(completedQuestions) / float64(totalQuestions) * 100))
+		}
+		status := "in_progress"
+		if attempt.Status == "completed" {
+			status = "completed"
+			percentage = 100
+		} else if percentage < 45 && len(attempt.Snapshot.Events) > 0 {
+			status = "needs_attention"
+		}
+
+		return StudentProgress{
+			CompletedQuestions: completedQuestions,
+			TotalQuestions:     totalQuestions,
+			Percentage:         percentage,
+			Status:             status,
+		}
+	}
+
+	return buildMockProgress(student)
+}
+
 func buildMockProgress(student studentUserDocument) StudentProgress {
 	totalQuestions := 12
 	seed := int(student.Activity.LoginCount)*13 + len(resolveStudentName(student))*7
@@ -271,6 +349,107 @@ func buildMockProgress(student studentUserDocument) StudentProgress {
 		Percentage:         percentage,
 		Status:             status,
 	}
+}
+
+func latestStudentAttempt(
+	attempts []users.StudentMissionAttemptDocument,
+	activeMission *mission.MissionDocument,
+) *users.StudentMissionAttemptDocument {
+	if activeMission != nil {
+		for index := range attempts {
+			if attempts[index].MissionID == activeMission.ID {
+				return &attempts[index]
+			}
+		}
+	}
+	if len(attempts) == 0 {
+		return nil
+	}
+
+	return &attempts[0]
+}
+
+func buildClassLearningSummary(students []StudentDashboardItem) ClassLearningSummary {
+	summary := ClassLearningSummary{}
+	strengthPatterns := make(map[string]*ClassLearningPattern)
+	needPatterns := make(map[string]*ClassLearningPattern)
+
+	for _, student := range students {
+		if len(student.Attempts) > 0 {
+			summary.StudentsWithEvidence++
+		}
+		for _, attempt := range student.Attempts {
+			summary.TotalAttempts++
+			if attempt.Status == "completed" {
+				summary.CompletedAttempts++
+			}
+		}
+		latest := latestStudentAttempt(student.Attempts, nil)
+		if latest == nil {
+			continue
+		}
+		addClassLearningPatterns(strengthPatterns, latest.Trace.Strengths, student)
+		addClassLearningPatterns(needPatterns, latest.Trace.ImprovementAreas, student)
+	}
+
+	summary.CommonStrengths = sortedClassLearningPatterns(strengthPatterns, 4)
+	summary.CommonNeeds = sortedClassLearningPatterns(needPatterns, 4)
+	if len(summary.CommonNeeds) > 0 {
+		summary.NextAdaptation = "Retrieve the class evidence and begin the next mission with a short check on: " + summary.CommonNeeds[0].Label
+	} else {
+		summary.NextAdaptation = "Collect completed attempts before choosing the next whole-class adaptation."
+	}
+
+	return summary
+}
+
+func addClassLearningPatterns(
+	patterns map[string]*ClassLearningPattern,
+	labels []string,
+	student StudentDashboardItem,
+) {
+	seen := make(map[string]struct{}, len(labels))
+	for _, label := range labels {
+		label = strings.TrimSpace(label)
+		key := strings.ToLower(label)
+		if label == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		pattern := patterns[key]
+		if pattern == nil {
+			pattern = &ClassLearningPattern{Label: label}
+			patterns[key] = pattern
+		}
+		pattern.Count++
+		pattern.StudentIDs = append(pattern.StudentIDs, student.ID)
+		pattern.StudentNames = append(pattern.StudentNames, student.StudentName)
+	}
+}
+
+func sortedClassLearningPatterns(
+	patterns map[string]*ClassLearningPattern,
+	limit int,
+) []ClassLearningPattern {
+	result := make([]ClassLearningPattern, 0, len(patterns))
+	for _, pattern := range patterns {
+		result = append(result, *pattern)
+	}
+	sort.SliceStable(result, func(left int, right int) bool {
+		if result[left].Count == result[right].Count {
+			return result[left].Label < result[right].Label
+		}
+
+		return result[left].Count > result[right].Count
+	})
+	if len(result) > limit {
+		result = result[:limit]
+	}
+
+	return result
 }
 
 func buildStrengths(activeMission *mission.MissionDocument) []string {

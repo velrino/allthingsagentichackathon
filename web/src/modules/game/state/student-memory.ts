@@ -39,6 +39,34 @@ export type StudentPreferences = {
   readonly difficultyBias: -1 | 0 | 1;
 };
 
+export type LearningEventType =
+  | "question"
+  | "answer"
+  | "reasoning"
+  | "feedback"
+  | "adaptation"
+  | "mastery";
+
+export type LearningEventOutcome =
+  | "neutral"
+  | "correct"
+  | "incorrect"
+  | "support"
+  | "complete";
+
+/** Observable evidence used to build the teacher-facing learning flow. */
+export type LearningEvent = {
+  readonly id: string;
+  readonly sequence: number;
+  readonly type: LearningEventType;
+  readonly stageId: PodId;
+  readonly questionId: string;
+  readonly title: string;
+  readonly detail: string;
+  readonly outcome: LearningEventOutcome;
+  readonly occurredAt: number;
+};
+
 /** Everything the tutor remembers about one student. Firestore document shape, mirrored in localStorage for the mock. */
 export type StudentMemory = {
   readonly version: 1;
@@ -46,6 +74,7 @@ export type StudentMemory = {
   readonly preferences: StudentPreferences;
   readonly progress: Record<PodId, PodProgress>;
   readonly decisions: readonly DecisionEntry[];
+  readonly events: readonly LearningEvent[];
   /** The tutor redirects at most once per mission, so the demo never ping-pongs. */
   readonly redirected: boolean;
   /** Pod to go back to once a review is done. */
@@ -76,6 +105,7 @@ export function createInitialMemory(): StudentMemory {
     preferences: { explanationStyle: "steps", difficultyBias: 0 },
     progress,
     decisions: [],
+    events: [],
     redirected: false,
     returnTo: null,
     lastPod: null,
@@ -92,10 +122,42 @@ export function loadMemory(): StudentMemory | null {
 
     const parsed = JSON.parse(raw) as Partial<StudentMemory>;
 
-    return parsed.version === 1 ? (parsed as StudentMemory) : null;
+    return parsed.version === 1 ? normalizeStudentMemory(parsed) : null;
   } catch {
     return null;
   }
+}
+
+export function normalizeStudentMemory(
+  value: Partial<StudentMemory>,
+): StudentMemory {
+  const initial = createInitialMemory();
+  const progress = { ...initial.progress };
+
+  for (const podId of POD_ORDER) {
+    const storedProgress = value.progress?.[podId];
+    if (storedProgress) {
+      progress[podId] = {
+        status: storedProgress.status,
+        queue: [...storedProgress.queue],
+        pool: [...storedProgress.pool],
+        correct: storedProgress.correct,
+        required: storedProgress.required,
+      };
+    }
+  }
+
+  return {
+    version: 1,
+    notes: Array.isArray(value.notes) ? value.notes : [],
+    preferences: value.preferences ?? initial.preferences,
+    progress,
+    decisions: Array.isArray(value.decisions) ? value.decisions : [],
+    events: Array.isArray(value.events) ? value.events : [],
+    redirected: value.redirected ?? false,
+    returnTo: value.returnTo ?? null,
+    lastPod: value.lastPod ?? null,
+  };
 }
 
 export function saveMemory(memory: StudentMemory) {

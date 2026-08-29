@@ -34,6 +34,88 @@ export interface IApiStudentPresence {
   status: "exploring" | "learning" | "thinking" | "reviewing" | "completed";
 }
 
+export type IApiStudentLearningStatus =
+  | "exploring"
+  | "learning"
+  | "thinking"
+  | "reviewing"
+  | "completed";
+
+export interface IApiStudentLearningSnapshotRequest {
+  mission_id: string;
+  status: IApiStudentLearningStatus;
+  snapshot: IApiStudentLearningSnapshot;
+}
+
+export interface IApiStudentLearningSnapshot {
+  progress: IApiStudentStageProgress[];
+  notes: IApiStudentLearningNote[];
+  preferences: IApiStudentPreferences;
+  decisions: IApiStudentDecision[];
+  events: IApiStudentLearningEvent[];
+  redirected: boolean;
+  return_to: string;
+  last_pod: string;
+}
+
+export interface IApiStudentStageProgress {
+  stage_id: string;
+  status: "locked" | "ready" | "review" | "complete" | string;
+  queue: string[];
+  pool: string[];
+  correct: number;
+  required: number;
+}
+
+export interface IApiStudentLearningNote {
+  id: string;
+  misconception_id: string;
+  text: string;
+  kind: "misconception" | "habit" | string;
+  skill: string;
+  evidence: string[];
+  count: number;
+  created_at: number;
+}
+
+export interface IApiStudentPreferences {
+  explanation_style: "steps" | "visual" | string;
+  difficulty_bias: number;
+}
+
+export interface IApiStudentDecision {
+  id: string;
+  at: number;
+  action: string;
+  message: string;
+  why: string;
+}
+
+export interface IApiStudentLearningEvent {
+  id: string;
+  sequence: number;
+  type:
+    | "question"
+    | "answer"
+    | "reasoning"
+    | "feedback"
+    | "adaptation"
+    | "mastery"
+    | string;
+  stage_id: string;
+  question_id: string;
+  title: string;
+  detail: string;
+  outcome:
+    | "neutral"
+    | "correct"
+    | "incorrect"
+    | "support"
+    | "complete"
+    | string;
+  occurred_at: number;
+}
+
 export interface IApiStudentSessionUser {
   id: string;
   identity: {
@@ -53,12 +135,21 @@ export interface IApiStudentSessionUser {
     mission_id: string;
     mission_code: string;
     student_name: string;
+    learning_memory?: {
+      strengths: string[];
+      improvement_areas: string[];
+      preferred_explanation: string;
+      next_adaptation: string;
+      last_mission_id: string;
+      updated_at: string;
+    };
   };
   activity: {
     first_seen_at: string;
     last_seen_at: string;
     login_count: number;
     current_game: {
+      attempt_id: string;
       mission_id: string;
       published_revision: number;
       subject: string;
@@ -78,6 +169,51 @@ export interface IApiStudentSessionUser {
 
 export interface IApiStudentSessionResponse {
   user: IApiStudentSessionUser;
+}
+
+export interface IApiStudentLearningResponse {
+  attempt: IApiStudentLearningAttempt | null;
+}
+
+export interface IApiStudentLearningAttempt {
+  id: string;
+  student_id: string;
+  student_name: string;
+  class_id: string;
+  mission_id: string;
+  mission_code: string;
+  published_revision: number;
+  subject: string;
+  status: IApiStudentLearningStatus | string;
+  snapshot: IApiStudentLearningSnapshot;
+  trace: IApiStudentLearningTrace;
+  started_at: string;
+  last_activity_at: string;
+  completed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IApiStudentLearningTrace {
+  summary: string;
+  strengths: string[];
+  improvement_areas: string[];
+  next_adaptation: string;
+  flow: IApiMissionFlow;
+  finalized: boolean;
+  event_count: number;
+  generated_by_ai: boolean;
+  generated_by_mock: boolean;
+  provider: string;
+  model: string;
+  model_version: string;
+  fallback_reason: string;
+  usage: {
+    prompt_token_count: number;
+    candidates_token_count: number;
+    thoughts_token_count: number;
+    total_token_count: number;
+  };
 }
 
 export interface IApiDashboardOverviewRequest {
@@ -199,6 +335,10 @@ export interface IApiMissionFlowNode {
     | "feedback"
     | "complete"
     | "guardrail"
+    | "answer"
+    | "misconception"
+    | "adaptation"
+    | "mastery"
     | string;
   label: string;
   description: string;
@@ -310,6 +450,7 @@ export interface IApiDashboardStudent {
   improvement_areas: string[];
   last_activity_at: string;
   notebook_notes: number;
+  attempts: IApiStudentLearningAttempt[];
   session?: {
     mission_id: string;
     subject: string;
@@ -322,6 +463,22 @@ export interface IApiDashboardStudent {
   };
 }
 
+export interface IApiClassLearningPattern {
+  label: string;
+  count: number;
+  student_ids: string[];
+  student_names: string[];
+}
+
+export interface IApiClassLearningSummary {
+  total_attempts: number;
+  completed_attempts: number;
+  students_with_evidence: number;
+  common_strengths: IApiClassLearningPattern[];
+  common_needs: IApiClassLearningPattern[];
+  next_adaptation: string;
+}
+
 export interface IApiDashboardOverviewResponse {
   class_id: string;
   class_code: string;
@@ -329,6 +486,7 @@ export interface IApiDashboardOverviewResponse {
   active_mission: IApiTeacherClassMission | null;
   metrics: IApiDashboardMetrics;
   students: IApiDashboardStudent[];
+  class_learning: IApiClassLearningSummary;
   suggestions: IApiSuggestion[];
   generated_by_ai: boolean;
   generated_by_mock: boolean;

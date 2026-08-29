@@ -8,9 +8,10 @@ import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 
 type StudentsTableProps = {
   readonly students: IApiDashboardStudent[];
+  readonly onStudentClick?: (student: IApiDashboardStudent) => void;
 };
 
-export function StudentsTable({ students }: StudentsTableProps) {
+export function StudentsTable({ students, onStudentClick }: StudentsTableProps) {
   const columns = useMemo<ColumnDef<IApiDashboardStudent>[]>(
     () => [
       {
@@ -81,6 +82,23 @@ export function StudentsTable({ students }: StudentsTableProps) {
         },
       },
       {
+        id: "attempts",
+        accessorFn: (row) => row.attempts.length,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Tasks" />,
+        cell: ({ row }) => (
+          <div>
+            <span className="rounded-md bg-violet-50 px-2 py-1 font-semibold text-violet-700">
+              {row.original.attempts.length} {row.original.attempts.length === 1 ? "attempt" : "attempts"}
+            </span>
+            <p className="mt-2 text-xs font-medium text-cyan-700">View learning path</p>
+          </div>
+        ),
+        meta: {
+          className: "ps-1",
+          tdClassName: "ps-4",
+        },
+      },
+      {
         accessorKey: "notebook_notes",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Notes" />,
         cell: ({ row }) => (
@@ -111,7 +129,8 @@ export function StudentsTable({ students }: StudentsTableProps) {
           student.improvement_areas.join(" "),
         ].join(" ")
       }
-      minWidthClassName="min-w-[860px]"
+      minWidthClassName="min-w-[980px]"
+      onRowClick={onStudentClick}
       searchPlaceholder="Filter students..."
     />
   );

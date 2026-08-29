@@ -103,7 +103,7 @@ func run() error {
 	teacherClassRepository := teacherclass.NewRepository(firebaseConnection.FirestoreClient())
 	teacherClassService := teacherclass.NewService(teacherClassRepository)
 	missionRepository := mission.NewRepository(firebaseConnection.FirestoreClient())
-	usersService := users.NewService(usersRepository, missionRepository)
+	usersService := users.NewService(usersRepository, missionRepository, orchestratorService)
 
 	generationLimiter, err := sharedratelimit.NewRedisFixedWindow(
 		redisConnection.Client(),

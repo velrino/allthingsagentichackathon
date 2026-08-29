@@ -12,6 +12,7 @@ import { POD_ORDER, type FeedbackValue, type PodId } from "../types/game";
 import {
   createInitialMemory,
   pickTutorPod,
+  type LearningEvent,
   type PodProgress,
   type StudentMemory,
   type StudentNote,
@@ -52,8 +53,8 @@ export type SessionAction =
   | { type: "sit" }
   | { type: "stand" }
   | { type: "walk" }
-  | { type: "choose"; index: number }
-  | { type: "step"; index: number }
+  | { type: "choose"; index: number; now: number }
+  | { type: "step"; index: number; now: number }
   | { type: "why"; reasoning: { misconceptionId: string } | { text: string }; now: number }
   | { type: "explain-next" }
   | { type: "feedback"; value: FeedbackValue; now: number }
@@ -154,13 +155,56 @@ function mergeNote(notes: readonly StudentNote[], draft: Omit<StudentNote, "coun
 }
 
 function logDecision(memory: StudentMemory, decision: Decision, now: number): StudentMemory {
-  return {
+  const nextMemory: StudentMemory = {
     ...memory,
     decisions: [
       { id: `decision-${now}`, at: now, action: decision.action, message: decision.message, why: decision.why },
       ...memory.decisions,
     ].slice(0, 40),
   };
+
+  return appendLearningEvent(nextMemory, {
+    type:
+      decision.action === "complete" || decision.action === "mission-complete"
+        ? "mastery"
+        : "adaptation",
+    stageId: memory.lastPod ?? decision.target ?? POD_ORDER[0],
+    questionId: "",
+    title: limitedEventText(decision.message, 150),
+    detail: limitedEventText(decision.why),
+    outcome:
+      decision.action === "complete" || decision.action === "mission-complete"
+        ? "complete"
+        : decision.action === "redirect"
+          ? "support"
+          : "neutral",
+    occurredAt: now,
+  });
+}
+
+function appendLearningEvent(
+  memory: StudentMemory,
+  event: Omit<LearningEvent, "id" | "sequence">,
+): StudentMemory {
+  const sequence = (memory.events.at(-1)?.sequence ?? 0) + 1;
+  const nextEvent: LearningEvent = {
+    ...event,
+    id: `event-${event.occurredAt}-${sequence}`,
+    sequence,
+  };
+
+  return {
+    ...memory,
+    events: [...memory.events, nextEvent].slice(-160),
+  };
+}
+
+function questionLabel(question: Question) {
+  return question.kind === "choice" ? question.prompt : question.equation;
+}
+
+function limitedEventText(value: string, length = 400) {
+  return [...value].slice(0, length).join("");
 }
 
 function leaveSeat(session: Session, memory: StudentMemory, tutorPod: PodId, tutorLine: string): Session {
@@ -235,11 +279,32 @@ export function sessionReducer(session: Session, action: SessionAction): Session
       }
 
       if (option.correct) {
-        return { ...session, lesson: { ...lesson, phase: "correct" } };
+        return {
+          ...session,
+          memory: appendLearningEvent(session.memory, {
+            type: "answer",
+            stageId: lesson.pod,
+            questionId: lesson.question.id,
+            title: limitedEventText(questionLabel(lesson.question), 150),
+            detail: limitedEventText(`Selected "${option.text}".`),
+            outcome: "correct",
+            occurredAt: action.now,
+          }),
+          lesson: { ...lesson, phase: "correct" },
+        };
       }
 
       return {
         ...session,
+        memory: appendLearningEvent(session.memory, {
+          type: "answer",
+          stageId: lesson.pod,
+          questionId: lesson.question.id,
+          title: limitedEventText(questionLabel(lesson.question), 150),
+          detail: limitedEventText(`Selected "${option.text}".`),
+          outcome: "incorrect",
+          occurredAt: action.now,
+        }),
         lesson: {
           ...lesson,
           phase: "why",
@@ -270,12 +335,34 @@ export function sessionReducer(session: Session, action: SessionAction): Session
 
         return {
           ...session,
+          memory: appendLearningEvent(session.memory, {
+            type: "answer",
+            stageId: lesson.pod,
+            questionId: lesson.question.id,
+            title: limitedEventText(questionLabel(lesson.question), 150),
+            detail: limitedEventText(
+              `Applied "${move.op}" and reached "${move.result}".`,
+            ),
+            outcome: "correct",
+            occurredAt: action.now,
+          }),
           lesson: { ...lesson, lines, stepIndex: lesson.stepIndex + 1, phase: isLast ? "correct" : "question" },
         };
       }
 
       return {
         ...session,
+        memory: appendLearningEvent(session.memory, {
+          type: "answer",
+          stageId: lesson.pod,
+          questionId: lesson.question.id,
+          title: limitedEventText(questionLabel(lesson.question), 150),
+          detail: limitedEventText(
+            `Applied "${move.op}" and reached "${move.result}".`,
+          ),
+          outcome: "incorrect",
+          occurredAt: action.now,
+        }),
         lesson: {
           ...lesson,
           lines: [...lesson.lines, move.result],
@@ -298,9 +385,24 @@ export function sessionReducer(session: Session, action: SessionAction): Session
       const misconception =
         "misconceptionId" in action.reasoning ? getMisconception(action.reasoning.misconceptionId) : lesson.wrong?.misconception ?? null;
 
+      const reasoningText =
+        "misconceptionId" in action.reasoning
+          ? misconception?.reasoning ?? action.reasoning.misconceptionId
+          : action.reasoning.text;
       return {
         ...session,
-        memory: { ...session.memory, notes },
+        memory: appendLearningEvent(
+          { ...session.memory, notes },
+          {
+            type: "reasoning",
+            stageId: lesson.pod,
+            questionId: lesson.question.id,
+            title: "Student explained the selected answer",
+            detail: limitedEventText(reasoningText),
+            outcome: "support",
+            occurredAt: action.now,
+          },
+        ),
         noteFlash: session.noteFlash + 1,
         lesson: {
           ...lesson,
@@ -336,7 +438,18 @@ export function sessionReducer(session: Session, action: SessionAction): Session
 
       const previousStyle = session.memory.preferences.explanationStyle;
       const preferences = applyFeedback(session.memory.preferences, action.value);
-      const memory: StudentMemory = { ...session.memory, preferences };
+      const memory = appendLearningEvent(
+        { ...session.memory, preferences },
+        {
+          type: "feedback",
+          stageId: lesson.pod,
+          questionId: lesson.question.id,
+          title: "Student rated Emily's explanation",
+          detail: `Feedback: ${action.value}.`,
+          outcome: action.value === "helpful" ? "correct" : "support",
+          occurredAt: action.now,
+        },
+      );
       const decision = decideAfterFeedback({
         memory,
         pod: lesson.pod,

@@ -6,19 +6,21 @@ import (
 	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/users"
 )
 
 type OverviewResponse struct {
-	ClassID         string                     `json:"class_id"`
-	ClassCode       string                     `json:"class_code"`
-	TeacherClass    *TeacherClassResponse      `json:"teacher_class"`
-	ActiveMission   *MissionResponse           `json:"active_mission"`
-	Metrics         DashboardMetricsResponse   `json:"metrics"`
-	Students        []StudentDashboardResponse `json:"students"`
-	Suggestions     []SuggestionResponse       `json:"suggestions"`
-	GeneratedByAI   bool                       `json:"generated_by_ai"`
-	GeneratedByMock bool                       `json:"generated_by_mock"`
-	Teacher         TeacherResponse            `json:"teacher"`
+	ClassID         string                       `json:"class_id"`
+	ClassCode       string                       `json:"class_code"`
+	TeacherClass    *TeacherClassResponse        `json:"teacher_class"`
+	ActiveMission   *MissionResponse             `json:"active_mission"`
+	Metrics         DashboardMetricsResponse     `json:"metrics"`
+	Students        []StudentDashboardResponse   `json:"students"`
+	ClassLearning   ClassLearningSummaryResponse `json:"class_learning"`
+	Suggestions     []SuggestionResponse         `json:"suggestions"`
+	GeneratedByAI   bool                         `json:"generated_by_ai"`
+	GeneratedByMock bool                         `json:"generated_by_mock"`
+	Teacher         TeacherResponse              `json:"teacher"`
 }
 
 type TeacherClassResponse struct {
@@ -124,15 +126,51 @@ type DashboardMetricsResponse struct {
 }
 
 type StudentDashboardResponse struct {
-	ID               string                     `json:"id"`
-	StudentName      string                     `json:"student_name"`
-	ClassID          string                     `json:"class_id"`
-	Progress         StudentProgressResponse    `json:"progress"`
-	Strengths        []string                   `json:"strengths"`
-	ImprovementAreas []string                   `json:"improvement_areas"`
-	LastActivityAt   string                     `json:"last_activity_at"`
-	NotebookNotes    int64                      `json:"notebook_notes"`
-	Session          StudentGameSessionResponse `json:"session"`
+	ID               string                           `json:"id"`
+	StudentName      string                           `json:"student_name"`
+	ClassID          string                           `json:"class_id"`
+	Progress         StudentProgressResponse          `json:"progress"`
+	Strengths        []string                         `json:"strengths"`
+	ImprovementAreas []string                         `json:"improvement_areas"`
+	LastActivityAt   string                           `json:"last_activity_at"`
+	NotebookNotes    int64                            `json:"notebook_notes"`
+	Session          StudentGameSessionResponse       `json:"session"`
+	Attempts         []StudentLearningAttemptResponse `json:"attempts"`
+}
+
+type StudentLearningAttemptResponse struct {
+	ID                string                              `json:"id"`
+	StudentID         string                              `json:"student_id"`
+	StudentName       string                              `json:"student_name"`
+	ClassID           string                              `json:"class_id"`
+	MissionID         string                              `json:"mission_id"`
+	MissionCode       string                              `json:"mission_code"`
+	PublishedRevision int64                               `json:"published_revision"`
+	Subject           string                              `json:"subject"`
+	Status            string                              `json:"status"`
+	Snapshot          users.StudentLearningSnapshot       `json:"snapshot"`
+	Trace             orchestrator.LearningTraceBlueprint `json:"trace"`
+	StartedAt         string                              `json:"started_at"`
+	LastActivityAt    string                              `json:"last_activity_at"`
+	CompletedAt       string                              `json:"completed_at"`
+	CreatedAt         string                              `json:"created_at"`
+	UpdatedAt         string                              `json:"updated_at"`
+}
+
+type ClassLearningSummaryResponse struct {
+	TotalAttempts        int                            `json:"total_attempts"`
+	CompletedAttempts    int                            `json:"completed_attempts"`
+	StudentsWithEvidence int                            `json:"students_with_evidence"`
+	CommonStrengths      []ClassLearningPatternResponse `json:"common_strengths"`
+	CommonNeeds          []ClassLearningPatternResponse `json:"common_needs"`
+	NextAdaptation       string                         `json:"next_adaptation"`
+}
+
+type ClassLearningPatternResponse struct {
+	Label        string   `json:"label"`
+	Count        int      `json:"count"`
+	StudentIDs   []string `json:"student_ids"`
+	StudentNames []string `json:"student_names"`
 }
 
 type StudentGameSessionResponse struct {
@@ -168,6 +206,7 @@ func ToOverviewResponse(overview DashboardOverview) OverviewResponse {
 		ActiveMission:   toMissionResponse(overview.ActiveMission),
 		Metrics:         toMetricsResponse(overview.Metrics),
 		Students:        toStudentResponses(overview.Students),
+		ClassLearning:   toClassLearningSummaryResponse(overview.ClassLearning),
 		Suggestions:     toSuggestionResponses(overview.Suggestions),
 		GeneratedByAI:   overview.GeneratedByAI,
 		GeneratedByMock: overview.GeneratedByMock,
@@ -283,6 +322,60 @@ func toStudentResponses(students []StudentDashboardItem) []StudentDashboardRespo
 				StartedAt:       formatTime(student.Session.StartedAt),
 				LastHeartbeatAt: formatTime(student.Session.LastHeartbeatAt),
 			},
+			Attempts: toStudentLearningAttemptResponses(student.Attempts),
+		})
+	}
+
+	return responses
+}
+
+func toStudentLearningAttemptResponses(
+	attempts []users.StudentMissionAttemptDocument,
+) []StudentLearningAttemptResponse {
+	responses := make([]StudentLearningAttemptResponse, 0, len(attempts))
+	for _, attempt := range attempts {
+		responses = append(responses, StudentLearningAttemptResponse{
+			ID:                attempt.ID,
+			StudentID:         attempt.StudentID,
+			StudentName:       attempt.StudentName,
+			ClassID:           attempt.ClassID,
+			MissionID:         attempt.MissionID,
+			MissionCode:       attempt.MissionCode,
+			PublishedRevision: attempt.PublishedRevision,
+			Subject:           attempt.Subject,
+			Status:            attempt.Status,
+			Snapshot:          attempt.Snapshot,
+			Trace:             attempt.Trace,
+			StartedAt:         formatTime(attempt.StartedAt),
+			LastActivityAt:    formatTime(attempt.LastActivityAt),
+			CompletedAt:       formatTime(attempt.CompletedAt),
+			CreatedAt:         formatTime(attempt.CreatedAt),
+			UpdatedAt:         formatTime(attempt.UpdatedAt),
+		})
+	}
+
+	return responses
+}
+
+func toClassLearningSummaryResponse(summary ClassLearningSummary) ClassLearningSummaryResponse {
+	return ClassLearningSummaryResponse{
+		TotalAttempts:        summary.TotalAttempts,
+		CompletedAttempts:    summary.CompletedAttempts,
+		StudentsWithEvidence: summary.StudentsWithEvidence,
+		CommonStrengths:      toClassLearningPatternResponses(summary.CommonStrengths),
+		CommonNeeds:          toClassLearningPatternResponses(summary.CommonNeeds),
+		NextAdaptation:       summary.NextAdaptation,
+	}
+}
+
+func toClassLearningPatternResponses(patterns []ClassLearningPattern) []ClassLearningPatternResponse {
+	responses := make([]ClassLearningPatternResponse, 0, len(patterns))
+	for _, pattern := range patterns {
+		responses = append(responses, ClassLearningPatternResponse{
+			Label:        pattern.Label,
+			Count:        pattern.Count,
+			StudentIDs:   pattern.StudentIDs,
+			StudentNames: pattern.StudentNames,
 		})
 	}
 

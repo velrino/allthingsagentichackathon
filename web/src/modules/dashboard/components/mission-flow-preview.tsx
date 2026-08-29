@@ -16,6 +16,7 @@ import type {
 } from "@/backend/api/api.interface";
 
 type MissionFlowPreviewProps = {
+  readonly emptyMessage?: string;
   readonly flow?: IApiMissionFlow | null;
 };
 
@@ -60,6 +61,26 @@ const nodeStyles: Record<string, CSSProperties> = {
     background: "#f0fdf4",
     border: "1px solid #86efac",
   },
+  answer: {
+    ...nodeBaseStyle,
+    background: "#eff6ff",
+    border: "1px solid #93c5fd",
+  },
+  misconception: {
+    ...nodeBaseStyle,
+    background: "#fff7ed",
+    border: "1px solid #fb923c",
+  },
+  adaptation: {
+    ...nodeBaseStyle,
+    background: "#faf5ff",
+    border: "1px solid #c084fc",
+  },
+  mastery: {
+    ...nodeBaseStyle,
+    background: "#ecfdf5",
+    border: "1px solid #34d399",
+  },
   complete: {
     ...nodeBaseStyle,
     background: "#ecfdf5",
@@ -72,13 +93,16 @@ const nodeStyles: Record<string, CSSProperties> = {
   },
 };
 
-export function MissionFlowPreview({ flow }: MissionFlowPreviewProps) {
+export function MissionFlowPreview({
+  emptyMessage = "Generate a preview to see Emily's mission flow.",
+  flow,
+}: MissionFlowPreviewProps) {
   const { nodes, edges } = useMemo(() => buildReactFlow(flow), [flow]);
 
   if (nodes.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm leading-6 text-muted-foreground">
-        Generate a preview to see Emily&apos;s mission flow.
+        {emptyMessage}
       </div>
     );
   }
