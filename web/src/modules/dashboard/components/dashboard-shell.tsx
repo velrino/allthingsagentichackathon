@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "firebase/auth";
-import { LogOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -175,8 +175,31 @@ function DashboardAppSidebar({
       <SidebarFooter>
         <SidebarUser user={user} onSignOut={onSignOut} />
       </SidebarFooter>
+      <DashboardSidebarTrigger />
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function DashboardSidebarTrigger() {
+  const { state, toggleSidebar } = useSidebar();
+  const isExpanded = state === "expanded";
+
+  return (
+    <Button
+      type="button"
+      size="icon"
+      aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+      title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+      className="absolute right-2 top-1/2 z-30 hidden size-6 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-sidebar bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 md:inline-flex"
+      onClick={toggleSidebar}
+    >
+      {isExpanded ? (
+        <ChevronLeft className="size-3.5" aria-hidden />
+      ) : (
+        <ChevronRight className="size-3.5" aria-hidden />
+      )}
+    </Button>
   );
 }
 
@@ -255,8 +278,8 @@ function DashboardHeader({ user }: { readonly user: User }) {
   return (
     <header className="z-50 h-16">
       <div className="relative flex h-full items-center gap-3 p-4 sm:gap-4">
-        <SidebarTrigger className="max-md:scale-125" />
-        <Separator orientation="vertical" className="h-6" />
+        <SidebarTrigger className="max-md:scale-125 md:hidden" />
+        <Separator orientation="vertical" className="h-6 md:hidden" />
 
         <div className="ml-auto flex min-w-0 items-center gap-2">
           <TeacherAvatar user={user} />
