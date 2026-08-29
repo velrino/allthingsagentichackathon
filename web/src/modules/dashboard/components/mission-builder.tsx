@@ -55,25 +55,29 @@ export function MissionBuilder({
   const [form, setForm] = useState<MissionBuilderDraft>(() =>
     buildMissionBuilderDraft(previewMission, draftPrompt),
   );
-  const [persistedAttachments, setPersistedAttachments] = useState<IApiMissionAttachment[]>(() =>
-    previewMission?.attachments ?? [],
-  );
+  const [persistedAttachments, setPersistedAttachments] = useState<
+    IApiMissionAttachment[]
+  >(() => previewMission?.attachments ?? []);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const visibleMission = previewMission;
   const canApprove = Boolean(
     visibleMission &&
-      (visibleMission.status === "preview" || visibleMission.has_unpublished_changes),
+    (visibleMission.status === "preview" ||
+      visibleMission.has_unpublished_changes),
   );
   const missionCode = visibleMission?.mission_code;
   const hasLiveRevision = Boolean(
-    (visibleMission?.published_revision ?? 0) > 0 || visibleMission?.published_at,
+    (visibleMission?.published_revision ?? 0) > 0 ||
+    visibleMission?.published_at,
   );
   const editingMission = Boolean(form.mission_id);
   const busy = processing || approving || uploading;
   const showPreview = processing || Boolean(visibleMission);
-  const classDetailsReady = Boolean(teacherClass?.class_name.trim() && teacherClass.subject.trim());
+  const classDetailsReady = Boolean(
+    teacherClass?.class_name.trim() && teacherClass.subject.trim(),
+  );
   const remainingFileSlots = Math.max(0, 5 - persistedAttachments.length);
   const canSubmit =
     !busy &&
@@ -98,12 +102,15 @@ export function MissionBuilder({
     });
   }
 
-  const handleAttachmentsChange = useCallback((attachments: IApiMissionAttachment[]) => {
-    setForm((current) => ({
-      ...current,
-      attachments: mergeMissionAttachments(persistedAttachments, attachments),
-    }));
-  }, [persistedAttachments]);
+  const handleAttachmentsChange = useCallback(
+    (attachments: IApiMissionAttachment[]) => {
+      setForm((current) => ({
+        ...current,
+        attachments: mergeMissionAttachments(persistedAttachments, attachments),
+      }));
+    },
+    [persistedAttachments],
+  );
 
   function toggleStudent(studentId: string) {
     setForm((current) => ({
@@ -116,7 +123,9 @@ export function MissionBuilder({
 
   function removePersistedAttachment(uploadcareUUID: string) {
     setPersistedAttachments((current) =>
-      current.filter((attachment) => attachment.uploadcare_uuid !== uploadcareUUID),
+      current.filter(
+        (attachment) => attachment.uploadcare_uuid !== uploadcareUUID,
+      ),
     );
     setForm((current) => ({
       ...current,
@@ -139,24 +148,34 @@ export function MissionBuilder({
       size="xl"
     >
       <section className="flex flex-col lg:flex-row">
-        <form className="min-w-0 flex-1 rounded-lg border border-border" onSubmit={handleSubmit}>
+        <form
+          className="min-w-0 flex-1 rounded-lg border border-border"
+          onSubmit={handleSubmit}
+        >
           <header className="border-b border-border px-4 py-4 sm:px-6">
-            <p className="text-xs font-bold uppercase text-cyan-700">Selected class</p>
+            <p className="text-xs font-bold uppercase text-cyan-700">
+              Selected class
+            </p>
             <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-xl font-semibold">{teacherClass?.class_name || classId}</h3>
+                <h3 className="text-xl font-semibold">
+                  {teacherClass?.class_name || classId}
+                </h3>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {teacherClass?.subject || "No subject set"} {teacherClass?.grade_level ? `- ${teacherClass.grade_level}` : ""}
+                  {teacherClass?.subject || "No subject set"}{" "}
+                  {teacherClass?.grade_level
+                    ? `- ${teacherClass.grade_level}`
+                    : ""}
                 </p>
               </div>
-              <ClassCodeBadge label="Class code" value={teacherClass?.class_code || classId} />
             </div>
           </header>
 
           <div className="px-4 py-5 sm:px-6">
             {hasLiveRevision ? (
               <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-                The current published revision stays live until you approve these draft changes.
+                The current published revision stays live until you approve
+                these draft changes.
               </p>
             ) : null}
 
@@ -166,7 +185,12 @@ export function MissionBuilder({
                 required
                 minLength={2}
                 value={form.mission_name}
-                onChange={(event) => setForm((current) => ({ ...current, mission_name: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    mission_name: event.target.value,
+                  }))
+                }
                 placeholder="Fractions in equations review"
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
@@ -178,7 +202,12 @@ export function MissionBuilder({
                 required
                 minLength={6}
                 value={form.learning_goal}
-                onChange={(event) => setForm((current) => ({ ...current, learning_goal: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    learning_goal: event.target.value,
+                  }))
+                }
                 placeholder="Help students review fractions inside two-step equations."
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
@@ -190,7 +219,12 @@ export function MissionBuilder({
                 required
                 minLength={10}
                 value={form.teacher_prompt}
-                onChange={(event) => setForm((current) => ({ ...current, teacher_prompt: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    teacher_prompt: event.target.value,
+                  }))
+                }
                 placeholder="What did students study today? What should Emily watch for? What should count as success?"
                 className="min-h-40 rounded-md border border-input bg-background px-3 py-3 text-sm leading-6 outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
@@ -201,8 +235,8 @@ export function MissionBuilder({
                 Who is this mission for?
               </legend>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                This helps you organize missions. Anyone with the mission
-                code can still join.
+                This helps you organize missions. Anyone with the mission code
+                can still join.
               </p>
 
               <div className="mt-3 grid gap-2">
@@ -271,7 +305,9 @@ export function MissionBuilder({
                         onChange={() => toggleStudent(student.id)}
                         className="size-4 rounded accent-primary"
                       />
-                      <span className="font-medium">{student.student_name}</span>
+                      <span className="font-medium">
+                        {student.student_name}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -280,9 +316,12 @@ export function MissionBuilder({
 
             <div className="mt-4 grid gap-2">
               <div>
-                <p className="text-sm font-medium text-foreground">Optional files</p>
+                <p className="text-sm font-medium text-foreground">
+                  Optional files
+                </p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Up to 5 files, 20 MB each. Uploads are temporary and expire after 24 hours.
+                  Up to 5 files, 20 MB each. Uploads are temporary and expire
+                  after 24 hours.
                 </p>
               </div>
               <MissionFileUploader
@@ -303,13 +342,17 @@ export function MissionBuilder({
                   >
                     {attachment.file_name}
                     {persistedAttachments.some(
-                      (persisted) => persisted.uploadcare_uuid === attachment.uploadcare_uuid,
+                      (persisted) =>
+                        persisted.uploadcare_uuid ===
+                        attachment.uploadcare_uuid,
                     ) ? (
                       <button
                         type="button"
                         aria-label={`Remove ${attachment.file_name}`}
                         disabled={busy}
-                        onClick={() => removePersistedAttachment(attachment.uploadcare_uuid)}
+                        onClick={() =>
+                          removePersistedAttachment(attachment.uploadcare_uuid)
+                        }
                         className="text-base leading-none text-muted-foreground hover:text-rose-700"
                       >
                         ×
@@ -355,7 +398,9 @@ export function MissionBuilder({
               <header className="border-b border-border px-4 py-4 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase text-cyan-700">Student preview</p>
+                    <p className="text-xs font-bold uppercase text-cyan-700">
+                      Student preview
+                    </p>
                     <h3 className="mt-2 text-lg font-semibold">
                       {visibleMission?.title ?? "Waiting for Emily"}
                     </h3>
@@ -374,32 +419,41 @@ export function MissionBuilder({
                 ) : null}
                 {visibleMission ? (
                   <>
-                    <p className="text-sm leading-6 text-muted-foreground">{visibleMission.summary}</p>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {visibleMission.summary}
+                    </p>
 
                     <div className="grid gap-2">
-                      {visibleMission.preview_questions.map((question, index) => (
-                        <article key={question.id} className="rounded-md border border-border p-3">
-                          <p className="text-xs font-bold uppercase text-muted-foreground">
-                            Question {index + 1}
-                          </p>
-                          <h4 className="mt-2 font-semibold text-foreground">{question.prompt}</h4>
-                          {question.options.length > 0 ? (
-                            <div className="mt-3 grid gap-2">
-                              {question.options.map((option) => (
-                                <span
-                                  key={option}
-                                  className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
-                                >
-                                  {option}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                          <p className="mt-3 text-sm font-semibold text-emerald-700">
-                            {question.expected_answer}
-                          </p>
-                        </article>
-                      ))}
+                      {visibleMission.preview_questions.map(
+                        (question, index) => (
+                          <article
+                            key={question.id}
+                            className="rounded-md border border-border p-3"
+                          >
+                            <p className="text-xs font-bold uppercase text-muted-foreground">
+                              Question {index + 1}
+                            </p>
+                            <h4 className="mt-2 font-semibold text-foreground">
+                              {question.prompt}
+                            </h4>
+                            {question.options.length > 0 ? (
+                              <div className="mt-3 grid gap-2">
+                                {question.options.map((option) => (
+                                  <span
+                                    key={option}
+                                    className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
+                                  >
+                                    {option}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                            <p className="mt-3 text-sm font-semibold text-emerald-700">
+                              {question.expected_answer}
+                            </p>
+                          </article>
+                        ),
+                      )}
                     </div>
 
                     {visibleMission.orchestration.generated_by_mock ? (
@@ -425,7 +479,8 @@ export function MissionBuilder({
                   </>
                 ) : (
                   <p className="text-sm leading-6 text-muted-foreground">
-                    The preview will appear here after Emily processes the mission.
+                    The preview will appear here after Emily processes the
+                    mission.
                   </p>
                 )}
               </div>
@@ -474,8 +529,12 @@ function ClassCodeBadge({
 }) {
   return (
     <div className="w-fit rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-      <span className="block text-xs font-bold uppercase text-emerald-700">{label}</span>
-      <span className="mt-1 block font-mono text-base font-black text-emerald-900">{value}</span>
+      <span className="block text-xs font-bold uppercase text-emerald-700">
+        {label}
+      </span>
+      <span className="mt-1 block font-mono text-base font-black text-emerald-900">
+        {value}
+      </span>
     </div>
   );
 }
