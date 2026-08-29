@@ -11,11 +11,14 @@ export function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = safeNextPath(searchParams.get("next"));
-  const { error, signInWithGoogleIdToken, signInWithEmail, reportSignInError, status } = useTeacherAuth();
+  const {
+    error,
+    signInWithGoogleIdToken,
+    signInWithEmail,
+    reportSignInError,
+    status,
+  } = useTeacherAuth();
   const [exchanging, setExchanging] = useState(false);
-  // Pre-filled with the shared demo teacher; still editable for anyone with their own account.
-  const [email, setEmail] = useState<string>(DEMO_TEACHER.email);
-  const [password, setPassword] = useState<string>(DEMO_TEACHER.password);
 
   useEffect(() => {
     if (status === "signed_in") {
@@ -43,7 +46,10 @@ export function LoginPage() {
       event.preventDefault();
       setExchanging(true);
       try {
-        const user = await signInWithEmail(email, password);
+        const user = await signInWithEmail(
+          DEMO_TEACHER.email,
+          DEMO_TEACHER.password,
+        );
         if (user) {
           router.replace(nextPath);
         }
@@ -51,11 +57,13 @@ export function LoginPage() {
         setExchanging(false);
       }
     },
-    [email, nextPath, password, router, signInWithEmail],
+    [nextPath, router, signInWithEmail],
   );
 
   const handleLoadError = useCallback(() => {
-    reportSignInError("Couldn't load Google sign-in. Check your connection and reload the page.");
+    reportSignInError(
+      "Couldn't load Google sign-in. Check your connection and reload the page.",
+    );
   }, [reportSignInError]);
 
   const busy = exchanging || status === "checking";
@@ -90,7 +98,11 @@ export function LoginPage() {
           </p>
 
           <div className="mt-6">
-            <GoogleIdentityButton onCredential={handleCredential} onLoadError={handleLoadError} disabled={busy} />
+            <GoogleIdentityButton
+              onCredential={handleCredential}
+              onLoadError={handleLoadError}
+              disabled={busy}
+            />
           </div>
 
           <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -99,41 +111,58 @@ export function LoginPage() {
             <span className="h-px flex-1 bg-slate-200" />
           </div>
 
-          <form className="space-y-3 text-left" onSubmit={handleEmailSubmit} noValidate>
+          <form
+            className="space-y-3 text-left"
+            onSubmit={handleEmailSubmit}
+            noValidate
+          >
+            <p className="text-xs leading-5 text-slate-500">
+              Demo account for the hackathon jury (already filled in, just sign
+              in)
+            </p>
             <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Email
+              </span>
               <input
                 type="email"
                 name="email"
                 autoComplete="username"
                 inputMode="email"
                 spellCheck={false}
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                disabled={busy}
-                className="mt-1 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                value={DEMO_TEACHER.email}
+                readOnly
+                aria-readonly="true"
+                tabIndex={-1}
+                className="mt-1 h-11 w-full cursor-default rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none select-all"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Password</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Password
+              </span>
               <input
                 type="password"
                 name="password"
                 autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                disabled={busy}
-                className="mt-1 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                value={DEMO_TEACHER.password}
+                readOnly
+                aria-readonly="true"
+                tabIndex={-1}
+                className="mt-1 h-11 w-full cursor-default rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none"
               />
             </label>
             <button
               type="submit"
-              disabled={busy || email.trim() === "" || password === ""}
+              disabled={busy}
               className="h-11 w-full rounded-md bg-primary text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {busy ? (status === "checking" ? "Checking your session..." : "Signing in...") : "Sign in"}
+              {busy
+                ? status === "checking"
+                  ? "Checking your session..."
+                  : "Signing in..."
+                : "Sign in"}
             </button>
-            <p className="text-center text-xs text-slate-500">Demo teacher account for the hackathon jury — already filled in.</p>
           </form>
 
           {error ? (
