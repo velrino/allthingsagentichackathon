@@ -13,6 +13,7 @@ export type StudentSessionFormValue = {
 
 type StudentSessionModalProps = {
   readonly error: string | null;
+  readonly initialClassCode?: string;
   readonly loading: boolean;
   readonly onSubmit: (value: StudentSessionFormValue) => void;
 };
@@ -24,6 +25,7 @@ const classCodeBlockedCharacters = /[^\d\s]/;
 
 export function StudentSessionModal({
   error,
+  initialClassCode = "",
   loading,
   onSubmit,
 }: StudentSessionModalProps) {
@@ -31,7 +33,7 @@ export function StudentSessionModal({
   const classCodeHintId = useId();
   const studentNameInputId = useId();
   const studentNameHintId = useId();
-  const [classCode, setClassCode] = useState("");
+  const [classCode, setClassCode] = useState(initialClassCode);
   const [studentName, setStudentName] = useState("");
   const [typedBlockedCharacter, setTypedBlockedCharacter] = useState(false);
 
@@ -103,7 +105,7 @@ export function StudentSessionModal({
               value={formatClassCode(classCode)}
               onChange={(event) => handleClassCodeChange(event.target.value)}
               disabled={loading}
-              autoFocus
+              autoFocus={!codeComplete}
               autoComplete="off"
               inputMode="numeric"
               maxLength={CLASS_CODE_MASKED_LENGTH}
@@ -132,6 +134,7 @@ export function StudentSessionModal({
               value={studentName}
               onChange={(event) => handleStudentNameChange(event.target.value)}
               disabled={loading}
+              autoFocus={codeComplete}
               autoComplete="off"
               maxLength={INPUT_LIMITS.studentName}
               placeholder="What should Emily call you?"

@@ -36,11 +36,15 @@ import {
 
 type StudentSessionGateProps = {
   readonly children: ReactNode;
+  readonly initialClassCode?: string;
 };
 
 type GateStatus = "checking" | "needs_student_session" | "ready";
 
-export function StudentSessionGate({ children }: StudentSessionGateProps) {
+export function StudentSessionGate({
+  children,
+  initialClassCode = "",
+}: StudentSessionGateProps) {
   const firebaseConfigured = isFirebaseConfigured();
   const registeringRef = useRef(false);
   const [status, setStatus] = useState<GateStatus>(() =>
@@ -191,6 +195,7 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       ) : status === "needs_student_session" ? (
         <StudentSessionModal
           error={error}
+          initialClassCode={initialClassCode}
           loading={loading}
           onSubmit={handleSubmit}
         />

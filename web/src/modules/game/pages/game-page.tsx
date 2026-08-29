@@ -33,7 +33,11 @@ import {
 } from "../student-session/use-student-presence";
 import type { MovementState } from "../types/game";
 
-export function GamePage() {
+export function GamePage({
+  initialClassCode = "",
+}: {
+  readonly initialClassCode?: string;
+}) {
   const movementRef = useRef<MovementState>({ forward: 0, right: 0 });
   const { session, report, directiveRef, avatarPresetId, handlers } =
     useGameSession();
@@ -206,7 +210,7 @@ export function GamePage() {
   }
 
   return (
-    <StudentSessionGate>
+    <StudentSessionGate initialClassCode={initialClassCode}>
       <main className="relative isolate h-dvh overflow-hidden bg-[#05070d] text-white">
         <GameCanvas
           movementRef={movementRef}

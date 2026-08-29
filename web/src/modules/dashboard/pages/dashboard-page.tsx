@@ -417,6 +417,9 @@ export function DashboardPage({
     overview?.class_code ??
     "";
   const hasSelectedClass = Boolean(selectedClassId);
+  const studentViewHref = classCode
+    ? `/home?classCode=${encodeURIComponent(classCode)}`
+    : "/home";
   const glance = useMemo(() => buildClassGlance(students), [students]);
   const funnel = useMemo(
     () => buildMissionFunnel(students, activeMission),
@@ -695,7 +698,11 @@ export function DashboardPage({
           <div className="flex flex-wrap items-center gap-2">
             {classCode ? <ClassCodeBadge value={classCode} compact /> : null}
             <Button variant="outline" asChild>
-              <Link href="/home" target="_blank" rel="noopener noreferrer">
+              <Link
+                href={studentViewHref}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Gamepad2 className="size-4" aria-hidden />
                 Student view
               </Link>
