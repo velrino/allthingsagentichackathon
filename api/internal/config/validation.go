@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -33,6 +34,27 @@ func (config Config) Validate() error {
 		"FIREBASE_PING_TIMEOUT_SECONDS": validation.Validate(config.FirebasePingTimeoutSeconds,
 			validation.Required,
 			validation.Min(1),
+		),
+		"FIREBASE_STORAGE_BUCKET": validation.Validate(config.FirebaseStorageBucket,
+			validation.Required,
+		),
+		"CLOUD_TASKS_PROJECT_ID": validation.Validate(config.CloudTasksProjectID,
+			validation.By(validateRequiredWhenEnabled(config.CloudTasksEnabled)),
+		),
+		"CLOUD_TASKS_LOCATION": validation.Validate(config.CloudTasksLocation,
+			validation.By(validateRequiredWhenEnabled(config.CloudTasksEnabled)),
+		),
+		"CLOUD_TASKS_QUEUE": validation.Validate(config.CloudTasksQueue,
+			validation.By(validateRequiredWhenEnabled(config.CloudTasksEnabled)),
+		),
+		"CLOUD_TASKS_TARGET_URL": validation.Validate(config.CloudTasksTargetURL,
+			validation.By(validateHTTPSURLWhenEnabled(config.CloudTasksEnabled)),
+		),
+		"CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL": validation.Validate(config.CloudTasksServiceAccount,
+			validation.By(validateRequiredWhenEnabled(config.CloudTasksEnabled)),
+		),
+		"CLOUD_TASKS_OIDC_AUDIENCE": validation.Validate(config.CloudTasksOIDCAudience,
+			validation.By(validateHTTPSURLWhenEnabled(config.CloudTasksEnabled)),
 		),
 		"AUTH_GOOGLE_WEB_CLIENT_ID": validation.Validate(config.AuthGoogleWebClientID,
 			validation.Required,
@@ -152,7 +174,26 @@ func validateRequiredWhenEnabled(enabled bool) validation.RuleFunc {
 			return fmt.Errorf("must be a string")
 		}
 		if strings.TrimSpace(text) == "" {
-			return fmt.Errorf("is required when GenAI is enabled")
+			return fmt.Errorf("is required when its feature is enabled")
+		}
+
+		return nil
+	}
+}
+
+func validateHTTPSURLWhenEnabled(enabled bool) validation.RuleFunc {
+	return func(value any) error {
+		if !enabled {
+			return nil
+		}
+
+		text, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("must be a string")
+		}
+		parsed, err := url.Parse(strings.TrimSpace(text))
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+			return fmt.Errorf("must be an absolute https URL when Cloud Tasks is enabled")
 		}
 
 		return nil

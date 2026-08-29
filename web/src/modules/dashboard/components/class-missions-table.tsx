@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, Plus } from "lucide-react";
+import { ClipboardList, LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
 
 import type { IApiTeacherClassMission } from "@/backend/api/api.interface";
 import { Button } from "@/components/ui/button";
@@ -23,16 +23,22 @@ import { cn } from "@/lib/utils";
 
 type ClassMissionsTableProps = {
   readonly activeMissionId?: string;
+  readonly deletingMissionId?: string | null;
   readonly missions: IApiTeacherClassMission[];
   readonly loading: boolean;
   readonly onCreateMission: () => void;
+  readonly onDeleteMission: (mission: IApiTeacherClassMission) => void;
+  readonly onEditMission: (mission: IApiTeacherClassMission) => void;
 };
 
 export function ClassMissionsTable({
   activeMissionId,
+  deletingMissionId,
   missions,
   loading,
   onCreateMission,
+  onDeleteMission,
+  onEditMission,
 }: ClassMissionsTableProps) {
   return (
     <Card className="gap-0 overflow-hidden py-0">
@@ -85,6 +91,9 @@ export function ClassMissionsTable({
                   key={mission.id}
                   mission={mission}
                   active={mission.id === activeMissionId}
+                  deleting={mission.id === deletingMissionId}
+                  onDelete={onDeleteMission}
+                  onEdit={onEditMission}
                 />
               ))}
             </div>
@@ -97,7 +106,8 @@ export function ClassMissionsTable({
                     <TableHead>Mission code</TableHead>
                     <TableHead>Audience</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="pe-6 text-right">Updated</TableHead>
+                    <TableHead className="text-right">Updated</TableHead>
+                    <TableHead className="pe-6 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -131,10 +141,18 @@ export function ClassMissionsTable({
                         <AudienceLabel mission={mission} />
                       </TableCell>
                       <TableCell>
-                        <MissionStatus status={mission.status} />
+                        <MissionStatus mission={mission} />
                       </TableCell>
-                      <TableCell className="pe-6 text-right text-muted-foreground">
+                      <TableCell className="text-right text-muted-foreground">
                         {formatDate(mission.updated_at)}
+                      </TableCell>
+                      <TableCell className="pe-6">
+                        <MissionActions
+                          deleting={mission.id === deletingMissionId}
+                          mission={mission}
+                          onDelete={onDeleteMission}
+                          onEdit={onEditMission}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -150,10 +168,16 @@ export function ClassMissionsTable({
 
 function MissionMobileRow({
   active,
+  deleting,
   mission,
+  onDelete,
+  onEdit,
 }: {
   readonly active: boolean;
+  readonly deleting: boolean;
   readonly mission: IApiTeacherClassMission;
+  readonly onDelete: (mission: IApiTeacherClassMission) => void;
+  readonly onEdit: (mission: IApiTeacherClassMission) => void;
 }) {
   return (
     <article className="px-4 py-4">
@@ -173,7 +197,7 @@ function MissionMobileRow({
             {mission.subject || "Subject not set"}
           </p>
         </div>
-        <MissionStatus status={mission.status} />
+        <MissionStatus mission={mission} />
       </div>
 
       <p className="mt-3 line-clamp-2 text-sm leading-5 text-muted-foreground">
@@ -185,6 +209,14 @@ function MissionMobileRow({
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <AudienceLabel mission={mission} />
         <span>{formatDate(mission.updated_at)}</span>
+      </div>
+      <div className="mt-3 border-t border-border pt-3">
+        <MissionActions
+          deleting={deleting}
+          mission={mission}
+          onDelete={onDelete}
+          onEdit={onEdit}
+        />
       </div>
     </article>
   );
@@ -225,21 +257,98 @@ function AudienceLabel({
   );
 }
 
-function MissionStatus({ status }: { readonly status: string }) {
-  const published = status === "published";
+function MissionStatus({ mission }: { readonly mission: IApiTeacherClassMission }) {
+  const hasDraftChanges =
+    missionHasPublishedRevision(mission) && missionHasUnpublishedChanges(mission);
+  const published = mission.status === "published" && !hasDraftChanges;
+  const removed = mission.status === "deleted" || Boolean(mission.deleted_at);
+  const label = removed
+    ? "Removed"
+    : hasDraftChanges
+      ? "Draft changes"
+      : published
+        ? "Published"
+        : "Draft";
 
   return (
     <span
       className={cn(
         "inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold",
-        published
-          ? "bg-emerald-100 text-emerald-800"
-          : "bg-violet-100 text-violet-800",
+        removed
+          ? "bg-slate-100 text-slate-700"
+          : hasDraftChanges
+            ? "bg-amber-100 text-amber-800"
+            : published
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-violet-100 text-violet-800",
       )}
     >
-      {published ? "Published" : "Preview"}
+      {label}
     </span>
   );
+}
+
+function MissionActions({
+  deleting,
+  mission,
+  onDelete,
+  onEdit,
+}: {
+  readonly deleting: boolean;
+  readonly mission: IApiTeacherClassMission;
+  readonly onDelete: (mission: IApiTeacherClassMission) => void;
+  readonly onEdit: (mission: IApiTeacherClassMission) => void;
+}) {
+  const editLabel =
+    missionHasUnpublishedChanges(mission) || mission.status === "draft" || mission.status === "preview"
+      ? "Open draft"
+      : "Edit";
+
+  return (
+    <div className="flex justify-end gap-2">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={deleting}
+        onClick={() => onEdit(mission)}
+      >
+        <Pencil className="size-3.5" aria-hidden />
+        {editLabel}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={deleting}
+        aria-label={`Remove ${mission.mission_name || mission.title}`}
+        className="text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+        onClick={() => onDelete(mission)}
+      >
+        {deleting ? (
+          <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+        ) : (
+          <Trash2 className="size-3.5" aria-hidden />
+        )}
+        <span className="md:sr-only">{deleting ? "Removing" : "Remove"}</span>
+      </Button>
+    </div>
+  );
+}
+
+function missionHasUnpublishedChanges(mission: IApiTeacherClassMission) {
+  if (mission.has_unpublished_changes !== undefined) {
+    return mission.has_unpublished_changes;
+  }
+
+  return (
+    (mission.published_revision ?? 0) > 0 &&
+    (mission.draft_revision ?? 0) > (mission.published_revision ?? 0)
+  );
+}
+
+function missionHasPublishedRevision(mission: IApiTeacherClassMission) {
+  return (mission.published_revision ?? 0) > 0 || Boolean(mission.published_at);
 }
 
 function formatDuration(minutes: number) {

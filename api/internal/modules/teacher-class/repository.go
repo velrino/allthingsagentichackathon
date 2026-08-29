@@ -186,9 +186,6 @@ func (repository *Repository) SetActiveMission(
 			"active_mission_id": missionID,
 			"updated_at":        timestamp,
 		}
-		if teacherClass.ActiveMissionID != missionID {
-			update["mission_count"] = firestore.Increment(1)
-		}
 
 		return tx.Set(ref, update, firestore.MergeAll)
 	})

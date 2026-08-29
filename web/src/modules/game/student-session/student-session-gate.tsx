@@ -60,6 +60,7 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       saveStudentMissionSession({
         missionCode: response.user.student.mission_code,
         missionId: response.user.activity.current_game.mission_id,
+        publishedRevision: response.user.activity.current_game.published_revision,
         subject: response.user.activity.current_game.subject,
       });
 

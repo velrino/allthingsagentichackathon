@@ -66,23 +66,25 @@ type UserActivity struct {
 }
 
 type StudentGameSession struct {
-	MissionID       string    `firestore:"mission_id" json:"mission_id"`
-	Subject         string    `firestore:"subject" json:"subject"`
-	StageID         string    `firestore:"stage_id" json:"stage_id"`
-	StageName       string    `firestore:"stage_name" json:"stage_name"`
-	Status          string    `firestore:"status" json:"status"`
-	StartedAt       time.Time `firestore:"started_at" json:"started_at"`
-	LastHeartbeatAt time.Time `firestore:"last_heartbeat_at" json:"last_heartbeat_at"`
+	MissionID         string    `firestore:"mission_id" json:"mission_id"`
+	PublishedRevision int64     `firestore:"published_revision" json:"published_revision"`
+	Subject           string    `firestore:"subject" json:"subject"`
+	StageID           string    `firestore:"stage_id" json:"stage_id"`
+	StageName         string    `firestore:"stage_name" json:"stage_name"`
+	Status            string    `firestore:"status" json:"status"`
+	StartedAt         time.Time `firestore:"started_at" json:"started_at"`
+	LastHeartbeatAt   time.Time `firestore:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 type UpsertStudentInput struct {
-	Identity       sharedfirebase.Identity
-	ClassID        string
-	MissionID      string
-	MissionCode    string
-	MissionSubject string
-	StudentName    string
-	Timestamp      time.Time
+	Identity                 sharedfirebase.Identity
+	ClassID                  string
+	MissionID                string
+	MissionCode              string
+	MissionPublishedRevision int64
+	MissionSubject           string
+	StudentName              string
+	Timestamp                time.Time
 }
 
 type UpdateStudentPresenceInput struct {

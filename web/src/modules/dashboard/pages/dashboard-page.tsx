@@ -95,6 +95,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [deletingMissionId, setDeletingMissionId] = useState<string | null>(null);
   const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
   const [draftVersion, setDraftVersion] = useState(0);
   const [shareCodeLabel, setShareCodeLabel] = useState("Share code");
@@ -402,6 +403,8 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
         token,
         value.class_id,
         {
+          mission_id: value.mission_id,
+          expected_draft_revision: value.expected_draft_revision,
           class_name: value.class_name,
           mission_name: value.mission_name,
           subject: value.subject,
@@ -414,6 +417,7 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
         },
       );
       setPreviewMission(response.mission);
+      setDraftVersion((current) => current + 1);
       setMissions((current) =>
         upsertClassMission(current, response.mission),
       );
@@ -444,6 +448,9 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
         token,
         mission.class_id,
         mission.id,
+        {
+          expected_draft_revision: mission.draft_revision,
+        },
       );
       setPreviewMission(response.mission);
       setMissions((current) =>
@@ -479,6 +486,54 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     setDraftVersion((current) => current + 1);
     setActiveDashboardTab("mission");
     setMissionBuilderOpen(true);
+  }
+
+  function handleEditMission(mission: IApiTeacherClassMission) {
+    setPreviewMission(mission);
+    setDraftPrompt(null);
+    setDraftVersion((current) => current + 1);
+    setMissionBuilderOpen(true);
+    setActiveDashboardTab("mission");
+  }
+
+  async function handleDeleteMission(mission: IApiTeacherClassMission) {
+    if (!auth.user || deletingMissionId) {
+      return;
+    }
+
+    const missionLabel = mission.mission_name || mission.title || "this mission";
+    const isLive = activeMission?.id === mission.id;
+    const confirmed = window.confirm(
+      isLive
+        ? `Remove “${missionLabel}”? Its mission code will stop accepting new students.`
+        : `Remove “${missionLabel}”? It will disappear from this class mission list.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingMissionId(mission.id);
+    setError(null);
+    try {
+      const token = await auth.user.getIdToken();
+      await API.teacherClassMissions.remove(token, mission.class_id, mission.id);
+      setMissions((current) => current.filter((item) => item.id !== mission.id));
+
+      if (previewMission?.id === mission.id) {
+        setPreviewMission(null);
+        setMissionBuilderOpen(false);
+      }
+
+      await loadOverview(token, mission.class_id);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not remove class mission.",
+      );
+    } finally {
+      setDeletingMissionId(null);
+    }
   }
 
   function handleBuildNextMission() {
@@ -739,9 +794,12 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
           <TabsContent id="mission-builder" value="mission" className="mt-2">
             <ClassMissionsTable
               activeMissionId={activeMission?.id}
+              deletingMissionId={deletingMissionId}
               missions={missions}
               loading={missionsLoading}
               onCreateMission={handleOpenMissionBuilder}
+              onDeleteMission={handleDeleteMission}
+              onEditMission={handleEditMission}
             />
           </TabsContent>
 

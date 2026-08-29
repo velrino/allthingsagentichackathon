@@ -44,13 +44,14 @@ type UserActivityResponse struct {
 }
 
 type StudentGameSessionResponse struct {
-	MissionID       string `json:"mission_id"`
-	Subject         string `json:"subject"`
-	StageID         string `json:"stage_id"`
-	StageName       string `json:"stage_name"`
-	Status          string `json:"status"`
-	StartedAt       string `json:"started_at"`
-	LastHeartbeatAt string `json:"last_heartbeat_at"`
+	MissionID         string `json:"mission_id"`
+	PublishedRevision int64  `json:"published_revision"`
+	Subject           string `json:"subject"`
+	StageID           string `json:"stage_id"`
+	StageName         string `json:"stage_name"`
+	Status            string `json:"status"`
+	StartedAt         string `json:"started_at"`
+	LastHeartbeatAt   string `json:"last_heartbeat_at"`
 }
 
 func ToResponse(user UserDocument) UserResponse {
@@ -79,13 +80,14 @@ func ToResponse(user UserDocument) UserResponse {
 			LastSeenAt:  formatTime(user.Activity.LastSeenAt),
 			LoginCount:  user.Activity.LoginCount,
 			CurrentGame: StudentGameSessionResponse{
-				MissionID:       user.Activity.CurrentGame.MissionID,
-				Subject:         user.Activity.CurrentGame.Subject,
-				StageID:         user.Activity.CurrentGame.StageID,
-				StageName:       user.Activity.CurrentGame.StageName,
-				Status:          user.Activity.CurrentGame.Status,
-				StartedAt:       formatTime(user.Activity.CurrentGame.StartedAt),
-				LastHeartbeatAt: formatTime(user.Activity.CurrentGame.LastHeartbeatAt),
+				MissionID:         user.Activity.CurrentGame.MissionID,
+				PublishedRevision: user.Activity.CurrentGame.PublishedRevision,
+				Subject:           user.Activity.CurrentGame.Subject,
+				StageID:           user.Activity.CurrentGame.StageID,
+				StageName:         user.Activity.CurrentGame.StageName,
+				Status:            user.Activity.CurrentGame.Status,
+				StartedAt:         formatTime(user.Activity.CurrentGame.StartedAt),
+				LastHeartbeatAt:   formatTime(user.Activity.CurrentGame.LastHeartbeatAt),
 			},
 		},
 		Roles:     user.Roles,

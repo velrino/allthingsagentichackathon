@@ -3,6 +3,7 @@ const studentMissionSessionKey = "classgame:student-mission-session";
 export type StudentMissionSession = {
   readonly missionCode: string;
   readonly missionId: string;
+  readonly publishedRevision: number;
   readonly subject: string;
 };
 

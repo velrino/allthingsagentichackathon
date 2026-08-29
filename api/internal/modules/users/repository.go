@@ -56,18 +56,26 @@ func (repository *Repository) UpsertStudent(
 			return fmt.Errorf("read user: %w", err)
 		}
 
-		if currentGame.MissionID == input.MissionID {
+		revisionChanged := currentGame.PublishedRevision > 0 &&
+			currentGame.PublishedRevision != input.MissionPublishedRevision
+		startNewRevision := currentGame.MissionID == input.MissionID &&
+			revisionChanged && currentGame.Status == "completed"
+		if currentGame.MissionID == input.MissionID && !startNewRevision {
+			if currentGame.PublishedRevision <= 0 {
+				currentGame.PublishedRevision = input.MissionPublishedRevision
+			}
 			currentGame.LastHeartbeatAt = now
 			if currentGame.Status == "" {
 				currentGame.Status = "exploring"
 			}
 		} else {
 			currentGame = StudentGameSession{
-				MissionID:       input.MissionID,
-				Subject:         input.MissionSubject,
-				Status:          "exploring",
-				StartedAt:       now,
-				LastHeartbeatAt: now,
+				MissionID:         input.MissionID,
+				PublishedRevision: input.MissionPublishedRevision,
+				Subject:           input.MissionSubject,
+				Status:            "exploring",
+				StartedAt:         now,
+				LastHeartbeatAt:   now,
 			}
 		}
 
@@ -113,19 +121,24 @@ func (repository *Repository) UpdateStudentPresence(
 		}
 
 		startedAt := input.Timestamp
-		if user.Activity.CurrentGame.MissionID == input.MissionID && !user.Activity.CurrentGame.StartedAt.IsZero() {
-			startedAt = user.Activity.CurrentGame.StartedAt
+		publishedRevision := int64(0)
+		if user.Activity.CurrentGame.MissionID == input.MissionID {
+			publishedRevision = user.Activity.CurrentGame.PublishedRevision
+			if !user.Activity.CurrentGame.StartedAt.IsZero() {
+				startedAt = user.Activity.CurrentGame.StartedAt
+			}
 		}
 
 		user.Activity.LastSeenAt = input.Timestamp
 		user.Activity.CurrentGame = StudentGameSession{
-			MissionID:       input.MissionID,
-			Subject:         input.Subject,
-			StageID:         input.StageID,
-			StageName:       input.StageName,
-			Status:          input.Status,
-			StartedAt:       startedAt,
-			LastHeartbeatAt: input.Timestamp,
+			MissionID:         input.MissionID,
+			PublishedRevision: publishedRevision,
+			Subject:           input.Subject,
+			StageID:           input.StageID,
+			StageName:         input.StageName,
+			Status:            input.Status,
+			StartedAt:         startedAt,
+			LastHeartbeatAt:   input.Timestamp,
 		}
 		user.UpdatedAt = input.Timestamp
 
@@ -245,12 +258,13 @@ func (user UserDocument) firestoreMap() map[string]any {
 
 func (session StudentGameSession) firestoreMap() map[string]any {
 	return map[string]any{
-		"mission_id":        session.MissionID,
-		"subject":           session.Subject,
-		"stage_id":          session.StageID,
-		"stage_name":        session.StageName,
-		"status":            session.Status,
-		"started_at":        session.StartedAt,
-		"last_heartbeat_at": session.LastHeartbeatAt,
+		"mission_id":         session.MissionID,
+		"published_revision": session.PublishedRevision,
+		"subject":            session.Subject,
+		"stage_id":           session.StageID,
+		"stage_name":         session.StageName,
+		"status":             session.Status,
+		"started_at":         session.StartedAt,
+		"last_heartbeat_at":  session.LastHeartbeatAt,
 	}
 }

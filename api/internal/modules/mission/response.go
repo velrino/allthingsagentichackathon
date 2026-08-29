@@ -30,10 +30,14 @@ type MissionResponse struct {
 	PositiveSignals          []string                         `json:"positive_signals"`
 	ImprovementSignals       []string                         `json:"improvement_signals"`
 	Orchestration            MissionOrchestrationResponse     `json:"orchestration"`
+	DraftRevision            int64                            `json:"draft_revision"`
+	PublishedRevision        int64                            `json:"published_revision"`
+	HasUnpublishedChanges    bool                             `json:"has_unpublished_changes"`
 	Status                   string                           `json:"status"`
 	CreatedBy                teacherclass.TeacherResponse     `json:"created_by"`
 	UpdatedBy                teacherclass.TeacherResponse     `json:"updated_by"`
 	PublishedAt              string                           `json:"published_at"`
+	DeletedAt                string                           `json:"deleted_at"`
 	CreatedAt                string                           `json:"created_at"`
 	UpdatedAt                string                           `json:"updated_at"`
 }
@@ -86,12 +90,16 @@ func ToResponse(mission MissionDocument) MissionResponse {
 			ThoughtsTokenCount:   mission.Orchestration.ThoughtsTokenCount,
 			TotalTokenCount:      mission.Orchestration.TotalTokenCount,
 		},
-		Status:      mission.Status,
-		CreatedBy:   toTeacherResponse(mission.CreatedBy),
-		UpdatedBy:   toTeacherResponse(mission.UpdatedBy),
-		PublishedAt: formatTime(mission.PublishedAt),
-		CreatedAt:   formatTime(mission.CreatedAt),
-		UpdatedAt:   formatTime(mission.UpdatedAt),
+		DraftRevision:         mission.DraftRevision,
+		PublishedRevision:     mission.PublishedRevision,
+		HasUnpublishedChanges: mission.HasUnpublishedChanges,
+		Status:                mission.Status,
+		CreatedBy:             toTeacherResponse(mission.CreatedBy),
+		UpdatedBy:             toTeacherResponse(mission.UpdatedBy),
+		PublishedAt:           formatTime(mission.PublishedAt),
+		DeletedAt:             formatTime(mission.DeletedAt),
+		CreatedAt:             formatTime(mission.CreatedAt),
+		UpdatedAt:             formatTime(mission.UpdatedAt),
 	}
 }
 

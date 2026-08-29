@@ -16,13 +16,14 @@ import (
 )
 
 type Options struct {
-	Config       config.Config
-	Dashboard    dashboard.HandlerOptions
-	HealthChecks []healthcheck.Check
-	StartedAt    time.Time
-	TeacherClass teacherclass.HandlerOptions
-	Mission      mission.HandlerOptions
-	Users        users.HandlerOptions
+	Config            config.Config
+	Dashboard         dashboard.HandlerOptions
+	HealthChecks      []healthcheck.Check
+	StartedAt         time.Time
+	TeacherClass      teacherclass.HandlerOptions
+	Mission           mission.HandlerOptions
+	MissionAttachment http.Handler
+	Users             users.HandlerOptions
 }
 
 func New(options Options) *echo.Echo {
@@ -38,6 +39,7 @@ func New(options Options) *echo.Echo {
 			echo.HeaderOrigin,
 		},
 		AllowMethods: []string{
+			http.MethodDelete,
 			http.MethodGet,
 			http.MethodOptions,
 			http.MethodPost,
@@ -52,6 +54,9 @@ func New(options Options) *echo.Echo {
 		ServiceTimeout: 3 * time.Second,
 		StartedAt:      options.StartedAt,
 	})
+	if options.MissionAttachment != nil {
+		server.POST("/internal/tasks/mission-attachments", echo.WrapHandler(options.MissionAttachment))
+	}
 
 	users.RegisterRoutes(server, options.Users)
 	dashboard.RegisterRoutes(server, options.Dashboard)

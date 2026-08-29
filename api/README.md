@@ -31,9 +31,9 @@ curl http://localhost:4004/
 - `POST /teacher-classes` verifies a Google Firebase ID token and creates or updates a class. New classes receive a unique, six-character sharing code from the API.
 - `GET /teacher-classes/:class_id` returns one teacher-owned class.
 - `GET /teacher-classes/:class_id/missions` lists the latest missions for that class.
-- `POST /teacher-classes/:class_id/missions/preview` creates a preview mission with a unique six-character code and an optional recommended student audience.
-- `POST /teacher-classes/:class_id/missions` creates and publishes a mission in one call.
-- `POST /teacher-classes/:class_id/missions/:mission_id/approve` publishes an existing preview and marks it active on the class.
+- `POST /teacher-classes/:class_id/missions/preview` creates a draft or regenerates an existing draft when `mission_id` and `expected_draft_revision` are provided.
+- `POST /teacher-classes/:class_id/missions/:mission_id/approve` atomically promotes the expected draft revision, records an immutable published revision, and marks the mission active on the class.
+- `DELETE /teacher-classes/:class_id/missions/:mission_id` soft-deletes a mission, disables its code, and preserves its published history.
 - `internal/shared/google/genai` wraps the Google GenAI SDK so other modules can request structured output without coupling to SDK details.
 - `internal/modules/orchestrator` turns a teacher request into a mission blueprint and falls back locally if GenAI is disabled or unavailable.
 - `internal/modules/teacher-class-student` defines the per-class student thinking summary that future tutor turns will write.
@@ -56,6 +56,7 @@ Student records are stored in Firestore under `users/{firebase_uid}`. Payloads a
     "login_count": 1,
     "current_game": {
       "mission_id": "algebra-mission",
+      "published_revision": 1,
       "subject": "Mathematics",
       "stage_id": "fractions",
       "stage_name": "Fractions",
@@ -69,7 +70,7 @@ Student records are stored in Firestore under `users/{firebase_uid}`. Payloads a
 }
 ```
 
-The web client reports presence every 15 seconds while the game tab is visible. Dashboard responses mark a student online when the latest heartbeat is no more than 45 seconds old.
+The web client reports presence every 15 seconds while the game tab is visible. Each active game is pinned to the published revision that the student joined, so a teacher can publish a newer draft without changing an in-progress session. Dashboard responses mark a student online when the latest heartbeat is no more than 45 seconds old.
 
 ## Teacher Classes And Missions
 
@@ -84,11 +85,14 @@ teacher_classes/{class_id}
   teacher, active_mission_id, mission_count, status, created_at, updated_at
 
 teacher_classes/{class_id}/missions/{mission_id}
-  mission_code, mission_name, title, summary, subject, grade_level, learning_goal, teacher_prompt
-  audience_type, target_student_ids[]
-  attachments[], preview_questions[], stages[], suggestions[], positive_signals[], improvement_signals[]
-  orchestration: { provider, model, model_version, generated_by_ai, generated_by_mock, token_counts }
-  created_by, updated_by, status, published_at, created_at, updated_at
+  mission_code, status, draft_revision, published_revision, has_unpublished_changes
+  draft: { mission content, attachments[], orchestration, revision, updated_by, updated_at }
+  published: { mission content, attachments[], orchestration, revision, updated_by, updated_at }
+  created_by, updated_by, published_at, deleted_at, deleted_by, created_at, updated_at
+
+teacher_classes/{class_id}/missions/{mission_id}/published_revisions/{revision}
+  immutable published snapshot
+  attachment_transfer_status, attachment_transfer_at, published_by, published_at
 
 mission_codes/{mission_code}
   mission_code, mission_id, class_id, status, created_at, updated_at
@@ -125,9 +129,54 @@ curl http://localhost:4004/teacher-classes/ALG-2026-A/missions/preview \
 Approve the preview:
 
 ```bash
-curl -X POST http://localhost:4004/teacher-classes/ALG-2026-A/missions/$ACTIVITY_ID/approve \
-  -H "Authorization: Bearer $FIREBASE_GOOGLE_ID_TOKEN"
+curl -X POST http://localhost:4004/teacher-classes/ALG-2026-A/missions/$MISSION_ID/approve \
+  -H "Authorization: Bearer $FIREBASE_GOOGLE_ID_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"expected_draft_revision": 1}'
 ```
+
+Preview generation is limited both by IP and by authenticated teacher in Redis. A stale `expected_draft_revision` returns `409` instead of overwriting a draft generated in another tab.
+
+## Mission Attachment Queue
+
+Uploadcare files remain temporary while the teacher reviews a draft. Approval first creates a revision-specific Cloud Task, then publishes the draft. The task calls an application handler protected by a Google-signed OIDC token, streams each file to Firebase Storage with a real 20 MiB limit, and stores its canonical `gs://` location in the published revision. Once that immutable revision exists, its task remains valid even after a newer publication or a mission soft delete, preserving the attachment history.
+
+Objects are organized under:
+
+```txt
+classes/{class_id}/missions/{mission_id}/revisions/{revision}/{uploadcare_uuid}/{safe_filename}
+```
+
+Production uses queue `mission-attachment-copy` in `rare-tape-466414-f4`. Provision it and the task identity once before enabling the deploy:
+
+```bash
+gcloud services enable cloudtasks.googleapis.com --project=rare-tape-466414-f4
+
+gcloud tasks queues create mission-attachment-copy \
+  --location=us-east1 \
+  --project=rare-tape-466414-f4
+
+RUNTIME_SA=2057331207-compute@developer.gserviceaccount.com
+CLOUD_TASKS_AGENT=service-2057331207@gcp-sa-cloudtasks.iam.gserviceaccount.com
+
+gcloud projects add-iam-policy-binding rare-tape-466414-f4 \
+  --member="serviceAccount:${RUNTIME_SA}" \
+  --role=roles/cloudtasks.enqueuer
+
+gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA}" \
+  --project=rare-tape-466414-f4 \
+  --member="serviceAccount:${RUNTIME_SA}" \
+  --role=roles/iam.serviceAccountUser
+
+gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA}" \
+  --project=rare-tape-466414-f4 \
+  --member="serviceAccount:${CLOUD_TASKS_AGENT}" \
+  --role=roles/iam.serviceAccountUser
+```
+
+The first service-account binding lets the API specify the OIDC identity when it creates a task. The second lets the Cloud Tasks primary service agent mint that identity's token when dispatching it. Enabling the API normally grants the primary service agent its project-level `roles/cloudtasks.serviceAgent` role automatically.
+
+The Firebase service-account secret used by the storage worker needs `roles/storage.objectAdmin` on `gs://allthingsagentichackatho-ee359.firebasestorage.app`. Cloud Tasks uses the Cloud Run service identity through ADC; Firebase Storage uses the configured Firebase credentials.
 
 ## GenAI
 

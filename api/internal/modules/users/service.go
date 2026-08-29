@@ -53,13 +53,14 @@ func (service *Service) UpsertStudent(
 	}
 
 	return service.repository.UpsertStudent(ctx, UpsertStudentInput{
-		Identity:       identity,
-		ClassID:        missionDocument.ClassID,
-		MissionID:      missionDocument.ID,
-		MissionCode:    missionDocument.MissionCode,
-		MissionSubject: missionDocument.Subject,
-		StudentName:    normalizeStudentName(studentName),
-		Timestamp:      time.Now(),
+		Identity:                 identity,
+		ClassID:                  missionDocument.ClassID,
+		MissionID:                missionDocument.ID,
+		MissionCode:              missionDocument.MissionCode,
+		MissionPublishedRevision: missionDocument.PublishedRevision,
+		MissionSubject:           missionDocument.Subject,
+		StudentName:              normalizeStudentName(studentName),
+		Timestamp:                time.Now(),
 	})
 }
 

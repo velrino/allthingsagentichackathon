@@ -75,8 +75,8 @@ The game loop still uses a mocked tutor agent, but student entry and live game p
 - **Persistent memory** in `localStorage` (mirrors the Firestore document): close the tab, come back, *"Welcome back — last time you were on Fractions."*
 - **Student user records and presence** in Firestore: `POST /users/student-session` verifies the anonymous Firebase token and upserts `users/{firebase_uid}`. While the game is visible, `POST /users/student-presence` updates the nested `activity.current_game` every 15 seconds so the dashboard can show subject, stage, status, and online state. All fields use `snake_case`.
 - **Teacher class records** in Firestore: `POST /teacher-classes` verifies a Google Firebase token and upserts `teacher_classes/{class_id}` with nested `teacher`, `active_mission_id`, `mission_count`, status and timestamps.
-- **Teacher mission records** in Firestore: `POST /teacher-classes/{class_id}/missions/preview` creates a preview under `teacher_classes/{class_id}/missions/{mission_id}` with a unique public mission code and a recommended audience (`all` or selected student IDs). The audience is organizational, not an access restriction. `POST /teacher-classes/{class_id}/missions/{mission_id}/approve` publishes the preview and makes its code available to students.
-- **Uploadcare file input** in the dashboard: the web uploads optional teacher files with the Uploadcare public key and sends only file metadata/URLs to the API. The Uploadcare secret key must stay out of frontend code and git; use Secret Manager and signed uploads before turning uploads on for open production traffic.
+- **Teacher mission lifecycle** in Firestore: `POST /teacher-classes/{class_id}/missions/preview` creates or updates a revisioned draft on the same mission document. Approval promotes that exact draft revision while the previous published snapshot stays live; deletion is soft and preserves the revision history.
+- **Uploadcare file input** in the dashboard: the web uploads up to five optional files of 20 MiB each as temporary Uploadcare files. After approval, Cloud Tasks copies them asynchronously into Firebase Storage under the class, mission, and published revision.
 - **Student mission memory model** in `api/internal/modules/teacher-class-student`: future tutor turns can write per-class student thinking summaries, mission progress, feedback counts and notebook notes under `teacher_classes/{class_id}/students/{student_id}`.
 - **Demo content**: the Algebra Mission — Fractions → Simple equations → Two-step equations, 12 questions whose wrong options are tagged with named misconceptions (`content/algebra-mission.ts`). This becomes the few-shot example for generated missions.
 
@@ -99,7 +99,7 @@ Status on **August 28, 2026**:
 - The student entry flow is live in the frontend: `/home` opens the required mission-code/student-name modal, signs in anonymously with Firebase Auth, and calls the API.
 - The API route `POST /users/student-session` is live and returns `401` without a valid Firebase token, confirming the route exists and auth is enforced.
 - Firestore student users are created under `users/{firebase_uid}` with nested `identity`, `profile`, `student`, and `activity.current_game` objects.
-- Teacher dashboard work is implemented, committed, and validated locally: `/login`, `/dashboard`, `/dashboard/classes`, `GET /dashboard/overview`, `POST /teacher-classes`, `GET /teacher-classes/{class_id}`, `GET /teacher-classes/{class_id}/missions`, `POST /teacher-classes/{class_id}/missions/preview`, `POST /teacher-classes/{class_id}/missions`, and `POST /teacher-classes/{class_id}/missions/{mission_id}/approve`. Deployment of this dashboard pass is still pending.
+- Teacher dashboard work is implemented and validated locally: `/login`, `/dashboard`, `/dashboard/classes`, `GET /dashboard/overview`, `POST /teacher-classes`, `GET /teacher-classes/{class_id}`, `GET /teacher-classes/{class_id}/missions`, `POST /teacher-classes/{class_id}/missions/preview`, `POST /teacher-classes/{class_id}/missions/{mission_id}/approve`, and soft-delete through `DELETE /teacher-classes/{class_id}/missions/{mission_id}`. Deployment of this dashboard pass is still pending.
 - The game sends a best-effort presence heartbeat every 15 seconds; the dashboard refreshes in the background every 8 seconds and computes online state from a 45-second server-side window.
 - The API now includes a reusable Google GenAI adapter in `api/internal/shared/google/genai` and an orchestrator module in `api/internal/modules/orchestrator`.
 - Redis is enabled for the API health/cache path without TLS.
@@ -131,7 +131,7 @@ apps/
   2. `tutorTurn(memory, lesson, event) → { note, explanationStyle, decision, why }` — next step after the teacher mission flow, replacing `agent/mock-tutor.ts` one function at a time.
 - **Firestore** is the only database. Student memory, missions, notes and decisions live there. Firebase project: `allthingsagentichackatho-ee359`.
 - **Cloud Run** hosts `classgame-web` and `classgame-api`.
-- **Redis** is available for health/cache and future queue work, but the mission builder runs synchronously for the MVP so the teacher sees the result immediately.
+- **Redis** protects GenAI preview generation with a distributed teacher rate limit. Mission file persistence runs asynchronously through Cloud Tasks after approval.
 - **Cut from the MVP** (on purpose): multiple rooms, grades, deadlines, roster import and high-stakes scoring. The demo should show the teacher setting the learning goal, Emily generating the mission plan, and students reviewing it in the classroom.
 
 ### Data model (Firestore)
@@ -159,7 +159,7 @@ users/{firebase_uid}
   profile:  { display_name, email, email_verified, photo_url }
   student:  { class_id, mission_id, mission_code, student_name }
   activity: { first_seen_at, last_seen_at, login_count }
-  activity.current_game: { mission_id, subject, stage_id, stage_name, status, started_at, last_heartbeat_at }
+  activity.current_game: { mission_id, published_revision, subject, stage_id, stage_name, status, started_at, last_heartbeat_at }
   roles, is_guest, created_at, updated_at
 
 teachers/{firebase_uid}
@@ -174,7 +174,11 @@ teacher_classes/{class_id}/missions/{mission_id}
   audience_type, target_student_ids[]
   attachments[], preview_questions[], stages[], suggestions[], positive_signals[], improvement_signals[]
   orchestration: { provider, model, model_version, generated_by_ai, generated_by_mock, token_counts }
-  created_by, updated_by, status, published_at, created_at, updated_at
+  draft, published, draft_revision, published_revision, has_unpublished_changes
+  created_by, updated_by, status, published_at, deleted_at, deleted_by, created_at, updated_at
+
+teacher_classes/{class_id}/missions/{mission_id}/published_revisions/{revision}
+  immutable published snapshot, attachment transfer state, published_by, published_at
 
 mission_codes/{mission_code}
   mission_code, mission_id, class_id, status, created_at, updated_at
@@ -202,8 +206,8 @@ POST /teacher-classes                Google Firebase token + class metadata → 
 GET  /teacher-classes/{class_id}      Google Firebase token → one teacher class
 GET  /teacher-classes/{class_id}/missions
 POST /teacher-classes/{class_id}/missions/preview
-POST /teacher-classes/{class_id}/missions
 POST /teacher-classes/{class_id}/missions/{mission_id}/approve
+DELETE /teacher-classes/{class_id}/missions/{mission_id}
 POST /missions                       teacher input → generated mission + code
 GET  /missions/{code}                mission content for the game
 POST /missions/{code}/students/{id}/turn     one tutor turn (answer / why / feedback)

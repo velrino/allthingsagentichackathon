@@ -9,15 +9,21 @@ import (
 	"strings"
 	"time"
 
+	"classgame-api/internal/modules/missionattachment"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
 var (
-	ErrMissionNotFound        = errors.New("teacher class mission not found")
-	ErrMissionCodeUnavailable = errors.New("teacher class mission code is unavailable")
-	ErrMissionCodeGeneration  = errors.New("could not generate a unique mission code")
+	ErrMissionNotFound              = errors.New("teacher class mission not found")
+	ErrMissionCodeUnavailable       = errors.New("teacher class mission code is unavailable")
+	ErrMissionCodeGeneration        = errors.New("could not generate a unique mission code")
+	ErrMissionDeleted               = errors.New("teacher class mission is deleted")
+	ErrMissionDraftNotFound         = errors.New("teacher class mission draft not found")
+	ErrMissionDraftConflict         = errors.New("teacher class mission draft revision changed")
+	ErrMissionDraftRevisionRequired = errors.New("teacher class mission expected draft revision is required")
+	ErrMissionAttachmentQueue       = errors.New("teacher class mission attachment queue is not configured")
 )
 
 const (
@@ -33,26 +39,63 @@ type Orchestrator interface {
 
 type TeacherClassService interface {
 	Get(context.Context, sharedfirebase.Identity, string) (teacherclass.TeacherClassDocument, bool, error)
-	SetActiveMission(context.Context, sharedfirebase.Identity, string, string) error
 	TeacherFromIdentity(sharedfirebase.Identity) (teacherclass.TeacherSummary, error)
-	Upsert(context.Context, sharedfirebase.Identity, teacherclass.UpsertTeacherClassInput) (teacherclass.TeacherClassDocument, error)
+}
+
+type MissionRepository interface {
+	Create(context.Context, CreateMissionInput) (MissionDocument, error)
+	Get(context.Context, string, string) (MissionDocument, bool, error)
+	List(context.Context, string, int) ([]MissionDocument, error)
+	Publish(
+		context.Context,
+		string,
+		string,
+		teacherclass.TeacherSummary,
+		int64,
+		time.Time,
+	) (MissionDocument, error)
+	SoftDelete(
+		context.Context,
+		string,
+		string,
+		teacherclass.TeacherSummary,
+		time.Time,
+	) (MissionDocument, error)
+	UpdateDraft(context.Context, CreateMissionInput) (MissionDocument, error)
 }
 
 type Service struct {
+	attachmentEnqueuer  missionattachment.Enqueuer
 	orchestrator        Orchestrator
-	repository          *Repository
+	repository          MissionRepository
 	teacherClassService TeacherClassService
 }
 
 func NewService(
-	repository *Repository,
+	repository MissionRepository,
 	teacherClassService TeacherClassService,
 	orchestrator Orchestrator,
+	options ...ServiceOption,
 ) *Service {
-	return &Service{
+	service := &Service{
 		orchestrator:        orchestrator,
 		repository:          repository,
 		teacherClassService: teacherClassService,
+	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+
+	return service
+}
+
+type ServiceOption func(*Service)
+
+func WithAttachmentEnqueuer(enqueuer missionattachment.Enqueuer) ServiceOption {
+	return func(service *Service) {
+		service.attachmentEnqueuer = enqueuer
 	}
 }
 
@@ -61,23 +104,7 @@ func (service *Service) Preview(
 	identity sharedfirebase.Identity,
 	input CreateMissionInput,
 ) (MissionDocument, error) {
-	return service.createWithStatus(ctx, identity, input, StatusPreview)
-}
-
-func (service *Service) Create(
-	ctx context.Context,
-	identity sharedfirebase.Identity,
-	input CreateMissionInput,
-) (MissionDocument, error) {
-	mission, err := service.createWithStatus(ctx, identity, input, StatusPublished)
-	if err != nil {
-		return MissionDocument{}, err
-	}
-	if err := service.teacherClassService.SetActiveMission(ctx, identity, mission.ClassID, mission.ID); err != nil {
-		return MissionDocument{}, err
-	}
-
-	return mission, nil
+	return service.createDraft(ctx, identity, input)
 }
 
 func (service *Service) Approve(
@@ -85,9 +112,13 @@ func (service *Service) Approve(
 	identity sharedfirebase.Identity,
 	classID string,
 	missionID string,
+	expectedDraftRevision int64,
 ) (MissionDocument, error) {
 	if service.repository == nil || service.teacherClassService == nil {
 		return MissionDocument{}, errors.New("teacher class mission dependencies are not configured")
+	}
+	if expectedDraftRevision <= 0 {
+		return MissionDocument{}, ErrMissionDraftRevisionRequired
 	}
 
 	teacherClass, exists, err := service.teacherClassService.Get(ctx, identity, classID)
@@ -103,21 +134,85 @@ func (service *Service) Approve(
 		return MissionDocument{}, err
 	}
 
+	missionID = strings.TrimSpace(missionID)
+	draftMission, exists, err := service.repository.Get(ctx, teacherClass.ClassID, missionID)
+	if err != nil {
+		return MissionDocument{}, err
+	}
+	if !exists {
+		return MissionDocument{}, ErrMissionNotFound
+	}
+	if draftMission.Status == StatusDeleted {
+		return MissionDocument{}, ErrMissionDeleted
+	}
+	if draftMission.DraftRevision != expectedDraftRevision {
+		return MissionDocument{}, ErrMissionDraftConflict
+	}
+	if draftMission.Draft == nil {
+		return MissionDocument{}, ErrMissionDraftNotFound
+	}
+	alreadyPublished := draftMission.Published != nil &&
+		draftMission.PublishedRevision == draftMission.DraftRevision &&
+		!draftMission.HasUnpublishedChanges
+	if !alreadyPublished && attachmentsNeedTransfer(draftMission.Draft.Attachments) {
+		if service.attachmentEnqueuer == nil {
+			return MissionDocument{}, ErrMissionAttachmentQueue
+		}
+		if err := service.attachmentEnqueuer.Enqueue(ctx, missionattachment.Job{
+			ClassID:   teacherClass.ClassID,
+			MissionID: missionID,
+			Revision:  expectedDraftRevision,
+		}); err != nil {
+			return MissionDocument{}, fmt.Errorf("%w: enqueue mission attachments: %w", ErrMissionAttachmentQueue, err)
+		}
+	}
+
 	mission, err := service.repository.Publish(
 		ctx,
 		teacherClass.ClassID,
-		strings.TrimSpace(missionID),
-		teacher.ProviderUserID,
+		missionID,
+		teacher,
+		expectedDraftRevision,
 		time.Now(),
 	)
 	if err != nil {
 		return MissionDocument{}, err
 	}
-	if err := service.teacherClassService.SetActiveMission(ctx, identity, teacherClass.ClassID, mission.ID); err != nil {
-		return MissionDocument{}, err
-	}
 
 	return mission, nil
+}
+
+func (service *Service) Delete(
+	ctx context.Context,
+	identity sharedfirebase.Identity,
+	classID string,
+	missionID string,
+) error {
+	if service.repository == nil || service.teacherClassService == nil {
+		return errors.New("teacher class mission dependencies are not configured")
+	}
+
+	teacherClass, exists, err := service.teacherClassService.Get(ctx, identity, classID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return teacherclass.ErrClassNotFound
+	}
+
+	teacher, err := service.teacherClassService.TeacherFromIdentity(identity)
+	if err != nil {
+		return err
+	}
+
+	_, err = service.repository.SoftDelete(
+		ctx,
+		teacherClass.ClassID,
+		strings.TrimSpace(missionID),
+		teacher,
+		time.Now(),
+	)
+	return err
 }
 
 func (service *Service) GetActive(
@@ -130,7 +225,13 @@ func (service *Service) GetActive(
 		return MissionDocument{}, false, err
 	}
 
-	return service.repository.Get(ctx, teacherClass.ClassID, teacherClass.ActiveMissionID)
+	mission, exists, err := service.repository.Get(ctx, teacherClass.ClassID, teacherClass.ActiveMissionID)
+	if err != nil || !exists {
+		return mission, exists, err
+	}
+
+	published, exists := publishedView(mission)
+	return published, exists, nil
 }
 
 func (service *Service) List(
@@ -149,25 +250,46 @@ func (service *Service) List(
 	return service.repository.List(ctx, teacherClass.ClassID, missionListLimit)
 }
 
-func (service *Service) createWithStatus(
+func (service *Service) createDraft(
 	ctx context.Context,
 	identity sharedfirebase.Identity,
 	input CreateMissionInput,
-	status string,
 ) (MissionDocument, error) {
 	if service.orchestrator == nil || service.repository == nil || service.teacherClassService == nil {
 		return MissionDocument{}, errors.New("teacher class mission dependencies are not configured")
 	}
 
 	input = normalizeInput(input)
-	teacherClass, err := service.teacherClassService.Upsert(ctx, identity, teacherclass.UpsertTeacherClassInput{
-		ClassID:    input.ClassID,
-		ClassName:  input.ClassName,
-		Subject:    input.Subject,
-		GradeLevel: input.GradeLevel,
-	})
+	if input.MissionID != "" && input.ExpectedDraftRevision <= 0 {
+		return MissionDocument{}, ErrMissionDraftRevisionRequired
+	}
+	teacherClass, exists, err := service.teacherClassService.Get(ctx, identity, input.ClassID)
 	if err != nil {
 		return MissionDocument{}, err
+	}
+	if !exists {
+		return MissionDocument{}, teacherclass.ErrClassNotFound
+	}
+
+	input.ClassID = teacherClass.ClassID
+	input.ClassName = teacherClass.ClassName
+	input.Subject = teacherClass.Subject
+	input.GradeLevel = teacherClass.GradeLevel
+
+	if input.MissionID != "" {
+		existing, exists, err := service.repository.Get(ctx, teacherClass.ClassID, input.MissionID)
+		if err != nil {
+			return MissionDocument{}, err
+		}
+		if !exists {
+			return MissionDocument{}, ErrMissionNotFound
+		}
+		if existing.Status == StatusDeleted {
+			return MissionDocument{}, ErrMissionDeleted
+		}
+		if existing.DraftRevision != input.ExpectedDraftRevision {
+			return MissionDocument{}, ErrMissionDraftConflict
+		}
 	}
 
 	teacher, err := service.teacherClassService.TeacherFromIdentity(identity)
@@ -188,23 +310,27 @@ func (service *Service) createWithStatus(
 	if err != nil {
 		return MissionDocument{}, err
 	}
+	blueprint.Subject = teacherClass.Subject
+	blueprint.GradeLevel = teacherClass.GradeLevel
 
 	timestamp := time.Now()
-	publishedAt := time.Time{}
-	if status == StatusPublished {
-		publishedAt = timestamp
-	}
-
-	input.ClassID = teacherClass.ClassID
 	input.ClassCode = teacherClass.ClassCode
-	input.ClassName = teacherClass.ClassName
 	input.Teacher = teacher
 	input.Blueprint = blueprint
-	input.Status = status
-	input.PublishedAt = publishedAt
+	input.Status = StatusDraft
 	input.Timestamp = timestamp
 
-	return service.createWithGeneratedCode(ctx, input)
+	var mission MissionDocument
+	if input.MissionID == "" {
+		mission, err = service.createWithGeneratedCode(ctx, input)
+	} else {
+		mission, err = service.repository.UpdateDraft(ctx, input)
+	}
+	if err != nil {
+		return MissionDocument{}, err
+	}
+
+	return draftView(mission), nil
 }
 
 func (service *Service) createWithGeneratedCode(
@@ -230,6 +356,7 @@ func (service *Service) createWithGeneratedCode(
 }
 
 func normalizeInput(input CreateMissionInput) CreateMissionInput {
+	input.MissionID = strings.TrimSpace(input.MissionID)
 	input.ClassID = normalizeCode(input.ClassID)
 	input.ClassName = normalizeText(input.ClassName)
 	input.MissionName = normalizeText(input.MissionName)

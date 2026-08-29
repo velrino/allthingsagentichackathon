@@ -52,6 +52,7 @@ export interface IApiStudentSessionUser {
     login_count: number;
     current_game: {
       mission_id: string;
+      published_revision: number;
       subject: string;
       stage_id: string;
       stage_name: string;
@@ -81,9 +82,24 @@ export interface IApiMissionAttachment {
   file_name: string;
   mime_type: string;
   size_bytes: number;
+  storage?: {
+    status: "pending" | "copying" | "stored" | "failed" | string;
+    bucket?: string;
+    object_path?: string;
+    gs_uri?: string;
+    mime_type?: string;
+    size_bytes?: number;
+    attempts?: number;
+    retryable?: boolean;
+    error?: string;
+    updated_at?: string;
+    stored_at?: string;
+  };
 }
 
 export interface IApiCreateTeacherClassMissionRequest {
+  mission_id?: string;
+  expected_draft_revision?: number;
   class_id?: string;
   class_name: string;
   mission_name: string;
@@ -189,6 +205,10 @@ export interface IApiTeacherClassMission {
   improvement_signals: string[];
   orchestration: IApiMissionOrchestration;
   status: string;
+  draft_revision?: number;
+  published_revision?: number;
+  has_unpublished_changes?: boolean;
+  deleted_at?: string | null;
   created_by: IApiTeacher;
   updated_by: IApiTeacher;
   published_at: string;
@@ -198,6 +218,10 @@ export interface IApiTeacherClassMission {
 
 export interface IApiTeacherClassMissionResponse {
   mission: IApiTeacherClassMission;
+}
+
+export interface IApiApproveTeacherClassMissionRequest {
+  expected_draft_revision?: number;
 }
 
 export interface IApiTeacherClassMissionsResponse {

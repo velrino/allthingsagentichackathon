@@ -18,12 +18,16 @@ import (
 	"classgame-api/internal/modules/dashboard"
 	healthcheck "classgame-api/internal/modules/health-check"
 	mission "classgame-api/internal/modules/mission"
+	"classgame-api/internal/modules/missionattachment"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
 	"classgame-api/internal/modules/users"
+	"classgame-api/internal/shared/cloudtasksqueue"
 	sharedgoogle "classgame-api/internal/shared/google"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedgenai "classgame-api/internal/shared/google/genai"
+	"classgame-api/internal/shared/google/objectstorage"
+	sharedratelimit "classgame-api/internal/shared/ratelimit"
 	sharedredis "classgame-api/internal/shared/redis"
 )
 
@@ -100,10 +104,94 @@ func run() error {
 	teacherClassService := teacherclass.NewService(teacherClassRepository)
 	missionRepository := mission.NewRepository(firebaseConnection.FirestoreClient())
 	usersService := users.NewService(usersRepository, missionRepository)
+
+	generationLimiter, err := sharedratelimit.NewRedisFixedWindow(
+		redisConnection.Client(),
+		sharedratelimit.FixedWindowOptions{
+			Limit:  6,
+			Prefix: "classgame:mission_generation",
+			Window: time.Minute,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("initialize mission generation rate limiter: %w", err)
+	}
+
+	missionServiceOptions := make([]mission.ServiceOption, 0, 1)
+	var missionAttachmentHandler http.Handler
+	if cfg.CloudTasksEnabled {
+		storageConnection, err := objectstorage.Connect(context.Background(), objectstorage.Options{
+			BucketName:      cfg.FirebaseStorageBucket,
+			CredentialsFile: cfg.FirebaseCredentialsFile,
+			CredentialsJSON: cfg.FirebaseCredentialsJSON,
+		})
+		if err != nil {
+			return fmt.Errorf("initialize mission attachment storage: %w", err)
+		}
+		defer func() {
+			if err := storageConnection.Close(); err != nil {
+				slog.Error("mission attachment storage disconnect failed", "error", err)
+			}
+		}()
+
+		storageCopier, err := missionattachment.NewStorageCopier(missionattachment.StorageCopierOptions{
+			BucketName: storageConnection.BucketName(),
+			Bucket:     storageConnection.Bucket(),
+		})
+		if err != nil {
+			return fmt.Errorf("initialize mission attachment copier: %w", err)
+		}
+
+		taskQueue, err := cloudtasksqueue.Connect(context.Background(), cloudtasksqueue.Options{
+			ProjectID:          cfg.CloudTasksProjectID,
+			Location:           cfg.CloudTasksLocation,
+			Queue:              cfg.CloudTasksQueue,
+			TargetURL:          cfg.CloudTasksTargetURL,
+			OIDCServiceAccount: cfg.CloudTasksServiceAccount,
+			OIDCAudience:       cfg.CloudTasksOIDCAudience,
+			DispatchDeadline:   290 * time.Second,
+		})
+		if err != nil {
+			return fmt.Errorf("initialize mission attachment task queue: %w", err)
+		}
+		defer func() {
+			if err := taskQueue.Close(); err != nil {
+				slog.Error("mission attachment task queue disconnect failed", "error", err)
+			}
+		}()
+
+		attachmentEnqueuer := missionattachment.NewCloudTaskEnqueuer(taskQueue, 2*time.Second)
+		missionServiceOptions = append(
+			missionServiceOptions,
+			mission.WithAttachmentEnqueuer(attachmentEnqueuer),
+		)
+
+		attachmentProcessor, err := missionattachment.NewProcessor(missionRepository, storageCopier)
+		if err != nil {
+			return fmt.Errorf("initialize mission attachment processor: %w", err)
+		}
+		attachmentAuthenticator, err := missionattachment.NewOIDCAuthenticator(
+			context.Background(),
+			cfg.CloudTasksOIDCAudience,
+			cfg.CloudTasksServiceAccount,
+		)
+		if err != nil {
+			return fmt.Errorf("initialize mission attachment task authentication: %w", err)
+		}
+		missionAttachmentHandler, err = missionattachment.NewHTTPHandler(
+			attachmentAuthenticator,
+			attachmentProcessor,
+		)
+		if err != nil {
+			return fmt.Errorf("initialize mission attachment task handler: %w", err)
+		}
+	}
+
 	missionService := mission.NewService(
 		missionRepository,
 		teacherClassService,
 		orchestratorService,
+		missionServiceOptions...,
 	)
 	dashboardRepository := dashboard.NewRepository(firebaseConnection.FirestoreClient())
 	dashboardService := dashboard.NewService(dashboardRepository, teacherClassService, missionService)
@@ -120,9 +208,11 @@ func run() error {
 			TeacherClassService: teacherClassService,
 		},
 		Mission: mission.HandlerOptions{
-			Authenticator:  authenticator,
-			MissionService: missionService,
+			Authenticator:     authenticator,
+			GenerationLimiter: generationLimiter,
+			MissionService:    missionService,
 		},
+		MissionAttachment: missionAttachmentHandler,
 		HealthChecks: []healthcheck.Check{
 			{
 				Name:    healthcheck.HealthCheckServiceFirebase,
@@ -155,6 +245,8 @@ func run() error {
 		"genai_backend", cfg.GenAIBackend,
 		"genai_model", cfg.GenAIModel,
 		"redis_enabled", redisConnection.IsEnabled(),
+		"cloud_tasks_enabled", cfg.CloudTasksEnabled,
+		"firebase_storage_bucket", cfg.FirebaseStorageBucket,
 		"last_deploy", startedAt.Format(time.RFC3339Nano),
 	)
 

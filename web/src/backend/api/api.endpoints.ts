@@ -1,5 +1,6 @@
 import {
   IApiRequestMethod,
+  type IApiApproveTeacherClassMissionRequest,
   type IApiCreateTeacherClassMissionRequest,
   type IApiDashboardOverviewRequest,
   type IApiDashboardOverviewResponse,
@@ -125,28 +126,15 @@ export const API = {
       return (await res.json()) as IApiTeacherClassMissionResponse;
     },
 
-    async create(
+    async approve(
       access_token: string,
       class_id: string,
-      data: IApiCreateTeacherClassMissionRequest,
+      mission_id: string,
+      data?: IApiApproveTeacherClassMissionRequest,
     ): Promise<IApiTeacherClassMissionResponse> {
       const res = await ApiResources.request({
         access_token,
         data,
-        method: IApiRequestMethod.POST,
-        path: `/teacher-classes/${encodeURIComponent(class_id)}/missions`,
-      });
-
-      if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_CREATE_FAILED");
-      }
-
-      return (await res.json()) as IApiTeacherClassMissionResponse;
-    },
-
-    async approve(access_token: string, class_id: string, mission_id: string): Promise<IApiTeacherClassMissionResponse> {
-      const res = await ApiResources.request({
-        access_token,
         method: IApiRequestMethod.POST,
         path: `/teacher-classes/${encodeURIComponent(class_id)}/missions/${encodeURIComponent(mission_id)}/approve`,
       });
@@ -156,6 +144,18 @@ export const API = {
       }
 
       return (await res.json()) as IApiTeacherClassMissionResponse;
+    },
+
+    async remove(access_token: string, class_id: string, mission_id: string): Promise<void> {
+      const res = await ApiResources.request({
+        access_token,
+        method: IApiRequestMethod.DELETE,
+        path: `/teacher-classes/${encodeURIComponent(class_id)}/missions/${encodeURIComponent(mission_id)}`,
+      });
+
+      if (!res.ok) {
+        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_MISSION_DELETE_FAILED");
+      }
     },
 
     async list(access_token: string, class_id: string): Promise<IApiTeacherClassMissionsResponse> {

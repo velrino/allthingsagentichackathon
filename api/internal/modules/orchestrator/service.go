@@ -127,13 +127,8 @@ func fetchUploadcareAttachment(ctx context.Context, rawURL string) ([]byte, erro
 	if err != nil {
 		return nil, fmt.Errorf("parse uploadcare url: %w", err)
 	}
-	if parsedURL.Scheme != "https" {
-		return nil, fmt.Errorf("uploadcare url must use https")
-	}
-
-	host := strings.ToLower(parsedURL.Hostname())
-	if host != "ucarecdn.com" && !strings.HasSuffix(host, ".ucarecdn.com") {
-		return nil, fmt.Errorf("uploadcare url host is not allowed")
+	if err := validateUploadcareURL(parsedURL); err != nil {
+		return nil, err
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
@@ -141,7 +136,16 @@ func fetchUploadcareAttachment(ctx context.Context, rawURL string) ([]byte, erro
 		return nil, fmt.Errorf("create uploadcare request: %w", err)
 	}
 
-	client := http.Client{Timeout: 10 * time.Second}
+	client := http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return fmt.Errorf("too many uploadcare redirects")
+			}
+
+			return validateUploadcareURL(request.URL)
+		},
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("download uploadcare attachment: %w", err)
@@ -150,6 +154,9 @@ func fetchUploadcareAttachment(ctx context.Context, rawURL string) ([]byte, erro
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("download uploadcare attachment returned status %d", response.StatusCode)
+	}
+	if response.ContentLength > maxInlineAttachmentBytes {
+		return nil, fmt.Errorf("uploadcare attachment is larger than %d bytes", maxInlineAttachmentBytes)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxInlineAttachmentBytes+1))
@@ -161,6 +168,25 @@ func fetchUploadcareAttachment(ctx context.Context, rawURL string) ([]byte, erro
 	}
 
 	return data, nil
+}
+
+func validateUploadcareURL(parsedURL *url.URL) error {
+	if parsedURL == nil || parsedURL.Scheme != "https" {
+		return fmt.Errorf("uploadcare url must use https")
+	}
+	if parsedURL.User != nil {
+		return fmt.Errorf("uploadcare url credentials are not allowed")
+	}
+	if parsedURL.Port() != "" && parsedURL.Port() != "443" {
+		return fmt.Errorf("uploadcare url port is not allowed")
+	}
+
+	host := strings.ToLower(strings.TrimSuffix(parsedURL.Hostname(), "."))
+	if host != "ucarecdn.com" && !strings.HasSuffix(host, ".ucarecdn.com") {
+		return fmt.Errorf("uploadcare url host is not allowed")
+	}
+
+	return nil
 }
 
 func isSupportedInlineMIMEType(value string) bool {

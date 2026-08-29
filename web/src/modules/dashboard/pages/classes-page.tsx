@@ -37,6 +37,7 @@ export function ClassesPage() {
   const [saving, setSaving] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [draftVersion, setDraftVersion] = useState(0);
 
   useEffect(() => {
     if (auth.status === "signed_out") {
@@ -158,6 +159,8 @@ export function ClassesPage() {
     try {
       const token = await auth.user.getIdToken();
       const response = await API.teacherClassMissions.preview(token, value.class_id, {
+        mission_id: value.mission_id,
+        expected_draft_revision: value.expected_draft_revision,
         class_name: value.class_name,
         mission_name: value.mission_name,
         subject: value.subject,
@@ -169,6 +172,7 @@ export function ClassesPage() {
         attachments: value.attachments,
       });
       setPreviewMission(response.mission);
+      setDraftVersion((current) => current + 1);
     } catch (caughtError) {
       setPageError(caughtError instanceof Error ? caughtError.message : "Could not process class mission.");
     } finally {
@@ -185,7 +189,12 @@ export function ClassesPage() {
     setPageError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassMissions.approve(token, mission.class_id, mission.id);
+      const response = await API.teacherClassMissions.approve(
+        token,
+        mission.class_id,
+        mission.id,
+        { expected_draft_revision: mission.draft_revision },
+      );
       setPreviewMission(response.mission);
 
       const classesResponse = await API.teacherClasses.list(token);
@@ -284,7 +293,7 @@ export function ClassesPage() {
 
         {missionClass ? (
           <MissionBuilder
-            key={`classes:${missionClass.class_id}:${missionBuilderOpen ? "open" : "closed"}`}
+            key={`classes:${missionClass.class_id}:${draftVersion}:${missionBuilderOpen ? "open" : "closed"}`}
             approving={approving}
             classId={missionClass.class_id}
             open={missionBuilderOpen}
