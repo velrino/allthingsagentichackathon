@@ -1,6 +1,6 @@
 import type {
   Config,
-  FileUploaderRegular,
+  SimpleBtn,
   UploadCtxProvider,
 } from "@uploadcare/file-uploader";
 import type * as React from "react";
@@ -16,8 +16,9 @@ declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
       "uc-config": CustomElementProps<Config> & Config["attributesMeta"];
-      "uc-file-uploader-regular": CustomElementProps<FileUploaderRegular> &
-        FileUploaderRegular["attributesMeta"];
+      "uc-simple-btn": CustomElementProps<SimpleBtn> & {
+        "ctx-name": string;
+      };
       "uc-upload-ctx-provider": CustomElementProps<UploadCtxProvider> &
         UploadCtxProvider["attributesMeta"];
     }

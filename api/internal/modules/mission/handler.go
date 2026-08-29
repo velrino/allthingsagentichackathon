@@ -18,6 +18,7 @@ import (
 	teacherclass "classgame-api/internal/modules/teacher-class"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 	sharedratelimit "classgame-api/internal/shared/ratelimit"
+	shareduploadcare "classgame-api/internal/shared/uploadcare"
 )
 
 const (
@@ -490,11 +491,10 @@ func validateMissionUploadcareURL(rawURL string, uploadcareUUID string) error {
 	if port := parsedURL.Port(); port != "" && port != "443" {
 		return errors.New("each attachment requires a valid Uploadcare HTTPS URL")
 	}
-
-	host := strings.ToLower(strings.TrimSuffix(parsedURL.Hostname(), "."))
-	if host != "ucarecdn.com" && !strings.HasSuffix(host, ".ucarecdn.com") {
+	if !shareduploadcare.IsCDNHost(parsedURL.Hostname()) {
 		return errors.New("each attachment URL must use Uploadcare CDN")
 	}
+
 	path := "/" + strings.Trim(parsedURL.EscapedPath(), "/") + "/"
 	if !strings.Contains(path, "/"+url.PathEscape(uploadcareUUID)+"/") {
 		return errors.New("attachment uploadcare_uuid does not match its CDN URL")

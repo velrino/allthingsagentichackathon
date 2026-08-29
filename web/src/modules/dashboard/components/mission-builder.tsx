@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  ExternalLink,
-  File,
-  FileText,
-  FileType2,
-  X,
-} from "lucide-react";
+import { ExternalLink, File, FileText, FileType2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import type {
@@ -78,8 +72,8 @@ export function MissionBuilder({
   const visibleMission = previewMission;
   const guardrailBlocked = Boolean(
     visibleMission?.education_guardrail &&
-      !visibleMission.education_guardrail.allowed &&
-      visibleMission.education_guardrail.reason.trim(),
+    !visibleMission.education_guardrail.allowed &&
+    visibleMission.education_guardrail.reason.trim(),
   );
   const canApprove = Boolean(
     visibleMission &&
@@ -362,7 +356,6 @@ export function MissionBuilder({
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   PDF, PNG, JPEG, DOCX, or TXT only. Up to 5 files, 20 MB each.
-                  Uploads are temporary and expire after 24 hours.
                 </p>
               </div>
               <MissionFileUploader
@@ -444,8 +437,7 @@ export function MissionBuilder({
                       <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
                         {visibleMission.education_guardrail.reason}
                       </p>
-                    ) : visibleMission.education_guardrail
-                        ?.attachment_notes ? (
+                    ) : visibleMission.education_guardrail?.attachment_notes ? (
                       <p className="rounded-md border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-semibold leading-5 text-cyan-800">
                         {visibleMission.education_guardrail.attachment_notes}
                       </p>
@@ -497,7 +489,9 @@ export function MissionBuilder({
                       </TabsContent>
 
                       <TabsContent value="flow" className="mt-3">
-                        <MissionFlowPreview flow={visibleMission.mission_flow} />
+                        <MissionFlowPreview
+                          flow={visibleMission.mission_flow}
+                        />
                       </TabsContent>
                     </Tabs>
 
@@ -841,11 +835,7 @@ function AttachmentPreviewActions({
   return (
     <div className="flex justify-end">
       <Button variant="outline" asChild>
-        <a
-          href={attachment.cdn_url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={attachment.cdn_url} target="_blank" rel="noopener noreferrer">
           <ExternalLink className="size-4" aria-hidden />
           Open original
         </a>

@@ -16,6 +16,8 @@ import (
 	"unicode"
 
 	"cloud.google.com/go/storage"
+
+	shareduploadcare "classgame-api/internal/shared/uploadcare"
 )
 
 const (
@@ -245,9 +247,7 @@ func validateUploadcareURL(rawURL string) error {
 	if port := parsed.Port(); port != "" && port != "443" {
 		return errors.New("uploadcare attachment url must use the default https port")
 	}
-
-	host := strings.ToLower(parsed.Hostname())
-	if host != "ucarecdn.com" && !strings.HasSuffix(host, ".ucarecdn.com") {
+	if !shareduploadcare.IsCDNHost(parsed.Hostname()) {
 		return errors.New("uploadcare attachment url host is not allowed")
 	}
 

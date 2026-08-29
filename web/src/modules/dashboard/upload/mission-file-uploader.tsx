@@ -1,9 +1,15 @@
 "use client";
 
 import * as UC from "@uploadcare/file-uploader";
-import { useEffect, useId, useRef, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useSyncExternalStore,
+  type CSSProperties,
+} from "react";
 
-import "@uploadcare/file-uploader/web/uc-file-uploader-regular.min.css";
+import "@uploadcare/file-uploader/web/uc-basic.min.css";
 
 import type { IApiMissionAttachment } from "@/backend/api/api.interface";
 import { cn } from "@/lib/utils";
@@ -25,6 +31,17 @@ const allowedMimeTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/plain",
 ]);
+const uploadButtonStyle = {
+  "--uc-font-family": "inherit",
+  "--uc-primary-foreground-light": "var(--primary-foreground)",
+  "--uc-primary-light": "var(--primary)",
+  "--uc-primary-hover-light": "color-mix(in srgb, var(--primary) 90%, black)",
+  "--uc-radius": "0.375rem",
+  "--uc-simple-btn": "var(--primary)",
+  "--uc-simple-btn-foreground": "var(--primary-foreground)",
+  "--uc-simple-btn-hover": "color-mix(in srgb, var(--primary) 90%, black)",
+  "--uc-simple-btn-padding": "0.5rem 1rem",
+} as CSSProperties;
 const subscribeToClientEnvironment = () => () => {};
 
 type MissionFileUploaderProps = {
@@ -109,7 +126,7 @@ export function MissionFileUploader({
     <div
       aria-disabled={disabled}
       className={cn(
-        "min-h-12 rounded-md border border-dashed border-input bg-background px-3 py-3 transition focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20",
+        "flex min-h-24 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-input bg-background px-4 py-5 text-center transition focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20",
         disabled && "pointer-events-none opacity-60",
       )}
     >
@@ -130,7 +147,14 @@ export function MissionFileUploader({
             confirmUpload={false}
             store={false}
           ></uc-config>
-          <uc-file-uploader-regular ctx-name={contextName} class="uc-light"></uc-file-uploader-regular>
+          <uc-simple-btn
+            ctx-name={contextName}
+            class="uc-light"
+            style={uploadButtonStyle}
+          ></uc-simple-btn>
+          <p className="text-xs font-medium text-muted-foreground">
+            Drop files here
+          </p>
           <uc-upload-ctx-provider ref={contextProviderRef} ctx-name={contextName}></uc-upload-ctx-provider>
         </>
       ) : (

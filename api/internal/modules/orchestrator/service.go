@@ -13,6 +13,7 @@ import (
 	"time"
 
 	sharedgenai "classgame-api/internal/shared/google/genai"
+	shareduploadcare "classgame-api/internal/shared/uploadcare"
 )
 
 const (
@@ -383,22 +384,7 @@ func fetchUploadcareAttachment(ctx context.Context, rawURL string) ([]byte, erro
 }
 
 func validateUploadcareURL(parsedURL *url.URL) error {
-	if parsedURL == nil || parsedURL.Scheme != "https" {
-		return fmt.Errorf("uploadcare url must use https")
-	}
-	if parsedURL.User != nil {
-		return fmt.Errorf("uploadcare url credentials are not allowed")
-	}
-	if parsedURL.Port() != "" && parsedURL.Port() != "443" {
-		return fmt.Errorf("uploadcare url port is not allowed")
-	}
-
-	host := strings.ToLower(strings.TrimSuffix(parsedURL.Hostname(), "."))
-	if host != "ucarecdn.com" && !strings.HasSuffix(host, ".ucarecdn.com") {
-		return fmt.Errorf("uploadcare url host is not allowed")
-	}
-
-	return nil
+	return shareduploadcare.ValidateCDNURL(parsedURL)
 }
 
 func isSupportedInlineMIMEType(value string) bool {
