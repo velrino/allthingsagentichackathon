@@ -18,7 +18,7 @@ The app has a Firebase client foundation in `src/shared/firebase/client.ts`.
 - Local config lives in `.env.local` and is ignored by git.
 - Required deploy envs are listed in `.env.example`.
 - Firestore project: `allthingsagentichackatho-ee359`.
-- `/home` validates the teacher-issued six-digit `mission_code` before creating an anonymous Firebase session. After that it posts `mission_code` and `student_name` to `POST /users/student-session`.
+- `/home` validates the teacher-issued six-digit `mission_code` before creating an anonymous Firebase session on a student-only Firebase app. After that it posts `mission_code` and `student_name` to `POST /users/student-session`.
 - While the game tab is visible, it posts the current subject, stage, and status to `POST /users/student-presence` every 15 seconds. Presence failures never block gameplay.
 - `/dashboard` and `/dashboard/classes` require Google sign-in. Teachers can manage classes, create and approve mission previews, inspect learning analytics, and see the 10 most recently active players. Dashboard data refreshes in the background every 8 seconds.
 - Current lesson state still uses `localStorage`; Firestore now receives the student user record that the teacher dashboard lists.

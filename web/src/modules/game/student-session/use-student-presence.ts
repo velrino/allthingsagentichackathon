@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
 import type { IApiStudentPresence } from "@/backend/api/api.interface";
-import { getFirebaseAuth } from "@/shared/firebase/client";
+import { getStudentFirebaseAuth } from "@/shared/firebase/client";
 
 import { readStudentMissionSession } from "./student-mission-session";
 
@@ -20,7 +20,7 @@ export function useStudentPresence(
     let cancelled = false;
 
     async function reportPresence() {
-      const user = getFirebaseAuth().currentUser;
+      const user = getStudentFirebaseAuth().currentUser;
       const missionSession = readStudentMissionSession();
       if (
         cancelled ||

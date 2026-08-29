@@ -1,7 +1,10 @@
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
-import { getApp, getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
+import { getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+
+const DEFAULT_FIREBASE_APP_NAME = "[DEFAULT]";
+const STUDENT_FIREBASE_APP_NAME = "classgame-student";
 
 const requiredEnv = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -18,6 +21,7 @@ const optionalEnv = {
 
 let firestore: Firestore | null = null;
 let auth: Auth | null = null;
+let studentAuth: Auth | null = null;
 let analyticsPromise: Promise<Analytics | null> | null = null;
 
 export function isFirebaseConfigured() {
@@ -36,7 +40,19 @@ function getFirebaseConfig(): FirebaseOptions {
 }
 
 export function getFirebaseApp(): FirebaseApp {
-  return getApps().length > 0 ? getApp() : initializeApp(getFirebaseConfig());
+  const existingApp = getApps().find(
+    (app) => app.name === DEFAULT_FIREBASE_APP_NAME,
+  );
+
+  return existingApp ?? initializeApp(getFirebaseConfig());
+}
+
+export function getStudentFirebaseApp(): FirebaseApp {
+  const existingApp = getApps().find(
+    (app) => app.name === STUDENT_FIREBASE_APP_NAME,
+  );
+
+  return existingApp ?? initializeApp(getFirebaseConfig(), STUDENT_FIREBASE_APP_NAME);
 }
 
 export function getFirebaseDb(): Firestore {
@@ -47,6 +63,11 @@ export function getFirebaseDb(): Firestore {
 export function getFirebaseAuth(): Auth {
   auth ??= getAuth(getFirebaseApp());
   return auth;
+}
+
+export function getStudentFirebaseAuth(): Auth {
+  studentAuth ??= getAuth(getStudentFirebaseApp());
+  return studentAuth;
 }
 
 export function getFirebaseAnalytics(): Promise<Analytics | null> {

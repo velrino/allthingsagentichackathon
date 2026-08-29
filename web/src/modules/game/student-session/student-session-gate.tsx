@@ -3,13 +3,14 @@
 import {
   onAuthStateChanged,
   signInAnonymously,
+  signOut,
   type User,
 } from "firebase/auth";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
 import {
-  getFirebaseAuth,
+  getStudentFirebaseAuth,
   isFirebaseConfigured,
 } from "@/shared/firebase/client";
 
@@ -48,7 +49,7 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       return;
     }
 
-    const auth = getFirebaseAuth();
+    const auth = getStudentFirebaseAuth();
     return onAuthStateChanged(auth, () => {
       if (registeringRef.current) {
         return;
@@ -70,7 +71,7 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
         mission_code: value.missionCode,
       });
 
-      const auth = getFirebaseAuth();
+      const auth = getStudentFirebaseAuth();
       const { isNew, user } = await anonymousUser(auth.currentUser);
       if (isNew) {
         newAnonymousUser = user;
@@ -138,6 +139,11 @@ async function anonymousUser(currentUser: User | null) {
     return { isNew: false, user: currentUser };
   }
 
-  const credential = await signInAnonymously(getFirebaseAuth());
+  const auth = getStudentFirebaseAuth();
+  if (currentUser) {
+    await signOut(auth);
+  }
+
+  const credential = await signInAnonymously(auth);
   return { isNew: true, user: credential.user };
 }
