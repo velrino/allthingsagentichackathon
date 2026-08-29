@@ -10,6 +10,7 @@ import {
 
 import { getAvatarPreset, teacherAvatarPresetId } from "../avatars/avatar-presets";
 import { createChibiAvatar } from "../avatars/load-chibi-avatar";
+import { findClassmateSeats, type ClassmateSeat } from "./desk-seats";
 
 /** World heights of the chibi characters: the student is a teen, the teacher an adult. */
 export const STUDENT_AVATAR_HEIGHT = 1.2;
@@ -69,6 +70,8 @@ export type Classroom = {
   readonly tutorLight: THREE.PointLight;
   /** Updated in place once the model is laid out. */
   readonly collision: Collision;
+  /** One chair per other desk group, filled in once the model is laid out. Reading order: front row first. */
+  readonly classmateSeats: ClassmateSeat[];
   readonly spawn: THREE.Vector3;
   readonly spawnYaw: number;
   readonly dispose: () => void;
@@ -77,6 +80,8 @@ export type Classroom = {
 /** Where things are in the laid-out room (see classroom-layout.ts for how the numbers come about). */
 const SEAT_POSITION = new THREE.Vector3(-0.88, 0, 0.95);
 const SEAT_STAND_POSITION = new THREE.Vector3(-1.8, 0, 0.95);
+/** Everyone at a desk faces the whiteboard on the -x wall. */
+const FACE_BOARD_YAW = Math.PI / 2;
 /** The teacher stands between her desk and the whiteboard on the left wall. */
 const TUTOR_ANCHOR = new THREE.Vector3(-4.9, 0, 0.5);
 
@@ -347,7 +352,7 @@ function createSeat(room: THREE.Group): Seat {
 
   return {
     position: SEAT_POSITION.clone(),
-    facingYaw: Math.PI / 2, // toward the whiteboard (-x)
+    facingYaw: FACE_BOARD_YAW,
     standPosition: SEAT_STAND_POSITION.clone(),
     cameraPosition: new THREE.Vector3(
       SEAT_POSITION.x + 1.15,
@@ -365,6 +370,7 @@ export function createClassroom(scene: THREE.Scene): Classroom {
   room.name = "classgame-classroom";
 
   const collision: Collision = { boxes: [], bounds: DEFAULT_BOUNDS };
+  const classmateSeats: ClassmateSeat[] = [];
   const fallback = createFallbackRoom(DEFAULT_BOUNDS);
   room.add(fallback);
 
@@ -471,6 +477,7 @@ export function createClassroom(scene: THREE.Scene): Classroom {
 
       collision.boxes = layout.colliders;
       collision.bounds = layout.bounds;
+      classmateSeats.push(...findClassmateSeats(layout, SEAT_POSITION, STUDENT_AVATAR_HEIGHT, FACE_BOARD_YAW));
     })
     .catch((error: unknown) => {
       console.warn(
@@ -488,6 +495,7 @@ export function createClassroom(scene: THREE.Scene): Classroom {
     tutorRing,
     tutorLight,
     collision,
+    classmateSeats,
     spawn,
     spawnYaw,
     dispose() {

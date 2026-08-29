@@ -34,12 +34,16 @@ export type LayoutResult = {
   readonly bounds: RoomBounds;
   /** World bbox of the recoloured whiteboard, for the procedural frame. */
   readonly board: Aabb | null;
+  /** World bboxes of the individual prop pieces (a chair, a desk top, a leg), for picking out furniture. */
+  readonly props: readonly Aabb[];
 };
 
 const QUANT = 500; // 2 mm vertex weld
 const WALL_TOUCH = 0.12;
 const GROUP_GAP_XZ = 0.05;
 const GROUP_GAP_Y = 0.16;
+/** Prop pieces smaller than this (screws, feet) aren't worth reporting. */
+const PROP_MIN_TRIS = 100;
 
 type Island = {
   readonly id: number;
@@ -361,6 +365,18 @@ export function layoutClassroom(inputs: readonly LayoutInput[], options: LayoutO
     floorY: 0,
   };
 
+  const propBoxes: Aabb[] = [];
+  for (const island of props) {
+    if (island.triCount < PROP_MIN_TRIS) {
+      continue;
+    }
+    const delta = groupList[island.group].delta;
+    propBoxes.push({
+      min: new THREE.Vector3(island.min.x + delta.x, island.min.y + yShift, island.min.z + delta.z),
+      max: new THREE.Vector3(island.max.x + delta.x, island.max.y + yShift, island.max.z + delta.z),
+    });
+  }
+
   const board = boardIsland
     ? (() => {
         const delta = groupList[boardIsland.group].delta;
@@ -371,5 +387,5 @@ export function layoutClassroom(inputs: readonly LayoutInput[], options: LayoutO
       })()
     : null;
 
-  return { geometry, materialCount: 3, colliders, bounds, board };
+  return { geometry, materialCount: 3, colliders, bounds, board, props: propBoxes };
 }

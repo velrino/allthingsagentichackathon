@@ -9,6 +9,7 @@ import { createChibiAvatar, disposeAvatar } from "../avatars/load-chibi-avatar";
 import { createKeyboardControls } from "../controls/keyboard-controls";
 import { createOrbitDrag } from "../controls/orbit-drag";
 import { createCameraRig } from "../scene/camera-rig";
+import { createClassmates } from "../scene/classmates";
 import type { Aabb, RoomBounds } from "../scene/classroom-layout";
 import { createClassroom, SEAT_HEIGHT, STUDENT_AVATAR_HEIGHT } from "../scene/create-classroom";
 import type { MovementRef, PodStatus, WorldDirectiveRef, WorldReport } from "../types/game";
@@ -128,6 +129,7 @@ export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasPr
     container.appendChild(renderer.domElement);
 
     const classroom = createClassroom(scene);
+    const classmates = createClassmates(classroom.room, STUDENT_AVATAR_HEIGHT);
     const keyboard = createKeyboardControls(window);
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -169,13 +171,15 @@ export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasPr
 
     // Dev-only peek at the camera/avatar state, for debugging controls from the console.
     if (process.env.NODE_ENV !== "production") {
-      (window as unknown as { __classgameDebug?: () => Record<string, number | boolean> }).__classgameDebug = () => ({
+      (window as unknown as { __classgameDebug?: () => Record<string, unknown> }).__classgameDebug = () => ({
         cameraYaw: Number(cameraYaw.toFixed(3)),
         avatarYaw: Number(avatarYaw.toFixed(3)),
         inputYaw: Number(inputYaw.toFixed(3)),
         dragging: orbit.isDragging(),
         x: Number(classroom.player.position.x.toFixed(2)),
         z: Number(classroom.player.position.z.toFixed(2)),
+        boxes: classroom.collision.boxes.map((box) => [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].map((n) => Number(n.toFixed(3)))),
+        bounds: classroom.collision.bounds,
       });
     }
 
@@ -378,6 +382,10 @@ export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasPr
         animateChibi(models.tutor, { delta, elapsedTime: elapsed, isMoving: false, isRunning: false });
       }
 
+      // The rest of the class fills the other desks with whoever the student isn't playing as.
+      classmates.sync(classroom.classmateSeats, directive.avatarPresetId);
+      classmates.animate(elapsed, delta);
+
       if (models.player) {
         animateChibi(models.player, {
           delta,
@@ -412,6 +420,7 @@ export function GameCanvas({ movementRef, directiveRef, onReport }: GameCanvasPr
       document.removeEventListener("visibilitychange", onVisibilityChange);
       orbit.dispose();
       keyboard.dispose();
+      classmates.dispose();
       classroom.dispose();
       renderer.dispose();
       renderer.domElement.remove();
