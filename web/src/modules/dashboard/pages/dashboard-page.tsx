@@ -9,6 +9,7 @@ import {
   NotebookTabs,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -32,6 +33,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getFirebaseDb } from "@/shared/firebase/client";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import {
@@ -310,7 +312,47 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
       }
     }
 
-    const interval = window.setInterval(refreshOverviewInBackground, 8_000);
+    let refreshTimer: number | null = null;
+    let receivedInitialAttempts = false;
+    let receivedInitialSummary = false;
+    const queueRealtimeRefresh = () => {
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void refreshOverviewInBackground();
+      }, 250);
+    };
+    const database = getFirebaseDb();
+    const unsubscribeAttempts = onSnapshot(
+      query(
+        collection(database, "student_mission_attempts"),
+        where("class_id", "==", classId),
+      ),
+      () => {
+        if (receivedInitialAttempts) {
+          queueRealtimeRefresh();
+        }
+        receivedInitialAttempts = true;
+      },
+      () => {
+        // Rules may not be deployed yet; the fallback refresh remains active.
+      },
+    );
+    const unsubscribeSummary = onSnapshot(
+      doc(database, "class_learning_summaries", classId),
+      () => {
+        if (receivedInitialSummary) {
+          queueRealtimeRefresh();
+        }
+        receivedInitialSummary = true;
+      },
+      () => {
+        // Keep the last API snapshot and use the fallback refresh below.
+      },
+    );
+    const interval = window.setInterval(refreshOverviewInBackground, 60_000);
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") {
         void refreshOverviewInBackground();
@@ -320,6 +362,11 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
 
     return () => {
       cancelled = true;
+      unsubscribeAttempts();
+      unsubscribeSummary();
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
@@ -1063,6 +1110,11 @@ function StudentsTableSection({
             <p className="mt-2 text-xs font-medium text-muted-foreground">
               {classLearning.completed_attempts}/{classLearning.total_attempts} attempts completed
             </p>
+            {classLearning.abandoned_attempts > 0 ? (
+              <p className="mt-1 text-xs font-semibold text-amber-700">
+                {classLearning.abandoned_attempts} left before finishing
+              </p>
+            ) : null}
           </div>
           <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-4">
             <p className="text-xs font-semibold text-emerald-700 uppercase">
@@ -1104,7 +1156,9 @@ function NotebookPanel({
   readonly suggestions: IApiSuggestion[];
 }) {
   const attentionStudents = students.filter(
-    (student) => student.progress.status === "needs_attention",
+    (student) =>
+      student.progress.status === "needs_attention" ||
+      student.progress.status === "abandoned",
   );
   const completedStudents = students.filter(
     (student) => student.progress.status === "completed",

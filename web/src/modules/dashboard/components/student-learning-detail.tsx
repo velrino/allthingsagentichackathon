@@ -4,6 +4,7 @@ import {
   BrainCircuit,
   CheckCircle2,
   History,
+  MessageCircleMore,
   Route,
   Sparkles,
   Target,
@@ -14,6 +15,7 @@ import type {
   IApiDashboardStudent,
   IApiStudentLearningAttempt,
   IApiStudentLearningEvent,
+  IApiStudentTutorTurn,
 } from "@/backend/api/api.interface";
 import {
   Dialog,
@@ -107,6 +109,19 @@ export function StudentLearningDetail({
               </TabsList>
 
               <TabsContent value="summary" className="mt-5 grid gap-5">
+                {attempt.status === "abandoned" || attempt.status === "paused" ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                    <p className="text-sm font-bold">
+                      {attempt.status === "abandoned"
+                        ? "Student left before finishing"
+                        : "Student paused this mission"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6">
+                      Last checkpoint: {checkpointLabel(attempt)}. Their next
+                      visit resumes from this exact step.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
                   <div className="flex items-center gap-2 text-sm font-bold">
                     <BrainCircuit className="size-4 text-cyan-700" aria-hidden />
@@ -152,6 +167,7 @@ export function StudentLearningDetail({
 
               <TabsContent value="evidence" className="mt-5">
                 <EvidenceTimeline events={attempt.snapshot.events} />
+                <TutorTurnTimeline turns={attempt.tutor_turns} />
               </TabsContent>
 
               <TabsContent value="memory" className="mt-5 grid gap-4">
@@ -172,12 +188,12 @@ export function StudentLearningDetail({
                     value={String(attempt.snapshot.events.length)}
                   />
                   <MemoryStat
-                    label="Notebook notes"
+                    label="Teacher notes"
                     value={String(attempt.snapshot.notes.length)}
                   />
                   <MemoryStat
-                    label="Explanation style"
-                    value={attempt.snapshot.preferences.explanation_style || "steps"}
+                    label="Tutor turns"
+                    value={String(attempt.tutor_turns.length)}
                   />
                 </div>
 
@@ -192,6 +208,9 @@ export function StudentLearningDetail({
                   </p>
                   <p className="mt-1">
                     Last activity: {formatDate(attempt.last_activity_at)}
+                  </p>
+                  <p className="mt-1">
+                    Processing state: {attempt.trace_state || "live"}
                   </p>
                 </div>
               </TabsContent>
@@ -218,16 +237,28 @@ function AttemptStatus({
   readonly attempt: IApiStudentLearningAttempt;
 }) {
   const completed = attempt.status === "completed";
+  const abandoned = attempt.status === "abandoned";
+  const paused = attempt.status === "paused";
 
   return (
     <span
       className={`rounded-md px-2.5 py-1.5 text-xs font-bold ${
         completed
           ? "bg-emerald-100 text-emerald-800"
+          : abandoned
+            ? "bg-rose-100 text-rose-800"
+            : paused
+              ? "bg-amber-100 text-amber-800"
           : "bg-cyan-100 text-cyan-800"
       }`}
     >
-      {completed ? "Completed" : "In progress"}
+      {completed
+        ? "Completed"
+        : abandoned
+          ? "Left early"
+          : paused
+            ? "Paused"
+            : "In progress"}
     </span>
   );
 }
@@ -354,6 +385,64 @@ function EvidenceTimeline({
   );
 }
 
+function TutorTurnTimeline({
+  turns,
+}: {
+  readonly turns: IApiStudentTutorTurn[];
+}) {
+  if (turns.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="mt-6">
+      <div className="mb-3 flex items-center gap-2">
+        <MessageCircleMore className="size-4 text-violet-700" aria-hidden />
+        <h3 className="text-sm font-bold">Adaptive tutor turns</h3>
+      </div>
+      <ol className="grid gap-3">
+        {turns.map((turn) => (
+          <li key={turn.id} className="rounded-lg border border-violet-200 bg-violet-50/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-semibold">
+                Turn {turn.sequence} · {turn.type}
+              </p>
+              <span className="text-xs text-muted-foreground">
+                {formatDate(turn.created_at)}
+              </span>
+            </div>
+            <dl className="mt-3 grid gap-3 text-sm leading-6">
+              <div>
+                <dt className="font-semibold text-muted-foreground">Student evidence</dt>
+                <dd>{turn.explicit_reasoning || turn.student_response || "No written response."}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-muted-foreground">Emily replied</dt>
+                <dd>{turn.tutor.message}</dd>
+              </div>
+              {turn.tutor.teacher_observation ? (
+                <div className="rounded-md border border-violet-200 bg-white/70 p-3">
+                  <dt className="font-semibold text-violet-800">Teacher-only observation</dt>
+                  <dd className="mt-1 text-violet-950">{turn.tutor.teacher_observation}</dd>
+                </div>
+              ) : null}
+            </dl>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-muted-foreground">
+              <span className="rounded bg-white px-2 py-1">{turn.outcome}</span>
+              <span className="rounded bg-white px-2 py-1">{turn.stage_id}</span>
+              {turn.tutor.retrieved_chunk_ids.map((chunkID) => (
+                <span key={chunkID} className="rounded bg-white px-2 py-1">
+                  RAG · {chunkID}
+                </span>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function MemoryStat({ label, value }: { readonly label: string; readonly value: string }) {
   return (
     <div className="rounded-lg border border-border p-4">
@@ -398,4 +487,11 @@ function formatEventTime(value: number) {
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date(value));
+}
+
+function checkpointLabel(attempt: IApiStudentLearningAttempt) {
+  const checkpoint = attempt.snapshot.checkpoint;
+  const stage = checkpoint.stage_id?.replaceAll("-", " ") || "mission start";
+  const phase = checkpoint.phase?.replaceAll("-", " ") || "between questions";
+  return `${stage}, ${phase}${checkpoint.question_id ? ` (${checkpoint.question_id})` : ""}`;
 }

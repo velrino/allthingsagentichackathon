@@ -24,6 +24,7 @@ export type ClassGlance = {
   readonly playingNow: StudentRef[];
   readonly atTheDesk: StudentRef[];
   readonly inReview: StudentRef[];
+  readonly leftEarly: StudentRef[];
   readonly completed: StudentRef[];
 };
 
@@ -145,6 +146,7 @@ export function buildClassGlance(students: IApiDashboardStudent[]): ClassGlance 
   const playingNow: StudentRef[] = [];
   const atTheDesk: StudentRef[] = [];
   const inReview: StudentRef[] = [];
+  const leftEarly: StudentRef[] = [];
   const completed: StudentRef[] = [];
 
   for (const student of students) {
@@ -165,12 +167,23 @@ export function buildClassGlance(students: IApiDashboardStudent[]): ClassGlance 
     if (status === "reviewing") {
       inReview.push(ref);
     }
+    if (status === "abandoned" || student.progress.status === "abandoned") {
+      leftEarly.push(ref);
+    }
     if (status === "completed") {
       completed.push(ref);
     }
   }
 
-  return { total: students.length, notStarted, playingNow, atTheDesk, inReview, completed };
+  return {
+    total: students.length,
+    notStarted,
+    playingNow,
+    atTheDesk,
+    inReview,
+    leftEarly,
+    completed,
+  };
 }
 
 export function buildMissionFunnel(
@@ -360,7 +373,10 @@ function groupPatterns(
 }
 
 function growthLevel(student: IApiDashboardStudent): PatternLevel {
-  if (student.progress.status === "needs_attention") {
+  if (
+    student.progress.status === "needs_attention" ||
+    student.progress.status === "abandoned"
+  ) {
     return "high";
   }
   if (student.progress.status === "completed") {
@@ -374,7 +390,10 @@ function strengthLevel(student: IApiDashboardStudent): PatternLevel {
   if (student.progress.status === "completed") {
     return "high";
   }
-  if (student.progress.status === "needs_attention") {
+  if (
+    student.progress.status === "needs_attention" ||
+    student.progress.status === "abandoned"
+  ) {
     return "low";
   }
 

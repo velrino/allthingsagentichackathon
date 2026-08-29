@@ -53,6 +53,7 @@ type MissionResponse struct {
 	TeacherPrompt            string                          `json:"teacher_prompt"`
 	Attachments              []AttachmentResponse            `json:"attachments"`
 	PreviewQuestions         []PreviewQuestion               `json:"preview_questions"`
+	KnowledgeChunks          []orchestrator.KnowledgeChunk   `json:"knowledge_chunks"`
 	SuggestedDurationMinutes int                             `json:"suggested_duration_minutes"`
 	Stages                   []StageResponse                 `json:"stages"`
 	Suggestions              []SuggestionResponse            `json:"suggestions"`
@@ -79,10 +80,12 @@ type AttachmentResponse struct {
 
 type PreviewQuestion struct {
 	ID                 string   `json:"id"`
+	StageID            string   `json:"stage_id"`
 	Prompt             string   `json:"prompt"`
 	AnswerType         string   `json:"answer_type"`
 	Options            []string `json:"options"`
 	ExpectedAnswer     string   `json:"expected_answer"`
+	ExplanationSteps   []string `json:"explanation_steps"`
 	MisconceptionTraps []string `json:"misconception_traps"`
 }
 
@@ -122,6 +125,7 @@ type DashboardMetricsResponse struct {
 	CompletedStudents int   `json:"completed_students"`
 	AverageProgress   int   `json:"average_progress"`
 	NeedsAttention    int   `json:"needs_attention"`
+	AbandonedStudents int   `json:"abandoned_students"`
 	NotebookNotes     int64 `json:"notebook_notes"`
 }
 
@@ -149,10 +153,13 @@ type StudentLearningAttemptResponse struct {
 	Subject           string                              `json:"subject"`
 	Status            string                              `json:"status"`
 	Snapshot          users.StudentLearningSnapshot       `json:"snapshot"`
+	TutorTurns        []users.StudentTutorTurn            `json:"tutor_turns"`
 	Trace             orchestrator.LearningTraceBlueprint `json:"trace"`
+	TraceState        string                              `json:"trace_state"`
 	StartedAt         string                              `json:"started_at"`
 	LastActivityAt    string                              `json:"last_activity_at"`
 	CompletedAt       string                              `json:"completed_at"`
+	AbandonedAt       string                              `json:"abandoned_at"`
 	CreatedAt         string                              `json:"created_at"`
 	UpdatedAt         string                              `json:"updated_at"`
 }
@@ -160,6 +167,7 @@ type StudentLearningAttemptResponse struct {
 type ClassLearningSummaryResponse struct {
 	TotalAttempts        int                            `json:"total_attempts"`
 	CompletedAttempts    int                            `json:"completed_attempts"`
+	AbandonedAttempts    int                            `json:"abandoned_attempts"`
 	StudentsWithEvidence int                            `json:"students_with_evidence"`
 	CommonStrengths      []ClassLearningPatternResponse `json:"common_strengths"`
 	CommonNeeds          []ClassLearningPatternResponse `json:"common_needs"`
@@ -255,6 +263,7 @@ func toMissionResponse(mission *mission.MissionDocument) *MissionResponse {
 		TeacherPrompt:            mission.TeacherPrompt,
 		Attachments:              toAttachmentResponses(mission.Attachments),
 		PreviewQuestions:         toPreviewQuestions(mission.PreviewQuestions),
+		KnowledgeChunks:          mission.KnowledgeChunks,
 		SuggestedDurationMinutes: mission.SuggestedDurationMinutes,
 		Stages:                   toStageResponses(mission.Stages),
 		Suggestions:              toSuggestionResponses(mission.Suggestions),
@@ -290,6 +299,7 @@ func toMetricsResponse(metrics DashboardMetrics) DashboardMetricsResponse {
 		CompletedStudents: metrics.CompletedStudents,
 		AverageProgress:   metrics.AverageProgress,
 		NeedsAttention:    metrics.NeedsAttention,
+		AbandonedStudents: metrics.AbandonedStudents,
 		NotebookNotes:     metrics.NotebookNotes,
 	}
 }
@@ -345,10 +355,13 @@ func toStudentLearningAttemptResponses(
 			Subject:           attempt.Subject,
 			Status:            attempt.Status,
 			Snapshot:          attempt.Snapshot,
+			TutorTurns:        attempt.TutorTurns,
 			Trace:             attempt.Trace,
+			TraceState:        attempt.TraceState,
 			StartedAt:         formatTime(attempt.StartedAt),
 			LastActivityAt:    formatTime(attempt.LastActivityAt),
 			CompletedAt:       formatTime(attempt.CompletedAt),
+			AbandonedAt:       formatTime(attempt.AbandonedAt),
 			CreatedAt:         formatTime(attempt.CreatedAt),
 			UpdatedAt:         formatTime(attempt.UpdatedAt),
 		})
@@ -361,6 +374,7 @@ func toClassLearningSummaryResponse(summary ClassLearningSummary) ClassLearningS
 	return ClassLearningSummaryResponse{
 		TotalAttempts:        summary.TotalAttempts,
 		CompletedAttempts:    summary.CompletedAttempts,
+		AbandonedAttempts:    summary.AbandonedAttempts,
 		StudentsWithEvidence: summary.StudentsWithEvidence,
 		CommonStrengths:      toClassLearningPatternResponses(summary.CommonStrengths),
 		CommonNeeds:          toClassLearningPatternResponses(summary.CommonNeeds),
@@ -420,10 +434,12 @@ func toPreviewQuestions(questions []orchestrator.PreviewQuestion) []PreviewQuest
 	for _, question := range questions {
 		responses = append(responses, PreviewQuestion{
 			ID:                 question.ID,
+			StageID:            question.StageID,
 			Prompt:             question.Prompt,
 			AnswerType:         question.AnswerType,
 			Options:            question.Options,
 			ExpectedAnswer:     question.ExpectedAnswer,
+			ExplanationSteps:   question.ExplanationSteps,
 			MisconceptionTraps: question.MisconceptionTraps,
 		})
 	}

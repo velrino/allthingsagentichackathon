@@ -143,6 +143,9 @@ function statusLabel(status: string) {
   if (status === "needs_attention") {
     return "Needs help";
   }
+  if (status === "abandoned") {
+    return "Left early";
+  }
 
   return "In progress";
 }
@@ -155,6 +158,9 @@ function statusClassName(status: string) {
   }
   if (status === "needs_attention") {
     return `${base} bg-rose-50 text-rose-700`;
+  }
+  if (status === "abandoned") {
+    return `${base} bg-amber-50 text-amber-800`;
   }
 
   return `${base} bg-cyan-50 text-cyan-700`;

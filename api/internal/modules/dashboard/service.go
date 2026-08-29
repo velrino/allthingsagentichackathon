@@ -105,6 +105,12 @@ func (service *Service) GetOverview(
 		return DashboardOverview{}, err
 	}
 	students := buildStudentDashboardItems(studentDocuments, attempts, activeMission, time.Now())
+	classLearning := buildClassLearningSummary(students)
+	if synthesis, exists, err := service.repository.GetClassLearningSynthesis(ctx, normalizedClassID); err != nil {
+		return DashboardOverview{}, err
+	} else if exists {
+		classLearning = applySemanticClassLearningSynthesis(classLearning, synthesis.Synthesis, students)
+	}
 
 	suggestions := starterSuggestions()
 	generatedByAI := false
@@ -127,7 +133,7 @@ func (service *Service) GetOverview(
 		ActiveMission:   activeMission,
 		Metrics:         buildMetrics(students),
 		Students:        students,
-		ClassLearning:   buildClassLearningSummary(students),
+		ClassLearning:   classLearning,
 		Suggestions:     suggestions,
 		GeneratedByAI:   generatedByAI,
 		GeneratedByMock: generatedByMock,
@@ -228,7 +234,9 @@ func buildStudentGameSession(
 
 	isOnline := !current.LastHeartbeatAt.IsZero() &&
 		now.Sub(current.LastHeartbeatAt) >= 0 &&
-		now.Sub(current.LastHeartbeatAt) <= studentOnlineWindow
+		now.Sub(current.LastHeartbeatAt) <= studentOnlineWindow &&
+		current.Status != "paused" &&
+		current.Status != "abandoned"
 
 	return StudentGameSession{
 		MissionID:       missionID,
@@ -251,6 +259,7 @@ func buildMetrics(students []StudentDashboardItem) DashboardMetrics {
 	activeStudents := 0
 	completedStudents := 0
 	needsAttention := 0
+	abandonedStudents := 0
 	notebookNotes := int64(0)
 
 	for _, student := range students {
@@ -260,8 +269,11 @@ func buildMetrics(students []StudentDashboardItem) DashboardMetrics {
 		if student.Progress.Status == "completed" {
 			completedStudents++
 		}
-		if student.Progress.Status == "needs_attention" {
+		if student.Progress.Status == "needs_attention" || student.Progress.Status == "abandoned" {
 			needsAttention++
+		}
+		if student.Progress.Status == "abandoned" {
+			abandonedStudents++
 		}
 		if student.Session.IsOnline {
 			activeStudents++
@@ -274,6 +286,7 @@ func buildMetrics(students []StudentDashboardItem) DashboardMetrics {
 		CompletedStudents: completedStudents,
 		AverageProgress:   int(math.Round(float64(totalProgress) / float64(len(students)))),
 		NeedsAttention:    needsAttention,
+		AbandonedStudents: abandonedStudents,
 		NotebookNotes:     notebookNotes,
 	}
 }
@@ -312,6 +325,8 @@ func buildStudentProgress(
 		if attempt.Status == "completed" {
 			status = "completed"
 			percentage = 100
+		} else if attempt.Status == "abandoned" {
+			status = "abandoned"
 		} else if percentage < 45 && len(attempt.Snapshot.Events) > 0 {
 			status = "needs_attention"
 		}
@@ -382,6 +397,8 @@ func buildClassLearningSummary(students []StudentDashboardItem) ClassLearningSum
 			summary.TotalAttempts++
 			if attempt.Status == "completed" {
 				summary.CompletedAttempts++
+			} else if attempt.Status == "abandoned" {
+				summary.AbandonedAttempts++
 			}
 		}
 		latest := latestStudentAttempt(student.Attempts, nil)
@@ -398,6 +415,59 @@ func buildClassLearningSummary(students []StudentDashboardItem) ClassLearningSum
 		summary.NextAdaptation = "Retrieve the class evidence and begin the next mission with a short check on: " + summary.CommonNeeds[0].Label
 	} else {
 		summary.NextAdaptation = "Collect completed attempts before choosing the next whole-class adaptation."
+	}
+
+	return summary
+}
+
+func applySemanticClassLearningSynthesis(
+	summary ClassLearningSummary,
+	synthesis orchestrator.ClassLearningSynthesis,
+	students []StudentDashboardItem,
+) ClassLearningSummary {
+	studentNames := make(map[string]string, len(students))
+	for _, student := range students {
+		studentNames[student.ID] = student.StudentName
+	}
+	toPatterns := func(clusters []orchestrator.ClassLearningCluster) []ClassLearningPattern {
+		patterns := make([]ClassLearningPattern, 0, len(clusters))
+		for _, cluster := range clusters {
+			ids := make([]string, 0, len(cluster.StudentIDs))
+			names := make([]string, 0, len(cluster.StudentIDs))
+			seen := make(map[string]struct{}, len(cluster.StudentIDs))
+			for _, studentID := range cluster.StudentIDs {
+				name, exists := studentNames[studentID]
+				if !exists {
+					continue
+				}
+				if _, duplicate := seen[studentID]; duplicate {
+					continue
+				}
+				seen[studentID] = struct{}{}
+				ids = append(ids, studentID)
+				names = append(names, name)
+			}
+			if len(ids) == 0 || strings.TrimSpace(cluster.Label) == "" {
+				continue
+			}
+			patterns = append(patterns, ClassLearningPattern{
+				Label:        cluster.Label,
+				Count:        len(ids),
+				StudentIDs:   ids,
+				StudentNames: names,
+			})
+		}
+
+		return patterns
+	}
+	if patterns := toPatterns(synthesis.CommonStrengths); len(patterns) > 0 {
+		summary.CommonStrengths = patterns
+	}
+	if patterns := toPatterns(synthesis.CommonNeeds); len(patterns) > 0 {
+		summary.CommonNeeds = patterns
+	}
+	if strings.TrimSpace(synthesis.NextAdaptation) != "" {
+		summary.NextAdaptation = synthesis.NextAdaptation
 	}
 
 	return summary

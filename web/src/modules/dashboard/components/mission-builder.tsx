@@ -64,8 +64,14 @@ export function MissionBuilder({
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const visibleMission = previewMission;
+  const guardrailBlocked = Boolean(
+    visibleMission?.education_guardrail &&
+      !visibleMission.education_guardrail.allowed &&
+      visibleMission.education_guardrail.reason.trim(),
+  );
   const canApprove = Boolean(
     visibleMission &&
+    !guardrailBlocked &&
     (visibleMission.status === "preview" ||
       visibleMission.has_unpublished_changes),
   );

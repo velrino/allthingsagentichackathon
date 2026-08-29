@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsClass(classId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/teacher_classes/$(classId))
+        && get(/databases/$(database)/documents/teacher_classes/$(classId)).data.teacher_id == request.auth.uid;
+    }
+
+    // Browser clients are read-only. All writes, including anonymous student
+    // checkpoints, go through the API after server-side validation.
+    match /teacher_classes/{classId} {
+      allow read: if signedIn() && resource.data.teacher_id == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /student_mission_attempts/{attemptId} {
+      allow read: if ownsClass(resource.data.class_id);
+      allow write: if false;
+    }
+
+    match /class_learning_summaries/{classId} {
+      allow read: if ownsClass(classId);
+      allow write: if false;
+    }
+
+    // Student notes, tutor observations and class memory are intentionally not
+    // readable by anonymous clients. The student receives only the safe resume
+    // projection returned by the API.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -130,7 +130,6 @@ func (repository *Repository) ListLearningAttemptsByClassID(
 ) ([]users.StudentMissionAttemptDocument, error) {
 	iter := repository.client.Collection("student_mission_attempts").
 		Where("class_id", "==", classID).
-		Limit(500).
 		Documents(ctx)
 	defer iter.Stop()
 
@@ -155,6 +154,25 @@ func (repository *Repository) ListLearningAttemptsByClassID(
 	}
 
 	return attempts, nil
+}
+
+func (repository *Repository) GetClassLearningSynthesis(
+	ctx context.Context,
+	classID string,
+) (users.ClassLearningSynthesisDocument, bool, error) {
+	snapshot, err := repository.client.Collection("class_learning_summaries").Doc(classID).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return users.ClassLearningSynthesisDocument{}, false, nil
+	}
+	if err != nil {
+		return users.ClassLearningSynthesisDocument{}, false, fmt.Errorf("read class learning synthesis: %w", err)
+	}
+	var document users.ClassLearningSynthesisDocument
+	if err := snapshot.DataTo(&document); err != nil {
+		return users.ClassLearningSynthesisDocument{}, false, fmt.Errorf("decode class learning synthesis: %w", err)
+	}
+
+	return document, true, nil
 }
 
 func (teacher TeacherSummary) firestoreMap() map[string]any {

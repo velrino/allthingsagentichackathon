@@ -87,6 +87,7 @@ type DashboardMetrics struct {
 	CompletedStudents int
 	AverageProgress   int
 	NeedsAttention    int
+	AbandonedStudents int
 	NotebookNotes     int64
 }
 
@@ -107,6 +108,7 @@ type DashboardOverview struct {
 type ClassLearningSummary struct {
 	TotalAttempts        int
 	CompletedAttempts    int
+	AbandonedAttempts    int
 	StudentsWithEvidence int
 	CommonStrengths      []ClassLearningPattern
 	CommonNeeds          []ClassLearningPattern

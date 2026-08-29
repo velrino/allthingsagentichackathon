@@ -1,11 +1,11 @@
 import { ArrowRight, type LucideIcon } from "lucide-react";
-import { CheckCircle2, Gamepad2, Hourglass, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Gamepad2, Hourglass, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 import type { ClassGlance } from "../analytics/analytics-data";
 
-type Tone = "amber" | "cyan" | "violet" | "emerald";
+type Tone = "amber" | "cyan" | "violet" | "emerald" | "rose";
 
 type GlanceTile = {
   readonly action?: { readonly label: string; readonly onClick: () => void };
@@ -49,6 +49,12 @@ const toneStyles: Record<Tone, { readonly surface: string; readonly label: strin
     value: "text-emerald-900 dark:text-emerald-100",
     action: "text-emerald-800 hover:text-emerald-950 dark:text-emerald-200",
   },
+  rose: {
+    surface: "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/40",
+    label: "text-rose-700 dark:text-rose-300",
+    value: "text-rose-900 dark:text-rose-100",
+    action: "text-rose-800 hover:text-rose-950 dark:text-rose-200",
+  },
 };
 
 export function ClassGlanceTiles({ glance, onPlanFollowUp, onShareCode, shareCodeLabel }: ClassGlanceTilesProps) {
@@ -79,6 +85,14 @@ export function ClassGlanceTiles({ glance, onPlanFollowUp, onShareCode, shareCod
       detail: "Emily reopened an earlier topic for them",
     },
     {
+      tone: "rose",
+      icon: AlertTriangle,
+      label: "Left early",
+      value: glance.leftEarly.length,
+      total: glance.total,
+      detail: "Stopped before completing; exact step was saved",
+    },
+    {
       tone: "emerald",
       icon: CheckCircle2,
       label: "Completed",
@@ -90,7 +104,7 @@ export function ClassGlanceTiles({ glance, onPlanFollowUp, onShareCode, shareCod
   ];
 
   return (
-    <section aria-label="Class at a glance" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Class at a glance" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {tiles.map((tile) => {
         const style = toneStyles[tile.tone];
         const Icon = tile.icon;

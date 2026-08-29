@@ -178,6 +178,11 @@ function MissionFlowNodeCard({ node }: { readonly node: IApiMissionFlowNode }) {
       <span className="text-xs leading-5 text-slate-600">
         {node.description}
       </span>
+      {node.evidence_event_ids?.length ? (
+        <span className="mt-1 w-fit rounded-full bg-white/80 px-2 py-0.5 text-[0.62rem] font-bold text-violet-700">
+          {node.evidence_event_ids.length} evidence {node.evidence_event_ids.length === 1 ? "event" : "events"}
+        </span>
+      ) : null}
     </div>
   );
 }

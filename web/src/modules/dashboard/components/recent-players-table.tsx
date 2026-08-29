@@ -129,9 +129,11 @@ function studentInitials(value: string) {
 function sessionStatusLabel(status: string) {
   const labels: Record<string, string> = {
     completed: "Mission completed",
+    abandoned: "Left before finishing",
     exploring: "Exploring the classroom",
     learning: "Working with Emily",
     reviewing: "Reviewing a skill",
+    paused: "Paused — progress saved",
     thinking: "Emily is adapting",
   };
 
