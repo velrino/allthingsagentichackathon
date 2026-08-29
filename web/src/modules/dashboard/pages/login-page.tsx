@@ -1,16 +1,17 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
+import { GoogleIdentityButton } from "../components/google-identity-button";
 
 export function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = safeNextPath(searchParams.get("next"));
-  const { error, signInWithGoogle, status } = useTeacherAuth();
-  const [submitting, setSubmitting] = useState(false);
+  const { error, signInWithGoogleIdToken, reportSignInError, status } = useTeacherAuth();
+  const [exchanging, setExchanging] = useState(false);
 
   useEffect(() => {
     if (status === "signed_in") {
@@ -18,15 +19,26 @@ export function LoginPage() {
     }
   }, [nextPath, router, status]);
 
-  async function handleGoogleSignIn() {
-    setSubmitting(true);
-    try {
-      await signInWithGoogle();
-      router.replace(nextPath);
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const handleCredential = useCallback(
+    async (idToken: string) => {
+      setExchanging(true);
+      try {
+        const user = await signInWithGoogleIdToken(idToken);
+        if (user) {
+          router.replace(nextPath);
+        }
+      } finally {
+        setExchanging(false);
+      }
+    },
+    [nextPath, router, signInWithGoogleIdToken],
+  );
+
+  const handleLoadError = useCallback(() => {
+    reportSignInError("Couldn't load Google sign-in. Check your connection and reload the page.");
+  }, [reportSignInError]);
+
+  const busy = exchanging || status === "checking";
 
   return (
     <main className="flex min-h-svh flex-col justify-center bg-primary text-slate-950 lg:grid lg:grid-cols-2 lg:bg-white">
@@ -57,19 +69,14 @@ export function LoginPage() {
             Teachers use Google. Students enter from the game.
           </p>
 
-          <button
-            type="button"
-            disabled={submitting || status === "checking"}
-            onClick={handleGoogleSignIn}
-            className="mt-8 flex h-12 w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
-          >
-            <span className="grid size-5 place-items-center rounded-full border border-slate-300 text-xs font-black text-primary">
-              G
-            </span>
-            {submitting || status === "checking"
-              ? "Checking..."
-              : "Continue with Google"}
-          </button>
+          <div className="mt-8">
+            <GoogleIdentityButton onCredential={handleCredential} onLoadError={handleLoadError} disabled={busy} />
+            {busy ? (
+              <p className="mt-3 text-xs text-slate-500" role="status">
+                {status === "checking" ? "Checking your session..." : "Signing in..."}
+              </p>
+            ) : null}
+          </div>
 
           {error ? (
             <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
