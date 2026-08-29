@@ -143,17 +143,23 @@ func (client *Client) GenerateStructured(
 		maxOutputTokens = client.options.MaxOutputTokens
 	}
 	temperature := request.Temperature
+	responseSchema, responseJSONSchema := responseSchemaConfig(request.ResponseJSONSchema)
+	thinkingBudget := int32(0)
 
 	config := &googlegenai.GenerateContentConfig{
 		MaxOutputTokens:    maxOutputTokens,
 		ResponseMIMEType:   "application/json",
-		ResponseJsonSchema: request.ResponseJSONSchema,
+		ResponseSchema:     responseSchema,
+		ResponseJsonSchema: responseJSONSchema,
 		Temperature:        &temperature,
 		Labels:             request.Labels,
 		HTTPOptions: &googlegenai.HTTPOptions{
 			Timeout: &client.options.RequestTimeout,
 		},
 		SystemInstruction: googlegenai.NewContentFromText(request.SystemInstruction, googlegenai.RoleUser),
+		ThinkingConfig: &googlegenai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
 	}
 
 	response, err := client.client.Models.GenerateContent(
@@ -195,6 +201,47 @@ func buildUserContents(request StructuredRequest) []*googlegenai.Content {
 
 	return []*googlegenai.Content{
 		googlegenai.NewContentFromParts(parts, googlegenai.RoleUser),
+	}
+}
+
+func responseSchemaConfig(schema any) (*googlegenai.Schema, any) {
+	if schema == nil {
+		return nil, nil
+	}
+	if typed, ok := schema.(*googlegenai.Schema); ok {
+		return typed, nil
+	}
+
+	return nil, sanitizeResponseJSONSchema(schema)
+}
+
+func sanitizeResponseJSONSchema(schema any) any {
+	return sanitizeResponseJSONSchemaValue(schema)
+}
+
+func sanitizeResponseJSONSchemaValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		sanitized := make(map[string]any, len(typed))
+		for key, child := range typed {
+			if key == "maxItems" {
+				continue
+			}
+			sanitized[key] = sanitizeResponseJSONSchemaValue(child)
+		}
+		return sanitized
+	case []any:
+		sanitized := make([]any, len(typed))
+		for index, child := range typed {
+			sanitized[index] = sanitizeResponseJSONSchemaValue(child)
+		}
+		return sanitized
+	case []string:
+		sanitized := make([]string, len(typed))
+		copy(sanitized, typed)
+		return sanitized
+	default:
+		return value
 	}
 }
 
