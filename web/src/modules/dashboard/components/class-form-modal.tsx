@@ -3,7 +3,10 @@
 import { Plus } from "lucide-react";
 import { useId, useMemo, useState, type FormEvent } from "react";
 
-import type { IApiTeacherClass, IApiUpsertTeacherClassRequest } from "@/backend/api/api.interface";
+import type {
+  IApiTeacherClass,
+  IApiUpsertTeacherClassRequest,
+} from "@/backend/api/api.interface";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -22,7 +25,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { formatDate } from "@/lib/date";
 
 const subjectSuggestions = [
   "Mathematics",
@@ -77,7 +79,8 @@ export function ClassFormModal({
   const classNameInputId = useId();
   const subjectInputId = useId();
   const gradeLevelInputId = useId();
-  const [comboboxPortalContainer, setComboboxPortalContainer] = useState<HTMLElement | null>(null);
+  const [comboboxPortalContainer, setComboboxPortalContainer] =
+    useState<HTMLElement | null>(null);
   const [form, setForm] = useState<IApiUpsertTeacherClassRequest>(() => ({
     class_id: teacherClass?.class_id ?? "",
     class_name: teacherClass?.class_name ?? "",
@@ -120,24 +123,21 @@ export function ClassFormModal({
         </DialogHeader>
 
         <div className="max-h-[min(560px,calc(100svh-12rem))] w-[calc(100%+0.75rem)] overflow-y-auto py-1 pe-3">
-          <form id={formId} className="space-y-4 px-0.5" onSubmit={handleSubmit}>
-            {teacherClass ? (
-              <div className="rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 dark:border-cyan-900 dark:bg-cyan-950/40">
-                <p className="text-xs font-semibold text-cyan-800 dark:text-cyan-200">Class sharing code</p>
-                <p className="mt-1 font-mono text-xl font-bold tracking-[0.16em] text-cyan-950 dark:text-cyan-50">
-                  {teacherClass.class_code}
-                </p>
-                <p className="mt-1 text-xs text-cyan-800/80 dark:text-cyan-200/80">
-                  Students use this code to enter the class.
-                </p>
-              </div>
-            ) : null}
-
+          <form
+            id={formId}
+            className="space-y-4 px-0.5"
+            onSubmit={handleSubmit}
+          >
             <FieldRow label="Class name" htmlFor={classNameInputId}>
               <Input
                 id={classNameInputId}
                 value={form.class_name}
-                onChange={(event) => setForm((current) => ({ ...current, class_name: event.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    class_name: event.target.value,
+                  }))
+                }
                 placeholder="Algebra Lab"
                 autoComplete="off"
                 disabled={saving}
@@ -149,7 +149,9 @@ export function ClassFormModal({
                 id={subjectInputId}
                 required
                 value={form.subject}
-                onValueChange={(subject) => setForm((current) => ({ ...current, subject }))}
+                onValueChange={(subject) =>
+                  setForm((current) => ({ ...current, subject }))
+                }
                 suggestions={subjectSuggestions}
                 placeholder="Mathematics"
                 portalContainer={comboboxPortalContainer}
@@ -161,28 +163,18 @@ export function ClassFormModal({
               <CreatableFieldCombobox
                 id={gradeLevelInputId}
                 value={form.grade_level}
-                onValueChange={(gradeLevel) => setForm((current) => ({ ...current, grade_level: gradeLevel }))}
+                onValueChange={(gradeLevel) =>
+                  setForm((current) => ({
+                    ...current,
+                    grade_level: gradeLevel,
+                  }))
+                }
                 suggestions={gradeLevelSuggestions}
                 placeholder="7th grade"
                 portalContainer={comboboxPortalContainer}
                 disabled={saving}
               />
             </FieldRow>
-
-            {teacherClass ? (
-              <div className="grid gap-3 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-3">
-                <ClassMeta label="Missions" value={String(teacherClass.mission_count)} />
-                <ClassMeta label="Status" value={teacherClass.status || "active"} />
-                <ClassMeta
-                  label="Updated"
-                  value={formatDate(teacherClass.updated_at, {
-                    fallback: "Never",
-                    preset: "date-time",
-                    relative: true,
-                  })}
-                />
-              </div>
-            ) : null}
 
             {error ? (
               <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
@@ -229,7 +221,8 @@ function CreatableFieldCombobox({
   const [createdValues, setCreatedValues] = useState<string[]>(() => {
     const initialValue = value.trim();
     const isSuggested = suggestions.some(
-      (suggestion) => suggestion.toLocaleLowerCase() === initialValue.toLocaleLowerCase(),
+      (suggestion) =>
+        suggestion.toLocaleLowerCase() === initialValue.toLocaleLowerCase(),
     );
 
     return initialValue && !isSuggested ? [initialValue] : [];
@@ -239,10 +232,13 @@ function CreatableFieldCombobox({
     [createdValues, suggestions],
   );
   const items = useMemo<CreatableOption[]>(() => {
-    const suggestedItems = availableValues.map((suggestion) => ({ value: suggestion }));
+    const suggestedItems = availableValues.map((suggestion) => ({
+      value: suggestion,
+    }));
     const trimmedValue = value.trim();
     const hasExactMatch = availableValues.some(
-      (suggestion) => suggestion.toLocaleLowerCase() === trimmedValue.toLocaleLowerCase(),
+      (suggestion) =>
+        suggestion.toLocaleLowerCase() === trimmedValue.toLocaleLowerCase(),
     );
 
     if (!trimmedValue || hasExactMatch) {
@@ -334,19 +330,13 @@ function FieldRow({
 }) {
   return (
     <div className="grid grid-cols-1 items-center gap-y-1 sm:grid-cols-6 sm:gap-x-4">
-      <label className="text-sm font-medium text-foreground sm:col-span-2 sm:text-end" htmlFor={htmlFor}>
+      <label
+        className="text-sm font-medium text-foreground sm:col-span-2 sm:text-end"
+        htmlFor={htmlFor}
+      >
         {label}
       </label>
       <div className="sm:col-span-4">{children}</div>
-    </div>
-  );
-}
-
-function ClassMeta({ label, value }: { readonly label: string; readonly value: string }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 font-semibold text-foreground">{value}</p>
     </div>
   );
 }
