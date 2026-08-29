@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"classgame-api/internal/modules/orchestrator"
+	"classgame-api/internal/modules/tenant"
 )
 
 const (
@@ -274,8 +275,16 @@ func (repository *Repository) SaveStudentLearningSnapshot(
 		if input.Status != "abandoned" {
 			abandonedAt = time.Time{}
 		}
+		scope := tenant.NormalizeScope(tenant.Scope{
+			OrganizationID: user.Student.OrganizationID,
+			DistrictID:     user.Student.DistrictID,
+			SchoolID:       user.Student.SchoolID,
+		})
 		attempt = StudentMissionAttemptDocument{
 			ID:                  attemptID,
+			OrganizationID:      scope.OrganizationID,
+			DistrictID:          scope.DistrictID,
+			SchoolID:            scope.SchoolID,
 			StudentID:           user.ID,
 			StudentName:         user.Student.StudentName,
 			ClassID:             user.Student.ClassID,
@@ -661,6 +670,9 @@ func (repository *Repository) SaveClassLearningSynthesis(
 		}
 
 		return tx.Set(ref, map[string]any{
+			"organization_id":     document.OrganizationID,
+			"district_id":         document.DistrictID,
+			"school_id":           document.SchoolID,
 			"class_id":            document.ClassID,
 			"synthesis":           document.Synthesis,
 			"attempt_count":       document.AttemptCount,
@@ -756,6 +768,7 @@ type buildStudentUserDocumentInput struct {
 func buildStudentUserDocument(input buildStudentUserDocumentInput) UserDocument {
 	identity := input.Input.Identity
 	now := input.Input.Timestamp
+	scope := tenant.NormalizeScope(input.Input.Scope)
 
 	return UserDocument{
 		ID: input.ID,
@@ -781,6 +794,9 @@ func buildStudentUserDocument(input buildStudentUserDocumentInput) UserDocument 
 			PhotoURL:      identity.PhotoURL,
 		},
 		Student: StudentProfile{
+			OrganizationID: scope.OrganizationID,
+			DistrictID:     scope.DistrictID,
+			SchoolID:       scope.SchoolID,
 			ClassID:        input.Input.ClassID,
 			MissionID:      input.Input.MissionID,
 			MissionCode:    input.Input.MissionCode,
@@ -825,6 +841,9 @@ func (user UserDocument) firestoreMap() map[string]any {
 			"photo_url":      user.Profile.PhotoURL,
 		},
 		"student": map[string]any{
+			"organization_id": user.Student.OrganizationID,
+			"district_id":     user.Student.DistrictID,
+			"school_id":       user.Student.SchoolID,
 			"class_id":        user.Student.ClassID,
 			"mission_id":      user.Student.MissionID,
 			"mission_code":    user.Student.MissionCode,
@@ -960,6 +979,9 @@ func mergeLearningEvents(existing []StudentLearningEvent, incoming []StudentLear
 func learningAttemptFirestoreMap(attempt StudentMissionAttemptDocument) map[string]any {
 	return map[string]any{
 		"id":                    attempt.ID,
+		"organization_id":       attempt.OrganizationID,
+		"district_id":           attempt.DistrictID,
+		"school_id":             attempt.SchoolID,
 		"student_id":            attempt.StudentID,
 		"student_name":          attempt.StudentName,
 		"class_id":              attempt.ClassID,

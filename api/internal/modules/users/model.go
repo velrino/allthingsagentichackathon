@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"classgame-api/internal/modules/orchestrator"
+	"classgame-api/internal/modules/tenant"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -56,6 +57,9 @@ type UserProfile struct {
 }
 
 type StudentProfile struct {
+	OrganizationID string                `firestore:"organization_id" json:"organization_id"`
+	DistrictID     string                `firestore:"district_id" json:"district_id"`
+	SchoolID       string                `firestore:"school_id" json:"school_id"`
 	ClassID        string                `firestore:"class_id" json:"class_id"`
 	MissionID      string                `firestore:"mission_id" json:"mission_id"`
 	MissionCode    string                `firestore:"mission_code" json:"mission_code"`
@@ -84,6 +88,7 @@ type StudentGameSession struct {
 
 type UpsertStudentInput struct {
 	Identity                 sharedfirebase.Identity
+	Scope                    tenant.Scope
 	ClassID                  string
 	MissionID                string
 	MissionCode              string
@@ -115,6 +120,9 @@ type StudentLearningMemory struct {
 
 type StudentMissionAttemptDocument struct {
 	ID                  string                              `firestore:"id" json:"id"`
+	OrganizationID      string                              `firestore:"organization_id" json:"organization_id"`
+	DistrictID          string                              `firestore:"district_id" json:"district_id"`
+	SchoolID            string                              `firestore:"school_id" json:"school_id"`
 	StudentID           string                              `firestore:"student_id" json:"student_id"`
 	StudentName         string                              `firestore:"student_name" json:"student_name"`
 	ClassID             string                              `firestore:"class_id" json:"class_id"`
@@ -269,6 +277,9 @@ type SaveStudentTutorTurnInput struct {
 }
 
 type ClassLearningSynthesisDocument struct {
+	OrganizationID    string                              `firestore:"organization_id" json:"organization_id"`
+	DistrictID        string                              `firestore:"district_id" json:"district_id"`
+	SchoolID          string                              `firestore:"school_id" json:"school_id"`
 	ClassID           string                              `firestore:"class_id" json:"class_id"`
 	Synthesis         orchestrator.ClassLearningSynthesis `firestore:"synthesis" json:"synthesis"`
 	AttemptCount      int                                 `firestore:"attempt_count" json:"attempt_count"`

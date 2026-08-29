@@ -3,6 +3,7 @@ package teacherclass
 import (
 	"time"
 
+	"classgame-api/internal/modules/tenant"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -17,6 +18,9 @@ type TeacherSummary struct {
 
 type TeacherClassDocument struct {
 	ID              string         `firestore:"id" json:"id"`
+	OrganizationID  string         `firestore:"organization_id" json:"organization_id"`
+	DistrictID      string         `firestore:"district_id" json:"district_id"`
+	SchoolID        string         `firestore:"school_id" json:"school_id"`
 	ClassID         string         `firestore:"class_id" json:"class_id"`
 	ClassCode       string         `firestore:"class_code" json:"class_code"`
 	ClassName       string         `firestore:"class_name" json:"class_name"`
@@ -32,6 +36,7 @@ type TeacherClassDocument struct {
 }
 
 type UpsertTeacherClassInput struct {
+	Scope      tenant.Scope
 	ClassID    string
 	ClassName  string
 	Subject    string

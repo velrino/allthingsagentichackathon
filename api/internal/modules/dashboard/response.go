@@ -10,6 +10,9 @@ import (
 )
 
 type OverviewResponse struct {
+	OrganizationID  string                       `json:"organization_id"`
+	DistrictID      string                       `json:"district_id"`
+	SchoolID        string                       `json:"school_id"`
 	ClassID         string                       `json:"class_id"`
 	ClassCode       string                       `json:"class_code"`
 	TeacherClass    *TeacherClassResponse        `json:"teacher_class"`
@@ -25,6 +28,9 @@ type OverviewResponse struct {
 
 type TeacherClassResponse struct {
 	ID              string          `json:"id"`
+	OrganizationID  string          `json:"organization_id"`
+	DistrictID      string          `json:"district_id"`
+	SchoolID        string          `json:"school_id"`
 	ClassID         string          `json:"class_id"`
 	ClassCode       string          `json:"class_code"`
 	ClassName       string          `json:"class_name"`
@@ -41,6 +47,11 @@ type TeacherClassResponse struct {
 
 type MissionResponse struct {
 	ID                       string                          `json:"id"`
+	MissionCode              string                          `json:"mission_code"`
+	OrganizationID           string                          `json:"organization_id"`
+	DistrictID               string                          `json:"district_id"`
+	SchoolID                 string                          `json:"school_id"`
+	TeacherID                string                          `json:"teacher_id"`
 	ClassID                  string                          `json:"class_id"`
 	ClassCode                string                          `json:"class_code"`
 	ClassName                string                          `json:"class_name"`
@@ -144,6 +155,9 @@ type StudentDashboardResponse struct {
 
 type StudentLearningAttemptResponse struct {
 	ID                string                              `json:"id"`
+	OrganizationID    string                              `json:"organization_id"`
+	DistrictID        string                              `json:"district_id"`
+	SchoolID          string                              `json:"school_id"`
 	StudentID         string                              `json:"student_id"`
 	StudentName       string                              `json:"student_name"`
 	ClassID           string                              `json:"class_id"`
@@ -208,6 +222,9 @@ type TeacherResponse struct {
 
 func ToOverviewResponse(overview DashboardOverview) OverviewResponse {
 	return OverviewResponse{
+		OrganizationID:  overview.OrganizationID,
+		DistrictID:      overview.DistrictID,
+		SchoolID:        overview.SchoolID,
 		ClassID:         overview.ClassID,
 		ClassCode:       overview.ClassCode,
 		TeacherClass:    toTeacherClassResponse(overview.TeacherClass),
@@ -229,6 +246,9 @@ func toTeacherClassResponse(teacherClass *teacherclass.TeacherClassDocument) *Te
 
 	return &TeacherClassResponse{
 		ID:              teacherClass.ID,
+		OrganizationID:  teacherClass.OrganizationID,
+		DistrictID:      teacherClass.DistrictID,
+		SchoolID:        teacherClass.SchoolID,
 		ClassID:         teacherClass.ClassID,
 		ClassCode:       teacherClass.ClassCode,
 		ClassName:       teacherClass.ClassName,
@@ -251,6 +271,11 @@ func toMissionResponse(mission *mission.MissionDocument) *MissionResponse {
 
 	return &MissionResponse{
 		ID:                       mission.ID,
+		MissionCode:              mission.MissionCode,
+		OrganizationID:           mission.OrganizationID,
+		DistrictID:               mission.DistrictID,
+		SchoolID:                 mission.SchoolID,
+		TeacherID:                mission.TeacherID,
 		ClassID:                  mission.ClassID,
 		ClassCode:                mission.ClassCode,
 		ClassName:                mission.ClassName,
@@ -346,6 +371,9 @@ func toStudentLearningAttemptResponses(
 	for _, attempt := range attempts {
 		responses = append(responses, StudentLearningAttemptResponse{
 			ID:                attempt.ID,
+			OrganizationID:    attempt.OrganizationID,
+			DistrictID:        attempt.DistrictID,
+			SchoolID:          attempt.SchoolID,
 			StudentID:         attempt.StudentID,
 			StudentName:       attempt.StudentName,
 			ClassID:           attempt.ClassID,

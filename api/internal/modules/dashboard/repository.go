@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"classgame-api/internal/modules/tenant"
 	"classgame-api/internal/modules/users"
 )
 
@@ -37,6 +38,7 @@ func (repository *Repository) UpsertTeacher(
 		createdAt := timestamp
 		firstSeenAt := timestamp
 		loginCount := int64(1)
+		scope := tenant.DefaultScope()
 
 		snapshot, err := tx.Get(ref)
 		switch {
@@ -53,12 +55,20 @@ func (repository *Repository) UpsertTeacher(
 				firstSeenAt = existing.Activity.FirstSeenAt
 			}
 			loginCount = existing.Activity.LoginCount + 1
+			scope = tenant.NormalizeScope(tenant.Scope{
+				OrganizationID: existing.OrganizationID,
+				DistrictID:     existing.DistrictID,
+				SchoolID:       existing.SchoolID,
+			})
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read teacher: %w", err)
 		}
 
 		return tx.Set(ref, map[string]any{
-			"id": ref.ID,
+			"id":              ref.ID,
+			"organization_id": scope.OrganizationID,
+			"district_id":     scope.DistrictID,
+			"school_id":       scope.SchoolID,
 			"identity": map[string]any{
 				"provider":         identity.Provider,
 				"provider_user_id": identity.ProviderUserID,

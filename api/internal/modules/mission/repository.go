@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/tenant"
 )
 
 type Repository struct {
@@ -29,10 +31,7 @@ func (repository *Repository) Create(
 	ctx context.Context,
 	input CreateMissionInput,
 ) (MissionDocument, error) {
-	missionRef := repository.client.Collection(teacherclass.CollectionName).
-		Doc(input.ClassID).
-		Collection(MissionsCollectionName).
-		NewDoc()
+	missionRef := repository.client.Collection(MissionsCollectionName).NewDoc()
 	codeRef := repository.client.Collection(MissionCodesCollectionName).
 		Doc(input.MissionCode)
 
@@ -57,14 +56,7 @@ func (repository *Repository) Create(
 			}
 		}
 
-		return tx.Create(codeRef, map[string]any{
-			"mission_code": input.MissionCode,
-			"mission_id":   mission.ID,
-			"class_id":     mission.ClassID,
-			"status":       mission.Status,
-			"created_at":   mission.CreatedAt,
-			"updated_at":   mission.UpdatedAt,
-		})
+		return tx.Create(codeRef, missionCodeFirestoreMap(mission))
 	})
 	if err != nil {
 		return MissionDocument{}, fmt.Errorf("write mission: %w", err)
@@ -106,28 +98,14 @@ func (repository *Repository) Get(
 	classID string,
 	missionID string,
 ) (MissionDocument, bool, error) {
-	snapshot, err := repository.client.Collection(teacherclass.CollectionName).
-		Doc(classID).
-		Collection(MissionsCollectionName).
-		Doc(missionID).
-		Get(ctx)
-	if status.Code(err) == codes.NotFound {
-		return MissionDocument{}, false, nil
-	}
-	if err != nil {
-		return MissionDocument{}, false, fmt.Errorf("read mission: %w", err)
+	for _, ref := range repository.missionRefs(classID, missionID) {
+		mission, exists, err := repository.getMissionAtRef(ctx, ref, classID)
+		if err != nil || exists {
+			return mission, exists, err
+		}
 	}
 
-	var mission MissionDocument
-	if err := snapshot.DataTo(&mission); err != nil {
-		return MissionDocument{}, false, fmt.Errorf("decode mission: %w", err)
-	}
-	if mission.ID == "" {
-		mission.ID = snapshot.Ref.ID
-	}
-	hydrateMissionLifecycle(&mission)
-
-	return mission, true, nil
+	return MissionDocument{}, false, nil
 }
 
 func (repository *Repository) List(
@@ -139,37 +117,39 @@ func (repository *Repository) List(
 		limit = 10
 	}
 
-	iter := repository.client.Collection(teacherclass.CollectionName).
-		Doc(classID).
-		Collection(MissionsCollectionName).
-		OrderBy("created_at", firestore.Desc).
-		Limit(limit).
-		Documents(ctx)
-	defer iter.Stop()
+	byID := make(map[string]MissionDocument)
+	if err := collectMissionDocuments(
+		repository.legacyClassMissionsQuery(classID).Documents(ctx),
+		classID,
+		byID,
+	); err != nil {
+		return nil, err
+	}
+	if err := collectMissionDocuments(
+		repository.client.Collection(MissionsCollectionName).
+			Where("class_id", "==", classID).
+			Documents(ctx),
+		classID,
+		byID,
+	); err != nil {
+		return nil, err
+	}
 
-	missions := make([]MissionDocument, 0)
-	for {
-		snapshot, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("iterate missions: %w", err)
-		}
-
-		var mission MissionDocument
-		if err := snapshot.DataTo(&mission); err != nil {
-			return nil, fmt.Errorf("decode mission %s: %w", snapshot.Ref.ID, err)
-		}
-		if mission.ID == "" {
-			mission.ID = snapshot.Ref.ID
-		}
-		hydrateMissionLifecycle(&mission)
-		if mission.Status == StatusDeleted {
-			continue
-		}
-
+	missions := make([]MissionDocument, 0, len(byID))
+	for _, mission := range byID {
 		missions = append(missions, mission)
+	}
+	sort.SliceStable(missions, func(leftIndex, rightIndex int) bool {
+		left := missionListSortTime(missions[leftIndex])
+		right := missionListSortTime(missions[rightIndex])
+		if left.Equal(right) {
+			return missions[leftIndex].ID < missions[rightIndex].ID
+		}
+
+		return left.After(right)
+	})
+	if len(missions) > limit {
+		missions = missions[:limit]
 	}
 
 	return missions, nil
@@ -183,27 +163,16 @@ func (repository *Repository) UpdateDraft(
 		return MissionDocument{}, ErrMissionDraftRevisionRequired
 	}
 
-	ref := repository.client.Collection(teacherclass.CollectionName).
-		Doc(input.ClassID).
-		Collection(MissionsCollectionName).
-		Doc(input.MissionID)
-
 	var mission MissionDocument
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		snapshot, err := tx.Get(ref)
-		if status.Code(err) == codes.NotFound {
+		existing, ref, exists, err := repository.getMissionInTransaction(tx, input.ClassID, input.MissionID)
+		if err != nil {
+			return err
+		}
+		if !exists {
 			return ErrMissionNotFound
 		}
-		if err != nil {
-			return fmt.Errorf("read mission: %w", err)
-		}
-		if err := snapshot.DataTo(&mission); err != nil {
-			return fmt.Errorf("decode mission: %w", err)
-		}
-		if mission.ID == "" {
-			mission.ID = snapshot.Ref.ID
-		}
-		hydrateMissionLifecycle(&mission)
+		mission = existing
 		if mission.CreatedBy.ProviderUserID != input.Teacher.ProviderUserID {
 			return teacherclass.ErrClassOwnedByAnotherTeacher
 		}
@@ -216,6 +185,8 @@ func (repository *Repository) UpdateDraft(
 
 		nextRevision := mission.DraftRevision + 1
 		input.Attachments = inheritStoredAttachments(input.Attachments, mission)
+		input.Scope = tenant.NormalizeScope(input.Scope)
+		applyMissionTenantScope(&mission, input.Scope, input.Teacher.ProviderUserID)
 		draft := newSnapshotFromInput(input, nextRevision)
 		mission.Draft = &draft
 		mission.DraftRevision = nextRevision
@@ -248,27 +219,19 @@ func (repository *Repository) Publish(
 	}
 
 	classRef := repository.client.Collection(teacherclass.CollectionName).Doc(classID)
-	ref := classRef.Collection(MissionsCollectionName).Doc(missionID)
-
 	var mission MissionDocument
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		snapshot, err := tx.Get(ref)
-		if status.Code(err) == codes.NotFound {
+		existing, ref, exists, err := repository.getMissionInTransaction(tx, classID, missionID)
+		if err != nil {
+			return err
+		}
+		if !exists {
 			return ErrMissionNotFound
 		}
-		if err != nil {
-			return fmt.Errorf("read mission: %w", err)
-		}
-		if err := snapshot.DataTo(&mission); err != nil {
-			return fmt.Errorf("decode mission: %w", err)
-		}
+		mission = existing
 		if mission.CreatedBy.ProviderUserID != teacher.ProviderUserID {
 			return teacherclass.ErrClassOwnedByAnotherTeacher
 		}
-		if mission.ID == "" {
-			mission.ID = snapshot.Ref.ID
-		}
-		hydrateMissionLifecycle(&mission)
 		if mission.Status == StatusDeleted {
 			return ErrMissionDeleted
 		}
@@ -294,6 +257,11 @@ func (repository *Repository) Publish(
 		if teacherClass.TeacherID != teacher.ProviderUserID {
 			return teacherclass.ErrClassOwnedByAnotherTeacher
 		}
+		applyMissionTenantScope(&mission, tenant.Scope{
+			OrganizationID: teacherClass.OrganizationID,
+			DistrictID:     teacherClass.DistrictID,
+			SchoolID:       teacherClass.SchoolID,
+		}, teacher.ProviderUserID)
 
 		firstPublication := mission.Published == nil
 		alreadyPublished := mission.Published != nil &&
@@ -352,8 +320,12 @@ func (repository *Repository) Publish(
 		codeRef := repository.client.Collection(MissionCodesCollectionName).
 			Doc(mission.MissionCode)
 		return tx.Set(codeRef, map[string]any{
-			"status":     mission.Status,
-			"updated_at": mission.UpdatedAt,
+			"organization_id": mission.OrganizationID,
+			"district_id":     mission.DistrictID,
+			"school_id":       mission.SchoolID,
+			"teacher_id":      mission.TeacherID,
+			"status":          mission.Status,
+			"updated_at":      mission.UpdatedAt,
 		}, firestore.MergeAll)
 	})
 	if err != nil {
@@ -396,26 +368,25 @@ func (repository *Repository) GetPublishedRevision(
 		return MissionPublishedRevisionDocument{}, false, nil
 	}
 
-	snapshot, err := repository.client.Collection(teacherclass.CollectionName).
-		Doc(classID).
-		Collection(MissionsCollectionName).
-		Doc(missionID).
-		Collection(MissionRevisionsCollectionName).
-		Doc(strconv.FormatInt(revision, 10)).
-		Get(ctx)
-	if status.Code(err) == codes.NotFound {
-		return MissionPublishedRevisionDocument{}, false, nil
-	}
-	if err != nil {
-		return MissionPublishedRevisionDocument{}, false, fmt.Errorf("read published mission revision: %w", err)
+	for _, refs := range repository.missionRevisionRefs(classID, missionID, revision) {
+		snapshot, err := refs.revisionRef.Get(ctx)
+		if status.Code(err) == codes.NotFound {
+			continue
+		}
+		if err != nil {
+			return MissionPublishedRevisionDocument{}, false, fmt.Errorf("read published mission revision: %w", err)
+		}
+
+		var publishedRevision MissionPublishedRevisionDocument
+		if err := snapshot.DataTo(&publishedRevision); err != nil {
+			return MissionPublishedRevisionDocument{}, false, fmt.Errorf("decode published mission revision: %w", err)
+		}
+		hydratePublishedRevision(&publishedRevision, classID, missionID)
+
+		return publishedRevision, true, nil
 	}
 
-	var publishedRevision MissionPublishedRevisionDocument
-	if err := snapshot.DataTo(&publishedRevision); err != nil {
-		return MissionPublishedRevisionDocument{}, false, fmt.Errorf("decode published mission revision: %w", err)
-	}
-
-	return publishedRevision, true, nil
+	return MissionPublishedRevisionDocument{}, false, nil
 }
 
 func (repository *Repository) SoftDelete(
@@ -426,24 +397,17 @@ func (repository *Repository) SoftDelete(
 	timestamp time.Time,
 ) (MissionDocument, error) {
 	classRef := repository.client.Collection(teacherclass.CollectionName).Doc(classID)
-	missionRef := classRef.Collection(MissionsCollectionName).Doc(missionID)
 
 	var mission MissionDocument
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		missionSnapshot, err := tx.Get(missionRef)
-		if status.Code(err) == codes.NotFound {
+		existing, missionRef, exists, err := repository.getMissionInTransaction(tx, classID, missionID)
+		if err != nil {
+			return err
+		}
+		if !exists {
 			return ErrMissionNotFound
 		}
-		if err != nil {
-			return fmt.Errorf("read mission: %w", err)
-		}
-		if err := missionSnapshot.DataTo(&mission); err != nil {
-			return fmt.Errorf("decode mission: %w", err)
-		}
-		if mission.ID == "" {
-			mission.ID = missionSnapshot.Ref.ID
-		}
-		hydrateMissionLifecycle(&mission)
+		mission = existing
 		if mission.CreatedBy.ProviderUserID != teacher.ProviderUserID {
 			return teacherclass.ErrClassOwnedByAnotherTeacher
 		}
@@ -498,8 +462,12 @@ func (repository *Repository) SoftDelete(
 }
 
 type missionCodeDocument struct {
-	MissionID string `firestore:"mission_id"`
-	ClassID   string `firestore:"class_id"`
+	OrganizationID string `firestore:"organization_id"`
+	DistrictID     string `firestore:"district_id"`
+	SchoolID       string `firestore:"school_id"`
+	TeacherID      string `firestore:"teacher_id"`
+	MissionID      string `firestore:"mission_id"`
+	ClassID        string `firestore:"class_id"`
 }
 
 func buildMissionDocument(id string, input CreateMissionInput) MissionDocument {
@@ -538,8 +506,13 @@ func buildMissionDocument(id string, input CreateMissionInput) MissionDocument {
 
 func buildMissionDocumentFields(input CreateMissionInput) MissionDocument {
 	blueprint := input.Blueprint
+	scope := tenant.NormalizeScope(input.Scope)
 
 	return MissionDocument{
+		OrganizationID:           scope.OrganizationID,
+		DistrictID:               scope.DistrictID,
+		SchoolID:                 scope.SchoolID,
+		TeacherID:                input.Teacher.ProviderUserID,
 		MissionName:              input.MissionName,
 		Title:                    blueprint.Title,
 		Summary:                  blueprint.Summary,
@@ -578,6 +551,10 @@ func (mission MissionDocument) firestoreMap() map[string]any {
 	return map[string]any{
 		"id":                         mission.ID,
 		"mission_code":               mission.MissionCode,
+		"organization_id":            mission.OrganizationID,
+		"district_id":                mission.DistrictID,
+		"school_id":                  mission.SchoolID,
+		"teacher_id":                 mission.TeacherID,
 		"class_id":                   mission.ClassID,
 		"class_code":                 mission.ClassCode,
 		"class_name":                 mission.ClassName,
@@ -639,6 +616,10 @@ func publishedRevisionMap(
 	}
 
 	return map[string]any{
+		"organization_id":            mission.OrganizationID,
+		"district_id":                mission.DistrictID,
+		"school_id":                  mission.SchoolID,
+		"teacher_id":                 mission.TeacherID,
 		"class_id":                   mission.ClassID,
 		"mission_id":                 mission.ID,
 		"revision":                   mission.PublishedRevision,
@@ -648,6 +629,202 @@ func publishedRevisionMap(
 		"published_by":               publishedBy,
 		"published_at":               mission.PublishedAt,
 	}
+}
+
+func missionCodeFirestoreMap(mission MissionDocument) map[string]any {
+	return map[string]any{
+		"mission_code":    mission.MissionCode,
+		"mission_id":      mission.ID,
+		"class_id":        mission.ClassID,
+		"organization_id": mission.OrganizationID,
+		"district_id":     mission.DistrictID,
+		"school_id":       mission.SchoolID,
+		"teacher_id":      mission.TeacherID,
+		"status":          mission.Status,
+		"created_at":      mission.CreatedAt,
+		"updated_at":      mission.UpdatedAt,
+	}
+}
+
+func collectMissionDocuments(
+	iter *firestore.DocumentIterator,
+	classID string,
+	byID map[string]MissionDocument,
+) error {
+	defer iter.Stop()
+
+	for {
+		snapshot, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("iterate missions: %w", err)
+		}
+
+		mission, belongs, err := missionFromSnapshot(snapshot, classID)
+		if err != nil {
+			return err
+		}
+		if !belongs || mission.Status == StatusDeleted {
+			continue
+		}
+
+		byID[mission.ID] = mission
+	}
+
+	return nil
+}
+
+func (repository *Repository) getMissionAtRef(
+	ctx context.Context,
+	ref *firestore.DocumentRef,
+	classID string,
+) (MissionDocument, bool, error) {
+	snapshot, err := ref.Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return MissionDocument{}, false, nil
+	}
+	if err != nil {
+		return MissionDocument{}, false, fmt.Errorf("read mission: %w", err)
+	}
+
+	mission, belongs, err := missionFromSnapshot(snapshot, classID)
+	if err != nil {
+		return MissionDocument{}, false, err
+	}
+	if !belongs {
+		return MissionDocument{}, false, nil
+	}
+
+	return mission, true, nil
+}
+
+func (repository *Repository) getMissionInTransaction(
+	tx *firestore.Transaction,
+	classID string,
+	missionID string,
+) (MissionDocument, *firestore.DocumentRef, bool, error) {
+	for _, ref := range repository.missionRefs(classID, missionID) {
+		snapshot, err := tx.Get(ref)
+		if status.Code(err) == codes.NotFound {
+			continue
+		}
+		if err != nil {
+			return MissionDocument{}, nil, false, fmt.Errorf("read mission: %w", err)
+		}
+
+		mission, belongs, err := missionFromSnapshot(snapshot, classID)
+		if err != nil {
+			return MissionDocument{}, nil, false, err
+		}
+		if !belongs {
+			continue
+		}
+
+		return mission, ref, true, nil
+	}
+
+	return MissionDocument{}, nil, false, nil
+}
+
+func missionFromSnapshot(
+	snapshot *firestore.DocumentSnapshot,
+	classID string,
+) (MissionDocument, bool, error) {
+	var mission MissionDocument
+	if err := snapshot.DataTo(&mission); err != nil {
+		return MissionDocument{}, false, fmt.Errorf("decode mission %s: %w", snapshot.Ref.ID, err)
+	}
+	if mission.ID == "" {
+		mission.ID = snapshot.Ref.ID
+	}
+	if mission.ClassID == "" {
+		mission.ClassID = classID
+	}
+	if classID != "" && mission.ClassID != classID {
+		return MissionDocument{}, false, nil
+	}
+	hydrateMissionLifecycle(&mission)
+
+	return mission, true, nil
+}
+
+func missionListSortTime(mission MissionDocument) time.Time {
+	if !mission.UpdatedAt.IsZero() {
+		return mission.UpdatedAt
+	}
+
+	return mission.CreatedAt
+}
+
+func applyMissionTenantScope(
+	mission *MissionDocument,
+	scope tenant.Scope,
+	teacherID string,
+) {
+	if mission == nil {
+		return
+	}
+
+	normalized := tenant.NormalizeScope(scope)
+	mission.OrganizationID = normalized.OrganizationID
+	mission.DistrictID = normalized.DistrictID
+	mission.SchoolID = normalized.SchoolID
+	if teacherID != "" {
+		mission.TeacherID = teacherID
+	}
+	applySnapshotTenantScope(mission.Draft, normalized, mission.TeacherID)
+	applySnapshotTenantScope(mission.Published, normalized, mission.TeacherID)
+}
+
+func applySnapshotTenantScope(
+	snapshot *MissionSnapshot,
+	scope tenant.Scope,
+	teacherID string,
+) {
+	if snapshot == nil {
+		return
+	}
+
+	snapshot.OrganizationID = scope.OrganizationID
+	snapshot.DistrictID = scope.DistrictID
+	snapshot.SchoolID = scope.SchoolID
+	if teacherID != "" {
+		snapshot.TeacherID = teacherID
+	}
+}
+
+func hydratePublishedRevision(
+	revision *MissionPublishedRevisionDocument,
+	classID string,
+	missionID string,
+) {
+	if revision == nil {
+		return
+	}
+	if revision.ClassID == "" {
+		revision.ClassID = classID
+	}
+	if revision.MissionID == "" {
+		revision.MissionID = missionID
+	}
+
+	scope := tenant.NormalizeScope(tenant.Scope{
+		OrganizationID: revision.OrganizationID,
+		DistrictID:     revision.DistrictID,
+		SchoolID:       revision.SchoolID,
+	})
+	revision.OrganizationID = scope.OrganizationID
+	revision.DistrictID = scope.DistrictID
+	revision.SchoolID = scope.SchoolID
+	if revision.TeacherID == "" {
+		revision.TeacherID = revision.Snapshot.TeacherID
+	}
+	if revision.TeacherID == "" {
+		revision.TeacherID = revision.PublishedBy.ProviderUserID
+	}
+	applySnapshotTenantScope(&revision.Snapshot, scope, revision.TeacherID)
 }
 
 func inheritStoredAttachments(

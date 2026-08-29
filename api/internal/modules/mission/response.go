@@ -10,6 +10,10 @@ import (
 type MissionResponse struct {
 	ID                       string                           `json:"id"`
 	MissionCode              string                           `json:"mission_code"`
+	OrganizationID           string                           `json:"organization_id"`
+	DistrictID               string                           `json:"district_id"`
+	SchoolID                 string                           `json:"school_id"`
+	TeacherID                string                           `json:"teacher_id"`
 	ClassID                  string                           `json:"class_id"`
 	ClassCode                string                           `json:"class_code"`
 	ClassName                string                           `json:"class_name"`
@@ -62,6 +66,10 @@ func ToResponse(mission MissionDocument) MissionResponse {
 	return MissionResponse{
 		ID:                       mission.ID,
 		MissionCode:              mission.MissionCode,
+		OrganizationID:           mission.OrganizationID,
+		DistrictID:               mission.DistrictID,
+		SchoolID:                 mission.SchoolID,
+		TeacherID:                mission.TeacherID,
 		ClassID:                  mission.ClassID,
 		ClassCode:                mission.ClassCode,
 		ClassName:                mission.ClassName,

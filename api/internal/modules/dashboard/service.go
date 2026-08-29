@@ -11,6 +11,7 @@ import (
 	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/tenant"
 	"classgame-api/internal/modules/users"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
@@ -56,8 +57,12 @@ func (service *Service) GetOverview(
 	}
 
 	normalizedClassID := normalizeClassID(classID)
+	scope := tenant.DefaultScope()
 	if normalizedClassID == "" {
 		return DashboardOverview{
+			OrganizationID:  scope.OrganizationID,
+			DistrictID:      scope.DistrictID,
+			SchoolID:        scope.SchoolID,
 			Teacher:         teacher,
 			GeneratedByAI:   false,
 			GeneratedByMock: true,
@@ -73,6 +78,9 @@ func (service *Service) GetOverview(
 		}
 		if !exists {
 			return DashboardOverview{
+				OrganizationID:  scope.OrganizationID,
+				DistrictID:      scope.DistrictID,
+				SchoolID:        scope.SchoolID,
 				ClassID:         normalizedClassID,
 				ClassCode:       normalizedClassID,
 				Teacher:         teacher,
@@ -83,6 +91,11 @@ func (service *Service) GetOverview(
 		}
 
 		teacherClass = &foundClass
+		scope = tenant.NormalizeScope(tenant.Scope{
+			OrganizationID: foundClass.OrganizationID,
+			DistrictID:     foundClass.DistrictID,
+			SchoolID:       foundClass.SchoolID,
+		})
 	}
 
 	var activeMission *mission.MissionDocument
@@ -127,6 +140,9 @@ func (service *Service) GetOverview(
 	}
 
 	return DashboardOverview{
+		OrganizationID:  scope.OrganizationID,
+		DistrictID:      scope.DistrictID,
+		SchoolID:        scope.SchoolID,
 		ClassID:         normalizedClassID,
 		ClassCode:       classCode,
 		TeacherClass:    teacherClass,

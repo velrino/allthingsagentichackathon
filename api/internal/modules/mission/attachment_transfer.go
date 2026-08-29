@@ -23,29 +23,21 @@ func (repository *Repository) Prepare(
 		return missionattachment.TransferPlan{}, errors.New("mission attachment repository is not configured")
 	}
 
-	missionRef := repository.missionRef(job.ClassID, job.MissionID)
-	revisionRef := missionRef.Collection(MissionRevisionsCollectionName).
-		Doc(strconv.FormatInt(job.Revision, 10))
 	plan := missionattachment.TransferPlan{}
 
 	err := repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		revisionSnapshot, err := tx.Get(revisionRef)
-		if status.Code(err) == codes.NotFound {
-			return repository.classifyMissingRevision(ctx, tx, missionRef, job.Revision)
-		}
+		revision, missionRef, revisionRef, exists, err := repository.findRevisionForTransfer(tx, job)
 		if err != nil {
-			return fmt.Errorf("read mission attachment revision: %w", err)
+			return err
 		}
-
-		var revision MissionPublishedRevisionDocument
-		if err := revisionSnapshot.DataTo(&revision); err != nil {
-			return fmt.Errorf("decode mission attachment revision: %w", err)
+		if !exists {
+			return repository.classifyMissingRevision(tx, job.ClassID, job.MissionID, job.Revision)
 		}
 		if revision.Revision != job.Revision || revision.ClassID != job.ClassID || revision.MissionID != job.MissionID {
 			return missionattachment.ErrRevisionObsolete
 		}
 
-		mission, hasMission, err := readMissionForTransfer(ctx, tx, missionRef)
+		mission, hasMission, err := readMissionForTransfer(tx, missionRef, job.ClassID)
 		if err != nil {
 			return err
 		}
@@ -140,22 +132,13 @@ func (repository *Repository) Complete(ctx context.Context, job missionattachmen
 		return errors.New("mission attachment repository is not configured")
 	}
 
-	missionRef := repository.missionRef(job.ClassID, job.MissionID)
-	revisionRef := missionRef.Collection(MissionRevisionsCollectionName).
-		Doc(strconv.FormatInt(job.Revision, 10))
-
 	return repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		revisionSnapshot, err := tx.Get(revisionRef)
-		if status.Code(err) == codes.NotFound {
-			return missionattachment.ErrRevisionObsolete
-		}
+		revision, _, revisionRef, exists, err := repository.findRevisionForTransfer(tx, job)
 		if err != nil {
-			return fmt.Errorf("read completed mission attachment revision: %w", err)
+			return err
 		}
-
-		var revision MissionPublishedRevisionDocument
-		if err := revisionSnapshot.DataTo(&revision); err != nil {
-			return fmt.Errorf("decode completed mission attachment revision: %w", err)
+		if !exists {
+			return missionattachment.ErrRevisionObsolete
 		}
 		transferStatus := "complete"
 		for _, attachment := range revision.Snapshot.Attachments {
@@ -187,22 +170,13 @@ func (repository *Repository) updateRevisionAttachment(
 		return errors.New("mission attachment repository is not configured")
 	}
 
-	missionRef := repository.missionRef(job.ClassID, job.MissionID)
-	revisionRef := missionRef.Collection(MissionRevisionsCollectionName).
-		Doc(strconv.FormatInt(job.Revision, 10))
-
 	return repository.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		revisionSnapshot, err := tx.Get(revisionRef)
-		if status.Code(err) == codes.NotFound {
-			return missionattachment.ErrRevisionObsolete
-		}
+		revision, missionRef, revisionRef, exists, err := repository.findRevisionForTransfer(tx, job)
 		if err != nil {
-			return fmt.Errorf("read mission attachment update revision: %w", err)
+			return err
 		}
-
-		var revision MissionPublishedRevisionDocument
-		if err := revisionSnapshot.DataTo(&revision); err != nil {
-			return fmt.Errorf("decode mission attachment update revision: %w", err)
+		if !exists {
+			return missionattachment.ErrRevisionObsolete
 		}
 
 		attachmentIndex := findTransferAttachment(revision.Snapshot.Attachments, target)
@@ -210,7 +184,7 @@ func (repository *Repository) updateRevisionAttachment(
 			return missionattachment.ErrRevisionObsolete
 		}
 
-		mission, hasMission, err := readMissionForTransfer(ctx, tx, missionRef)
+		mission, hasMission, err := readMissionForTransfer(tx, missionRef, job.ClassID)
 		if err != nil {
 			return err
 		}
@@ -231,27 +205,59 @@ func (repository *Repository) updateRevisionAttachment(
 	})
 }
 
-func (repository *Repository) classifyMissingRevision(
-	ctx context.Context,
+func (repository *Repository) findRevisionForTransfer(
 	tx *firestore.Transaction,
-	missionRef *firestore.DocumentRef,
-	revision int64,
-) error {
-	mission, exists, err := readMissionForTransfer(ctx, tx, missionRef)
-	if err != nil {
-		return err
-	}
-	if !exists || mission.Status == StatusDeleted || mission.PublishedRevision >= revision || mission.DraftRevision > revision {
-		return missionattachment.ErrRevisionObsolete
+	job missionattachment.Job,
+) (MissionPublishedRevisionDocument, *firestore.DocumentRef, *firestore.DocumentRef, bool, error) {
+	for _, refs := range repository.missionRevisionRefs(job.ClassID, job.MissionID, job.Revision) {
+		snapshot, err := tx.Get(refs.revisionRef)
+		if status.Code(err) == codes.NotFound {
+			continue
+		}
+		if err != nil {
+			return MissionPublishedRevisionDocument{}, nil, nil, false, fmt.Errorf("read mission attachment revision: %w", err)
+		}
+
+		var revision MissionPublishedRevisionDocument
+		if err := snapshot.DataTo(&revision); err != nil {
+			return MissionPublishedRevisionDocument{}, nil, nil, false, fmt.Errorf("decode mission attachment revision: %w", err)
+		}
+		hydratePublishedRevision(&revision, job.ClassID, job.MissionID)
+		if revision.Revision != job.Revision || revision.ClassID != job.ClassID || revision.MissionID != job.MissionID {
+			return MissionPublishedRevisionDocument{}, nil, nil, false, missionattachment.ErrRevisionObsolete
+		}
+
+		return revision, refs.missionRef, refs.revisionRef, true, nil
 	}
 
-	return missionattachment.ErrRevisionPending
+	return MissionPublishedRevisionDocument{}, nil, nil, false, nil
+}
+
+func (repository *Repository) classifyMissingRevision(
+	tx *firestore.Transaction,
+	classID string,
+	missionID string,
+	revision int64,
+) error {
+	for _, missionRef := range repository.missionRefs(classID, missionID) {
+		mission, exists, err := readMissionForTransfer(tx, missionRef, classID)
+		if err != nil {
+			return err
+		}
+		if !exists || mission.Status == StatusDeleted || mission.PublishedRevision >= revision || mission.DraftRevision > revision {
+			continue
+		}
+
+		return missionattachment.ErrRevisionPending
+	}
+
+	return missionattachment.ErrRevisionObsolete
 }
 
 func readMissionForTransfer(
-	ctx context.Context,
 	tx *firestore.Transaction,
 	missionRef *firestore.DocumentRef,
+	classID string,
 ) (MissionDocument, bool, error) {
 	snapshot, err := tx.Get(missionRef)
 	if status.Code(err) == codes.NotFound {
@@ -261,23 +267,62 @@ func readMissionForTransfer(
 		return MissionDocument{}, false, fmt.Errorf("read mission for attachment transfer: %w", err)
 	}
 
-	var mission MissionDocument
-	if err := snapshot.DataTo(&mission); err != nil {
+	mission, belongs, err := missionFromSnapshot(snapshot, classID)
+	if err != nil {
 		return MissionDocument{}, false, fmt.Errorf("decode mission for attachment transfer: %w", err)
 	}
-	if mission.ID == "" {
-		mission.ID = snapshot.Ref.ID
+	if !belongs {
+		return MissionDocument{}, false, nil
 	}
-	hydrateMissionLifecycle(&mission)
 
 	return mission, true, nil
 }
 
 func (repository *Repository) missionRef(classID string, missionID string) *firestore.DocumentRef {
+	return repository.client.Collection(MissionsCollectionName).Doc(missionID)
+}
+
+func (repository *Repository) legacyMissionRef(classID string, missionID string) *firestore.DocumentRef {
 	return repository.client.Collection(teacherclass.CollectionName).
 		Doc(classID).
 		Collection(MissionsCollectionName).
 		Doc(missionID)
+}
+
+func (repository *Repository) missionRefs(classID string, missionID string) []*firestore.DocumentRef {
+	return []*firestore.DocumentRef{
+		repository.missionRef(classID, missionID),
+		repository.legacyMissionRef(classID, missionID),
+	}
+}
+
+type missionRevisionRefs struct {
+	missionRef  *firestore.DocumentRef
+	revisionRef *firestore.DocumentRef
+}
+
+func (repository *Repository) missionRevisionRefs(
+	classID string,
+	missionID string,
+	revision int64,
+) []missionRevisionRefs {
+	revisionID := strconv.FormatInt(revision, 10)
+	refs := repository.missionRefs(classID, missionID)
+	output := make([]missionRevisionRefs, 0, len(refs))
+	for _, missionRef := range refs {
+		output = append(output, missionRevisionRefs{
+			missionRef:  missionRef,
+			revisionRef: missionRef.Collection(MissionRevisionsCollectionName).Doc(revisionID),
+		})
+	}
+
+	return output
+}
+
+func (repository *Repository) legacyClassMissionsQuery(classID string) *firestore.CollectionRef {
+	return repository.client.Collection(teacherclass.CollectionName).
+		Doc(classID).
+		Collection(MissionsCollectionName)
 }
 
 func mirrorRevisionAttachments(

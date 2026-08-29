@@ -30,10 +30,13 @@ type UserProfileResponse struct {
 }
 
 type StudentProfileResponse struct {
-	ClassID     string `json:"class_id"`
-	MissionID   string `json:"mission_id"`
-	MissionCode string `json:"mission_code"`
-	StudentName string `json:"student_name"`
+	OrganizationID string `json:"organization_id"`
+	DistrictID     string `json:"district_id"`
+	SchoolID       string `json:"school_id"`
+	ClassID        string `json:"class_id"`
+	MissionID      string `json:"mission_id"`
+	MissionCode    string `json:"mission_code"`
+	StudentName    string `json:"student_name"`
 }
 
 type UserActivityResponse struct {
@@ -103,10 +106,13 @@ func ToResponse(user UserDocument) UserResponse {
 			PhotoURL:      user.Profile.PhotoURL,
 		},
 		Student: StudentProfileResponse{
-			ClassID:     user.Student.ClassID,
-			MissionID:   user.Student.MissionID,
-			MissionCode: user.Student.MissionCode,
-			StudentName: user.Student.StudentName,
+			OrganizationID: user.Student.OrganizationID,
+			DistrictID:     user.Student.DistrictID,
+			SchoolID:       user.Student.SchoolID,
+			ClassID:        user.Student.ClassID,
+			MissionID:      user.Student.MissionID,
+			MissionCode:    user.Student.MissionCode,
+			StudentName:    user.Student.StudentName,
 		},
 		Activity: UserActivityResponse{
 			FirstSeenAt: formatTime(user.Activity.FirstSeenAt),

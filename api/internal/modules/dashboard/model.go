@@ -35,13 +35,16 @@ type TeacherSummary struct {
 }
 
 type TeacherDocument struct {
-	ID        string          `firestore:"id" json:"id"`
-	Identity  TeacherIdentity `firestore:"identity" json:"identity"`
-	Profile   TeacherSummary  `firestore:"profile" json:"profile"`
-	Roles     []string        `firestore:"roles" json:"roles"`
-	Activity  TeacherActivity `firestore:"activity" json:"activity"`
-	CreatedAt time.Time       `firestore:"created_at" json:"created_at"`
-	UpdatedAt time.Time       `firestore:"updated_at" json:"updated_at"`
+	ID             string          `firestore:"id" json:"id"`
+	OrganizationID string          `firestore:"organization_id" json:"organization_id"`
+	DistrictID     string          `firestore:"district_id" json:"district_id"`
+	SchoolID       string          `firestore:"school_id" json:"school_id"`
+	Identity       TeacherIdentity `firestore:"identity" json:"identity"`
+	Profile        TeacherSummary  `firestore:"profile" json:"profile"`
+	Roles          []string        `firestore:"roles" json:"roles"`
+	Activity       TeacherActivity `firestore:"activity" json:"activity"`
+	CreatedAt      time.Time       `firestore:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `firestore:"updated_at" json:"updated_at"`
 }
 
 type TeacherActivity struct {
@@ -92,6 +95,9 @@ type DashboardMetrics struct {
 }
 
 type DashboardOverview struct {
+	OrganizationID  string
+	DistrictID      string
+	SchoolID        string
 	ClassID         string
 	ClassCode       string
 	TeacherClass    *teacherclass.TeacherClassDocument
@@ -136,8 +142,11 @@ type studentUserProfile struct {
 }
 
 type studentProfile struct {
-	ClassID     string `firestore:"class_id"`
-	StudentName string `firestore:"student_name"`
+	OrganizationID string `firestore:"organization_id"`
+	DistrictID     string `firestore:"district_id"`
+	SchoolID       string `firestore:"school_id"`
+	ClassID        string `firestore:"class_id"`
+	StudentName    string `firestore:"student_name"`
 }
 
 type studentActivity struct {

@@ -19,6 +19,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /missions/{missionId} {
+      allow read: if ownsClass(resource.data.class_id);
+      allow write: if false;
+    }
+
     match /student_mission_attempts/{attemptId} {
       allow read: if ownsClass(resource.data.class_id);
       allow write: if false;

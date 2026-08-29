@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"classgame-api/internal/modules/orchestrator"
+	"classgame-api/internal/modules/tenant"
 )
 
 const initialMissionRevision int64 = 1
@@ -11,6 +12,10 @@ const initialMissionRevision int64 = 1
 func snapshotFromMission(mission MissionDocument, revision int64) MissionSnapshot {
 	return MissionSnapshot{
 		Revision:                 revision,
+		OrganizationID:           mission.OrganizationID,
+		DistrictID:               mission.DistrictID,
+		SchoolID:                 mission.SchoolID,
+		TeacherID:                mission.TeacherID,
 		MissionName:              mission.MissionName,
 		Title:                    mission.Title,
 		Summary:                  mission.Summary,
@@ -38,6 +43,10 @@ func snapshotFromMission(mission MissionDocument, revision int64) MissionSnapsho
 
 func (mission *MissionDocument) applySnapshot(snapshot MissionSnapshot) {
 	mission.MissionName = snapshot.MissionName
+	mission.OrganizationID = snapshot.OrganizationID
+	mission.DistrictID = snapshot.DistrictID
+	mission.SchoolID = snapshot.SchoolID
+	mission.TeacherID = snapshot.TeacherID
 	mission.Title = snapshot.Title
 	mission.Summary = snapshot.Summary
 	mission.Subject = snapshot.Subject
@@ -63,6 +72,8 @@ func (mission *MissionDocument) applySnapshot(snapshot MissionSnapshot) {
 }
 
 func hydrateMissionLifecycle(mission *MissionDocument) {
+	hydrateMissionTenantScope(mission)
+
 	if mission.Status == StatusPreview {
 		mission.Status = StatusDraft
 	}
@@ -102,6 +113,47 @@ func hydrateMissionLifecycle(mission *MissionDocument) {
 	mission.HasUnpublishedChanges = mission.Published == nil ||
 		mission.DraftRevision != mission.PublishedRevision
 	ensureMissionFlow(mission)
+}
+
+func hydrateMissionTenantScope(mission *MissionDocument) {
+	if mission == nil {
+		return
+	}
+
+	scope := tenant.NormalizeScope(tenant.Scope{
+		OrganizationID: mission.OrganizationID,
+		DistrictID:     mission.DistrictID,
+		SchoolID:       mission.SchoolID,
+	})
+	mission.OrganizationID = scope.OrganizationID
+	mission.DistrictID = scope.DistrictID
+	mission.SchoolID = scope.SchoolID
+	if mission.TeacherID == "" {
+		mission.TeacherID = mission.CreatedBy.ProviderUserID
+	}
+	hydrateSnapshotTenantScope(mission.Draft, mission)
+	hydrateSnapshotTenantScope(mission.Published, mission)
+}
+
+func hydrateSnapshotTenantScope(
+	snapshot *MissionSnapshot,
+	mission *MissionDocument,
+) {
+	if snapshot == nil || mission == nil {
+		return
+	}
+	if snapshot.OrganizationID == "" {
+		snapshot.OrganizationID = mission.OrganizationID
+	}
+	if snapshot.DistrictID == "" {
+		snapshot.DistrictID = mission.DistrictID
+	}
+	if snapshot.SchoolID == "" {
+		snapshot.SchoolID = mission.SchoolID
+	}
+	if snapshot.TeacherID == "" {
+		snapshot.TeacherID = mission.TeacherID
+	}
 }
 
 func draftView(mission MissionDocument) MissionDocument {

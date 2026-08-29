@@ -160,6 +160,9 @@ export interface IApiStudentSessionUser {
     photo_url: string;
   };
   student: {
+    organization_id: string;
+    district_id: string;
+    school_id: string;
     class_id: string;
     mission_id: string;
     mission_code: string;
@@ -257,6 +260,9 @@ export interface IApiStudentTutorTurnResponse {
 
 export interface IApiStudentLearningAttempt {
   id: string;
+  organization_id: string;
+  district_id: string;
+  school_id: string;
   student_id: string;
   student_name: string;
   class_id: string;
@@ -395,6 +401,9 @@ export interface IApiSuggestion {
 
 export interface IApiTeacherClass {
   id: string;
+  organization_id: string;
+  district_id: string;
+  school_id: string;
   class_id: string;
   class_code: string;
   class_name: string;
@@ -496,6 +505,10 @@ export interface IApiMissionOrchestration {
 export interface IApiTeacherClassMission {
   id: string;
   mission_code: string;
+  organization_id: string;
+  district_id: string;
+  school_id: string;
+  teacher_id: string;
   class_id: string;
   class_code: string;
   class_name: string;
@@ -615,6 +628,9 @@ export interface IApiClassLearningSummary {
 }
 
 export interface IApiDashboardOverviewResponse {
+  organization_id: string;
+  district_id: string;
+  school_id: string;
   class_id: string;
   class_code: string;
   teacher_class: IApiTeacherClass | null;

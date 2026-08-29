@@ -10,6 +10,10 @@ go mod download
 go run ./cmd/api
 ```
 
+Tenant env vars are optional for local development. If unset, the API uses
+`default-org`, `default-district` and `default-school` via
+`DEFAULT_ORGANIZATION_ID`, `DEFAULT_DISTRICT_ID` and `DEFAULT_SCHOOL_ID`.
+
 With hot reload:
 
 ```bash
@@ -40,6 +44,7 @@ curl http://localhost:4004/
 - `internal/shared/google/genai` wraps the Google GenAI SDK so other modules can request structured output without coupling to SDK details.
 - `internal/modules/orchestrator` turns a teacher request into a mission blueprint and falls back locally if GenAI is disabled or unavailable.
 - `internal/modules/teacher-class-student` defines the per-class student thinking summary that future tutor turns will write.
+- `internal/modules/tenant` centralizes the current tenant scope. Today every teacher defaults to one configured organization/district/school, while stored records already carry those IDs for future school or district reporting.
 - Firebase Admin connects to project `allthingsagentichackatho-ee359`.
 - Firestore is the durable database.
 - Redis uses the same Secret Manager value as Unshatter for now.
@@ -52,8 +57,16 @@ Student records are stored in Firestore under `users/{firebase_uid}`. Payloads a
 {
   "identity": { "provider_user_id": "firebase_uid", "auth_method": "anonymous" },
   "profile": { "display_name": "Student Name" },
-  "student": { "class_id": "ALG-2026-A", "mission_id": "mission-id", "mission_code": "123456", "student_name": "Student Name" },
-  "mission": {
+  "student": {
+    "organization_id": "default-org",
+    "district_id": "default-district",
+    "school_id": "default-school",
+    "class_id": "ALG-2026-A",
+    "mission_id": "mission-id",
+    "mission_code": "123456",
+    "student_name": "Student Name"
+  },
+  "activity": {
     "first_seen_at": "...",
     "last_seen_at": "...",
     "login_count": 1,
@@ -79,6 +92,7 @@ Learning evidence is stored separately so every mission revision remains availab
 
 ```txt
 student_mission_attempts/{attempt_id}
+  organization_id, district_id, school_id
   student_id, student_name, class_id, mission_id, published_revision, status
   snapshot: { progress[], notes[], preferences, decisions[], events[], redirected, return_to, last_pod }
   trace: { summary, strengths[], improvement_areas[], next_adaptation, flow, provenance }
@@ -93,28 +107,38 @@ The current attempt is restored when the student rejoins. For a new mission, Cla
 
 ## Teacher Classes And Missions
 
-Teacher-created classroom content is stored under a class document, then mission documents inside that class:
+Teacher-created classroom content is tenant-scoped. Classes stay in
+`teacher_classes`; missions are top-level documents so future reporting can list
+all missions for one school, district or organization without scanning class
+subcollections. The repository still reads legacy mission subcollections for
+existing demo data, but new writes go to `/missions/{mission_id}`.
 
 ```txt
 teachers/{firebase_uid}
+  organization_id, district_id, school_id
   identity, profile, roles, activity, created_at, updated_at
 
 teacher_classes/{class_id}
+  organization_id, district_id, school_id
   class_id, class_code, class_name, subject, grade_level, teacher_id
   teacher, active_mission_id, mission_count, status, created_at, updated_at
 
-teacher_classes/{class_id}/missions/{mission_id}
+missions/{mission_id}
+  organization_id, district_id, school_id, teacher_id
+  class_id, class_code, class_name
   mission_code, status, draft_revision, published_revision, has_unpublished_changes
   draft: { mission content, attachments[], orchestration, revision, updated_by, updated_at }
   published: { mission content, attachments[], orchestration, revision, updated_by, updated_at }
   created_by, updated_by, published_at, deleted_at, deleted_by, created_at, updated_at
 
-teacher_classes/{class_id}/missions/{mission_id}/published_revisions/{revision}
+missions/{mission_id}/published_revisions/{revision}
   immutable published snapshot
   attachment_transfer_status, attachment_transfer_at, published_by, published_at
 
 mission_codes/{mission_code}
-  mission_code, mission_id, class_id, status, created_at, updated_at
+  mission_code, mission_id, class_id
+  organization_id, district_id, school_id, teacher_id
+  status, created_at, updated_at
 
 teacher_classes/{class_id}/students/{student_id}
   student_id, student_name, current_mission_id

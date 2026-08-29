@@ -11,6 +11,8 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"classgame-api/internal/modules/tenant"
 )
 
 var (
@@ -48,6 +50,7 @@ func (repository *Repository) Get(
 	if teacherClass.ID == "" {
 		teacherClass.ID = snapshot.Ref.ID
 	}
+	hydrateTeacherClassTenantScope(&teacherClass)
 
 	return teacherClass, true, nil
 }
@@ -78,6 +81,7 @@ func (repository *Repository) ListByTeacherID(
 		if teacherClass.ID == "" {
 			teacherClass.ID = snapshot.Ref.ID
 		}
+		hydrateTeacherClassTenantScope(&teacherClass)
 
 		teacherClasses = append(teacherClasses, teacherClass)
 	}
@@ -100,6 +104,7 @@ func (repository *Repository) Upsert(
 		createdAt := input.Timestamp
 		missionCount := int64(0)
 		activeMissionID := ""
+		scope := tenant.NormalizeScope(input.Scope)
 
 		snapshot, err := tx.Get(ref)
 		switch {
@@ -108,6 +113,7 @@ func (repository *Repository) Upsert(
 			if err := snapshot.DataTo(&existing); err != nil {
 				return fmt.Errorf("decode teacher class: %w", err)
 			}
+			hydrateTeacherClassTenantScope(&existing)
 			if existing.TeacherID != "" && existing.TeacherID != input.Teacher.ProviderUserID {
 				return ErrClassOwnedByAnotherTeacher
 			}
@@ -116,10 +122,16 @@ func (repository *Repository) Upsert(
 			}
 			missionCount = existing.MissionCount
 			activeMissionID = existing.ActiveMissionID
+			scope = tenant.NormalizeScope(tenant.Scope{
+				OrganizationID: existing.OrganizationID,
+				DistrictID:     existing.DistrictID,
+				SchoolID:       existing.SchoolID,
+			})
 		case status.Code(err) != codes.NotFound:
 			return fmt.Errorf("read teacher class: %w", err)
 		}
 
+		input.Scope = scope
 		teacherClass = newTeacherClassDocument(input, createdAt, activeMissionID, missionCount)
 
 		return tx.Set(ref, teacherClass.firestoreMap(), firestore.MergeAll)
@@ -199,6 +211,9 @@ func (repository *Repository) SetActiveMission(
 func (teacherClass TeacherClassDocument) firestoreMap() map[string]any {
 	return map[string]any{
 		"id":                teacherClass.ID,
+		"organization_id":   teacherClass.OrganizationID,
+		"district_id":       teacherClass.DistrictID,
+		"school_id":         teacherClass.SchoolID,
 		"class_id":          teacherClass.ClassID,
 		"class_code":        teacherClass.ClassCode,
 		"class_name":        teacherClass.ClassName,
@@ -220,8 +235,13 @@ func newTeacherClassDocument(
 	activeMissionID string,
 	missionCount int64,
 ) TeacherClassDocument {
+	scope := tenant.NormalizeScope(input.Scope)
+
 	return TeacherClassDocument{
 		ID:              input.ClassID,
+		OrganizationID:  scope.OrganizationID,
+		DistrictID:      scope.DistrictID,
+		SchoolID:        scope.SchoolID,
 		ClassID:         input.ClassID,
 		ClassCode:       input.ClassID,
 		ClassName:       input.ClassName,
@@ -235,6 +255,21 @@ func newTeacherClassDocument(
 		CreatedAt:       createdAt,
 		UpdatedAt:       input.Timestamp,
 	}
+}
+
+func hydrateTeacherClassTenantScope(teacherClass *TeacherClassDocument) {
+	if teacherClass == nil {
+		return
+	}
+
+	scope := tenant.NormalizeScope(tenant.Scope{
+		OrganizationID: teacherClass.OrganizationID,
+		DistrictID:     teacherClass.DistrictID,
+		SchoolID:       teacherClass.SchoolID,
+	})
+	teacherClass.OrganizationID = scope.OrganizationID
+	teacherClass.DistrictID = scope.DistrictID
+	teacherClass.SchoolID = scope.SchoolID
 }
 
 func (teacher TeacherSummary) firestoreMap() map[string]any {

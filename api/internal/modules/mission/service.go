@@ -13,6 +13,7 @@ import (
 	"classgame-api/internal/modules/missionattachment"
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/tenant"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -296,6 +297,11 @@ func (service *Service) createDraft(
 	input.ClassName = teacherClass.ClassName
 	input.Subject = teacherClass.Subject
 	input.GradeLevel = teacherClass.GradeLevel
+	input.Scope = tenant.NormalizeScope(tenant.Scope{
+		OrganizationID: teacherClass.OrganizationID,
+		DistrictID:     teacherClass.DistrictID,
+		SchoolID:       teacherClass.SchoolID,
+	})
 
 	teacher, err := service.teacherClassService.TeacherFromIdentity(identity)
 	if err != nil {

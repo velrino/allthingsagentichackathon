@@ -11,6 +11,7 @@ import (
 
 	mission "classgame-api/internal/modules/mission"
 	"classgame-api/internal/modules/orchestrator"
+	"classgame-api/internal/modules/tenant"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
@@ -102,7 +103,12 @@ func (service *Service) UpsertStudent(
 	}
 
 	user, err := service.repository.UpsertStudent(ctx, UpsertStudentInput{
-		Identity:                 identity,
+		Identity: identity,
+		Scope: tenant.Scope{
+			OrganizationID: missionDocument.OrganizationID,
+			DistrictID:     missionDocument.DistrictID,
+			SchoolID:       missionDocument.SchoolID,
+		},
 		ClassID:                  missionDocument.ClassID,
 		MissionID:                missionDocument.ID,
 		MissionCode:              missionDocument.MissionCode,
@@ -521,7 +527,15 @@ func (service *Service) refreshClassLearningSynthesis(ctx context.Context, class
 	}
 	evidence := make([]orchestrator.ClassLearningStudentEvidence, 0, len(attempts))
 	evidenceUpdatedAt := time.Time{}
+	scope := tenant.DefaultScope()
 	for _, attempt := range attempts {
+		if attempt.OrganizationID != "" || attempt.DistrictID != "" || attempt.SchoolID != "" {
+			scope = tenant.NormalizeScope(tenant.Scope{
+				OrganizationID: attempt.OrganizationID,
+				DistrictID:     attempt.DistrictID,
+				SchoolID:       attempt.SchoolID,
+			})
+		}
 		evidence = append(evidence, orchestrator.ClassLearningStudentEvidence{
 			StudentID:        attempt.StudentID,
 			StudentName:      attempt.StudentName,
@@ -544,6 +558,9 @@ func (service *Service) refreshClassLearningSynthesis(ctx context.Context, class
 	}
 
 	return service.repository.SaveClassLearningSynthesis(ctx, ClassLearningSynthesisDocument{
+		OrganizationID:    scope.OrganizationID,
+		DistrictID:        scope.DistrictID,
+		SchoolID:          scope.SchoolID,
 		ClassID:           classID,
 		Synthesis:         synthesis,
 		AttemptCount:      len(attempts),

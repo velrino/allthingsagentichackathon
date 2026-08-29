@@ -5,6 +5,7 @@ import (
 
 	"classgame-api/internal/modules/orchestrator"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	"classgame-api/internal/modules/tenant"
 )
 
 const (
@@ -27,6 +28,10 @@ const (
 type MissionDocument struct {
 	ID                       string                           `firestore:"id" json:"id"`
 	MissionCode              string                           `firestore:"mission_code" json:"mission_code"`
+	OrganizationID           string                           `firestore:"organization_id" json:"organization_id"`
+	DistrictID               string                           `firestore:"district_id" json:"district_id"`
+	SchoolID                 string                           `firestore:"school_id" json:"school_id"`
+	TeacherID                string                           `firestore:"teacher_id" json:"teacher_id"`
 	ClassID                  string                           `firestore:"class_id" json:"class_id"`
 	ClassCode                string                           `firestore:"class_code" json:"class_code"`
 	ClassName                string                           `firestore:"class_name" json:"class_name"`
@@ -71,6 +76,10 @@ type MissionDocument struct {
 // after an explicit approval.
 type MissionSnapshot struct {
 	Revision                 int64                            `firestore:"revision" json:"revision"`
+	OrganizationID           string                           `firestore:"organization_id" json:"organization_id"`
+	DistrictID               string                           `firestore:"district_id" json:"district_id"`
+	SchoolID                 string                           `firestore:"school_id" json:"school_id"`
+	TeacherID                string                           `firestore:"teacher_id" json:"teacher_id"`
 	MissionName              string                           `firestore:"mission_name" json:"mission_name"`
 	Title                    string                           `firestore:"title" json:"title"`
 	Summary                  string                           `firestore:"summary" json:"summary"`
@@ -96,6 +105,10 @@ type MissionSnapshot struct {
 }
 
 type MissionPublishedRevisionDocument struct {
+	OrganizationID           string                      `firestore:"organization_id" json:"organization_id"`
+	DistrictID               string                      `firestore:"district_id" json:"district_id"`
+	SchoolID                 string                      `firestore:"school_id" json:"school_id"`
+	TeacherID                string                      `firestore:"teacher_id" json:"teacher_id"`
 	ClassID                  string                      `firestore:"class_id" json:"class_id"`
 	MissionID                string                      `firestore:"mission_id" json:"mission_id"`
 	Revision                 int64                       `firestore:"revision" json:"revision"`
@@ -146,6 +159,7 @@ type CreateMissionInput struct {
 	MissionID             string
 	ExpectedDraftRevision int64
 	MissionCode           string
+	Scope                 tenant.Scope
 	ClassID               string
 	ClassCode             string
 	ClassName             string

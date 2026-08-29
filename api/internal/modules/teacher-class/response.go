@@ -4,6 +4,9 @@ import "time"
 
 type TeacherClassResponse struct {
 	ID              string          `json:"id"`
+	OrganizationID  string          `json:"organization_id"`
+	DistrictID      string          `json:"district_id"`
+	SchoolID        string          `json:"school_id"`
 	ClassID         string          `json:"class_id"`
 	ClassCode       string          `json:"class_code"`
 	ClassName       string          `json:"class_name"`
@@ -28,6 +31,9 @@ type TeacherResponse struct {
 func ToResponse(teacherClass TeacherClassDocument) TeacherClassResponse {
 	return TeacherClassResponse{
 		ID:              teacherClass.ID,
+		OrganizationID:  teacherClass.OrganizationID,
+		DistrictID:      teacherClass.DistrictID,
+		SchoolID:        teacherClass.SchoolID,
 		ClassID:         teacherClass.ClassID,
 		ClassCode:       teacherClass.ClassCode,
 		ClassName:       teacherClass.ClassName,
