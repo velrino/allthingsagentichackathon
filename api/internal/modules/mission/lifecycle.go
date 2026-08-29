@@ -52,6 +52,10 @@ func (mission *MissionDocument) applySnapshot(snapshot MissionSnapshot) {
 }
 
 func hydrateMissionLifecycle(mission *MissionDocument) {
+	if mission.Status == StatusPreview {
+		mission.Status = StatusDraft
+	}
+
 	if mission.Draft == nil {
 		revision := mission.DraftRevision
 		if revision <= 0 {
