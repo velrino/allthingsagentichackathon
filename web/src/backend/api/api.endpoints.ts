@@ -27,7 +27,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "STUDENT_SESSION_VALIDATION_FAILED");
+        throw await apiError(res, "STUDENT_SESSION_VALIDATION_FAILED");
       }
 
       return (await res.json()) as IApiStudentSessionValidationResponse;
@@ -41,7 +41,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "STUDENT_SESSION_FAILED");
+        throw await apiError(res, "STUDENT_SESSION_FAILED");
       }
 
       return (await res.json()) as IApiStudentSessionResponse;
@@ -55,7 +55,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "STUDENT_PRESENCE_FAILED");
+        throw await apiError(res, "STUDENT_PRESENCE_FAILED");
       }
 
       return (await res.json()) as IApiStudentSessionResponse;
@@ -71,7 +71,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "DASHBOARD_OVERVIEW_FAILED");
+        throw await apiError(res, "DASHBOARD_OVERVIEW_FAILED");
       }
 
       return (await res.json()) as IApiDashboardOverviewResponse;
@@ -86,7 +86,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASSES_LIST_FAILED");
+        throw await apiError(res, "TEACHER_CLASSES_LIST_FAILED");
       }
 
       return (await res.json()) as IApiTeacherClassesResponse;
@@ -100,7 +100,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_GET_FAILED");
+        throw await apiError(res, "TEACHER_CLASS_GET_FAILED");
       }
 
       return (await res.json()) as IApiTeacherClassResponse;
@@ -115,7 +115,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_UPSERT_FAILED");
+        throw await apiError(res, "TEACHER_CLASS_UPSERT_FAILED");
       }
 
       return (await res.json()) as IApiTeacherClassResponse;
@@ -135,7 +135,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_PREVIEW_FAILED");
+        throw await apiError(res, "TEACHER_CLASS_ACTIVITY_PREVIEW_FAILED");
       }
 
       return (await res.json()) as IApiTeacherClassMissionResponse;
@@ -155,7 +155,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_APPROVE_FAILED");
+        throw await apiError(res, "TEACHER_CLASS_ACTIVITY_APPROVE_FAILED");
       }
 
       return (await res.json()) as IApiTeacherClassMissionResponse;
@@ -169,7 +169,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_MISSION_DELETE_FAILED");
+        throw await apiError(res, "TEACHER_CLASS_MISSION_DELETE_FAILED");
       }
     },
 
@@ -181,7 +181,7 @@ export const API = {
       });
 
       if (!res.ok) {
-        throw new Error((await safeMessage(res)) ?? "TEACHER_CLASS_ACTIVITY_LIST_FAILED");
+        throw await apiError(res, "TEACHER_CLASS_ACTIVITY_LIST_FAILED");
       }
 
       return (await res.json()) as IApiTeacherClassMissionsResponse;
@@ -189,11 +189,34 @@ export const API = {
   },
 };
 
-async function safeMessage(res: Response): Promise<string | undefined> {
-  try {
-    const body = (await res.json()) as { error?: { message?: string }; message?: string };
-    return body.error?.message ?? body.message;
-  } catch {
-    return undefined;
+export class ApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.status = status;
   }
+}
+
+type ApiErrorBody = {
+  code?: string;
+  message?: string;
+  error?: { code?: string; message?: string };
+};
+
+/** Builds an ApiError from a failed response; `fallbackCode` is used when the body has no code. */
+async function apiError(res: Response, fallbackCode: string): Promise<ApiError> {
+  let body: ApiErrorBody = {};
+  try {
+    body = (await res.json()) as ApiErrorBody;
+  } catch {
+    // Non-JSON error body (proxy, network). Fall back to the status text.
+  }
+
+  const code = body.error?.code ?? body.code ?? fallbackCode;
+  const message = body.error?.message ?? body.message ?? res.statusText ?? fallbackCode;
+  return new ApiError(res.status, code, message);
 }

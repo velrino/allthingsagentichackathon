@@ -13,6 +13,7 @@ import {
   isFirebaseConfigured,
 } from "@/shared/firebase/client";
 
+import { describeStudentEntryError } from "./student-entry-messages";
 import {
   StudentSessionModal,
   type StudentSessionFormValue,
@@ -97,11 +98,7 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
       }
 
       setStatus("needs_student_session");
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not start the student session.",
-      );
+      setError(describeStudentEntryError(caughtError));
     } finally {
       registeringRef.current = false;
       setLoading(false);
