@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   BookOpenCheck,
   CheckCircle2,
-  ClipboardList,
   Gamepad2,
   NotebookTabs,
 } from "lucide-react";
@@ -682,20 +681,6 @@ export function DashboardPage({
                 <Gamepad2 className="size-4" aria-hidden />
                 Open game
               </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/dashboard/classes">
-                <BookOpenCheck className="size-4" aria-hidden />
-                Classes
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              disabled={!hasSelectedClass}
-              onClick={handleOpenMissionBuilder}
-            >
-              <ClipboardList className="size-4" aria-hidden />
-              {hasSelectedClass ? "New mission" : "Create class first"}
             </Button>
           </div>
         </div>
