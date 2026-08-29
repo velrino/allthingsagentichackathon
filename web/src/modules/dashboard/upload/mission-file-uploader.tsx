@@ -25,7 +25,14 @@ const ACCEPTED_FILE_TYPES =
   ".pdf,.png,.jpg,.jpeg,.docx,.txt,application/pdf,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
 const ACCEPTED_FILE_ERROR =
   "Only PDF, PNG, JPEG, DOCX, or TXT files are supported.";
-const allowedFileExtensions = [".pdf", ".png", ".jpg", ".jpeg", ".docx", ".txt"];
+const allowedFileExtensions = [
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".docx",
+  ".txt",
+];
 const allowedMimeTypes = new Set([
   "application/pdf",
   "image/png",
@@ -166,7 +173,7 @@ export function MissionFileUploader({
           ? `${firstFailedEntry?.name ? `${firstFailedEntry.name}: ` : ""}${firstError.message}`
           : unsupportedEntry
             ? `${getFileEntryName(unsupportedEntry)}: ${ACCEPTED_FILE_ERROR}`
-          : null,
+            : null,
       );
     }
 
@@ -214,9 +221,12 @@ export function MissionFileUploader({
             Upload files
           </Button>
           <p className="text-xs font-medium text-muted-foreground">
-            Drop files here
+            or Drop files here
           </p>
-          <uc-upload-ctx-provider ref={contextProviderRef} ctx-name={contextName}></uc-upload-ctx-provider>
+          <uc-upload-ctx-provider
+            ref={contextProviderRef}
+            ctx-name={contextName}
+          ></uc-upload-ctx-provider>
         </>
       ) : (
         <div className="h-10 animate-pulse rounded-md bg-muted" aria-hidden />

@@ -98,6 +98,18 @@ export function MissionBuilder({
     previewDraft && missionHasPublishedRevision(previewDraft),
   );
   const editingMission = Boolean(form.mission_id);
+  const modalTitle = `${editingMission ? "Edit mission" : "Create mission"} for ${
+    teacherClass?.class_name || classId
+  }`;
+  const classContext = [
+    teacherClass?.subject || "No subject set",
+    teacherClass?.grade_level,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const modalDescription = editingMission
+    ? `${classContext}. Update this mission draft. Students keep the published revision until you approve the new preview.`
+    : `${classContext}. Emily will generate a student preview for you to review before publishing.`;
   const busy = processing || approving || uploading;
   const showPreview = processing || Boolean(visibleMission);
   const classDetailsReady = Boolean(
@@ -185,12 +197,8 @@ export function MissionBuilder({
     <DashboardModal
       open={open}
       onOpenChange={handleOpenChange}
-      title={editingMission ? "Edit mission" : "Create mission"}
-      description={
-        editingMission
-          ? "Update this mission draft. Students keep the published revision until you approve the new preview."
-          : "Add a mission for this class. Emily will generate a student preview for you to review before publishing."
-      }
+      title={modalTitle}
+      description={modalDescription}
       size="xl"
     >
       <section className="flex flex-col lg:flex-row">
@@ -198,25 +206,6 @@ export function MissionBuilder({
           className="min-w-0 flex-1 rounded-lg border border-border"
           onSubmit={handleSubmit}
         >
-          <header className="border-b border-border px-4 py-4 sm:px-6">
-            <p className="text-xs font-bold uppercase text-cyan-700">
-              Selected class
-            </p>
-            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h3 className="text-xl font-semibold">
-                  {teacherClass?.class_name || classId}
-                </h3>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {teacherClass?.subject || "No subject set"}{" "}
-                  {teacherClass?.grade_level
-                    ? `- ${teacherClass.grade_level}`
-                    : ""}
-                </p>
-              </div>
-            </div>
-          </header>
-
           <div className="px-4 py-5 sm:px-6">
             {hasLiveRevision ? (
               <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
@@ -284,7 +273,7 @@ export function MissionBuilder({
                 }
                 maxLength={INPUT_LIMITS.missionTeacherPrompt}
                 placeholder="What did students study today? What should Emily watch for? What should count as success?"
-                className="min-h-40 rounded-md border border-input bg-background px-3 py-3 text-sm leading-6 outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
+                className="min-h-40 resize-none rounded-md border border-input bg-background px-3 py-3 text-sm leading-6 outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
             </label>
 
@@ -421,9 +410,7 @@ export function MissionBuilder({
                       </TabsContent>
 
                       <TabsContent value="flow" className="mt-3">
-                        <MissionFlowPreview
-                          flow={previewDraft.mission_flow}
-                        />
+                        <MissionFlowPreview flow={previewDraft.mission_flow} />
                       </TabsContent>
                     </Tabs>
 
