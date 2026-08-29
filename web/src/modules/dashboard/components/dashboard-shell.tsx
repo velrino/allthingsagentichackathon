@@ -87,7 +87,7 @@ export function DashboardShell({
           user={user}
           onSignOut={onSignOut}
         />
-        <SidebarInset className="@container/content">
+        <SidebarInset className="@container/content md:peer-data-[variant=inset]:ml-2">
           <DashboardHeader user={user} />
           {children}
         </SidebarInset>
