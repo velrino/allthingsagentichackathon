@@ -438,8 +438,7 @@ function SidebarMenuButton({
   tooltip?: string;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot : "button";
-  const { isMobile, state } = useSidebar();
-  const title = tooltip && state === "collapsed" && !isMobile ? tooltip : props.title;
+  const title = tooltip ?? props.title;
 
   return (
     <Comp

@@ -1,10 +1,8 @@
 import {
-  BarChart3,
   BookOpenCheck,
   ClipboardList,
   Gamepad2,
   LayoutDashboard,
-  NotebookTabs,
   Settings,
   Users,
 } from "lucide-react";
@@ -47,7 +45,7 @@ export const dashboardSidebarData: DashboardSidebarData = {
   },
   navGroups: [
     {
-      title: "Classroom",
+      title: "General",
       items: [
         {
           title: "Overview",
@@ -68,23 +66,6 @@ export const dashboardSidebarData: DashboardSidebarData = {
           title: "Students",
           url: "/dashboard#students",
           icon: Users,
-        },
-      ],
-    },
-    {
-      title: "Insights",
-      items: [
-        {
-          title: "Notebook",
-          url: "/dashboard#notebook",
-          icon: NotebookTabs,
-          badge: "Next",
-        },
-        {
-          title: "Analytics",
-          url: "/dashboard#analytics",
-          icon: BarChart3,
-          disabled: true,
         },
       ],
     },

@@ -301,7 +301,7 @@ export function ClassroomCardGrid({
     <div className="space-y-5 sm:space-y-6">
       {classrooms.length > 0 ? (
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-primary sm:text-3xl">
             Your classes
           </h1>
           <Button onClick={onCreateClass}>
@@ -456,7 +456,7 @@ function ClassroomCard({
 
   return (
     <Card
-      className="group relative min-h-52 origin-center gap-0 overflow-visible border-white/10 py-0 text-start shadow-sm transition-[scale,box-shadow] duration-200 ease-out will-change-transform motion-safe:hover:z-20 motion-safe:hover:scale-[1.025] motion-safe:hover:shadow-lg"
+      className="group relative min-h-52 gap-0 overflow-visible border-white/10 py-0 text-start shadow-sm transition-[border-color,box-shadow] duration-200 ease-out before:pointer-events-none before:absolute before:inset-0 before:rounded-lg before:bg-white/10 before:opacity-0 before:transition-opacity before:duration-200 before:ease-out hover:border-white/20 hover:shadow-lg hover:before:opacity-100"
       style={{
         backgroundColor: cardColor.background,
         color: cardColor.foreground,

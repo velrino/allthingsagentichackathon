@@ -1,10 +1,11 @@
 "use client";
 
 import type { User } from "firebase/auth";
-import { ChevronsUpDown, LogOut, SearchIcon } from "lucide-react";
+import { LogOut, SearchIcon } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import type { IApiTeacherClass } from "@/backend/api/api.interface";
 import { SkipToMain } from "@/components/skip-to-main";
@@ -31,7 +32,11 @@ import {
 import { getCookie } from "@/lib/cookies";
 import { cn } from "@/lib/utils";
 
-import { dashboardSidebarData, dashboardTopNav, type DashboardNavItem } from "../data/sidebar-data";
+import {
+  dashboardSidebarData,
+  dashboardTopNav,
+  type DashboardNavItem,
+} from "../data/sidebar-data";
 import { rememberSelectedClass } from "../utils/teacher-class-state";
 
 type DashboardShellProps = {
@@ -41,8 +46,22 @@ type DashboardShellProps = {
   readonly onSignOut: () => void;
 };
 
-export function DashboardShell({ children, onSignOut, teacherClasses = [], user }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  onSignOut,
+  teacherClasses = [],
+  user,
+}: DashboardShellProps) {
   const [activeHash, setActiveHash] = useState("#overview");
+  const persistedSidebarOpen = useSyncExternalStore(
+    subscribeToSidebarPreference,
+    readSidebarDefaultOpen,
+    readServerSidebarDefaultOpen,
+  );
+  const [sidebarOpenOverride, setSidebarOpenOverride] = useState<
+    boolean | null
+  >(null);
+  const sidebarOpen = sidebarOpenOverride ?? persistedSidebarOpen;
   const pathname = usePathname();
 
   useEffect(() => {
@@ -60,7 +79,7 @@ export function DashboardShell({ children, onSignOut, teacherClasses = [], user 
 
   return (
     <main className="dashboard-theme min-h-svh bg-sidebar text-foreground">
-      <SidebarProvider defaultOpen={readSidebarDefaultOpen()}>
+      <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpenOverride}>
         <SkipToMain />
         <DashboardAppSidebar
           activeHash={activeHash}
@@ -70,7 +89,11 @@ export function DashboardShell({ children, onSignOut, teacherClasses = [], user 
           onSignOut={onSignOut}
         />
         <SidebarInset className="@container/content">
-          <DashboardHeader activeHash={activeHash} pathname={pathname} user={user} />
+          <DashboardHeader
+            activeHash={activeHash}
+            pathname={pathname}
+            user={user}
+          />
           {children}
         </SidebarInset>
       </SidebarProvider>
@@ -91,7 +114,6 @@ function DashboardAppSidebar({
   readonly teacherClasses: IApiTeacherClass[];
   readonly user: User;
 }) {
-  const TeamLogo = dashboardSidebarData.team.logo;
   const navGroups = useMemo(
     () =>
       dashboardSidebarData.navGroups.map((group) => ({
@@ -107,7 +129,8 @@ function DashboardAppSidebar({
                 ...scopedItem,
                 items: teacherClasses.map((teacherClass) => ({
                   classId: teacherClass.class_id,
-                  title: teacherClass.class_name.trim() || teacherClass.class_code,
+                  title:
+                    teacherClass.class_name.trim() || teacherClass.class_code,
                   url: `/dashboard/class/${encodeURIComponent(teacherClass.class_id)}`,
                 })),
               }
@@ -120,20 +143,18 @@ function DashboardAppSidebar({
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip={dashboardSidebarData.team.name}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <TeamLogo className="size-4" aria-hidden />
-              </div>
-              <div className="grid flex-1 text-start text-sm leading-tight">
-                <span className="truncate font-semibold">{dashboardSidebarData.team.name}</span>
-                <span className="truncate text-xs">{dashboardSidebarData.team.plan}</span>
-              </div>
-              <ChevronsUpDown className="ml-auto size-4" aria-hidden />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <Link
+          href="/dashboard"
+          aria-label={dashboardSidebarData.team.name}
+          className="flex h-10 w-full items-center justify-center rounded-lg bg-white px-3 font-display text-sm font-bold text-primary transition-[width,height,padding] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:bg-primary group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:text-primary-foreground"
+        >
+          <span className="truncate text-xl text-primary group-data-[collapsible=icon]:hidden">
+            {dashboardSidebarData.team.name}
+          </span>
+          <span className="hidden group-data-[collapsible=icon]:block">
+            {dashboardSidebarData.team.name.charAt(0)}
+          </span>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>
@@ -190,8 +211,8 @@ function DashboardSidebarItem({
         }
         tooltip={item.title}
       >
-        <a
-          href={item.disabled ? undefined : item.url}
+        <Link
+          href={item.disabled ? "#" : item.url}
           onClick={(event) => {
             if (item.disabled) {
               event.preventDefault();
@@ -203,14 +224,16 @@ function DashboardSidebarItem({
         >
           <Icon aria-hidden />
           <span>{item.title}</span>
-          {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
-        </a>
+          {item.badge ? (
+            <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
+          ) : null}
+        </Link>
       </SidebarMenuButton>
       {item.items?.length ? (
         <ul className="mx-3 flex min-w-0 flex-col gap-1 border-l border-sidebar-border px-2 py-1 group-data-[collapsible=icon]:hidden">
           {item.items.map((subItem) => (
             <li key={subItem.classId} className="min-w-0">
-              <a
+              <Link
                 href={subItem.url}
                 className={cn(
                   "block truncate rounded-md px-2 py-1.5 text-xs text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -224,7 +247,7 @@ function DashboardSidebarItem({
                 }}
               >
                 {subItem.title}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
@@ -253,9 +276,9 @@ function DashboardHeader({
             const href = resolveScopedDashboardURL(link.href, pathname);
 
             return (
-              <a
+              <Link
                 key={link.title}
-                href={link.disabled ? undefined : href}
+                href={link.disabled ? "#" : href}
                 aria-disabled={link.disabled}
                 className={cn(
                   "text-sm font-medium transition-colors hover:text-primary",
@@ -263,9 +286,14 @@ function DashboardHeader({
                     "text-muted-foreground",
                   link.disabled && "pointer-events-none opacity-50",
                 )}
+                onClick={(event) => {
+                  if (link.disabled) {
+                    event.preventDefault();
+                  }
+                }}
               >
                 {link.title}
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -277,7 +305,10 @@ function DashboardHeader({
             className="group relative h-8 w-full flex-1 justify-start rounded-md bg-muted/25 text-sm font-normal text-muted-foreground shadow-none hover:bg-accent sm:w-40 sm:pr-12 md:flex-none lg:w-52 xl:w-64"
             aria-keyshortcuts="Meta+K Control+K"
           >
-            <SearchIcon aria-hidden className="absolute left-1.5 top-1/2 size-4 -translate-y-1/2" />
+            <SearchIcon
+              aria-hidden
+              className="absolute left-1.5 top-1/2 size-4 -translate-y-1/2"
+            />
             <span className="ml-4 truncate">Search class notes</span>
             <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 select-none group-hover:bg-accent sm:flex">
               <span className="text-xs">⌘</span>K
@@ -290,8 +321,14 @@ function DashboardHeader({
   );
 }
 
-function SidebarUser({ onSignOut, user }: { readonly onSignOut: () => void; readonly user: User }) {
-  const displayName = user.displayName ?? user.email ?? "Teacher";
+function SidebarUser({
+  onSignOut,
+  user,
+}: {
+  readonly onSignOut: () => void;
+  readonly user: User;
+}) {
+  const displayName = resolveTeacherDisplayName(user);
   const email = user.email ?? "Teacher account";
 
   return (
@@ -312,23 +349,44 @@ function SidebarUser({ onSignOut, user }: { readonly onSignOut: () => void; read
 
 function TeacherAvatar({ user }: { readonly user: User }) {
   return (
-    <Button type="button" variant="ghost" className="relative h-8 w-8 rounded-full p-0">
+    <Button
+      type="button"
+      variant="ghost"
+      className="relative h-8 w-8 rounded-full p-0"
+    >
       <UserAvatar user={user} />
       <span className="sr-only">Teacher account</span>
     </Button>
   );
 }
 
-function UserAvatar({ className, user }: { readonly className?: string; readonly user: User }) {
-  const displayName = user.displayName ?? user.email ?? "Teacher";
+function UserAvatar({
+  className,
+  user,
+}: {
+  readonly className?: string;
+  readonly user: User;
+}) {
+  const displayName = resolveTeacherDisplayName(user);
 
   if (user.photoURL) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={user.photoURL} alt="" className={cn("size-8 rounded-full object-cover", className)} />;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={user.photoURL}
+        alt=""
+        className={cn("size-8 rounded-full object-cover", className)}
+      />
+    );
   }
 
   return (
-    <span className={cn("grid size-8 place-items-center rounded-full bg-muted text-sm font-semibold", className)}>
+    <span
+      className={cn(
+        "grid size-8 place-items-center rounded-full bg-muted text-sm font-semibold",
+        className,
+      )}
+    >
       {displayName.charAt(0).toUpperCase()}
     </span>
   );
@@ -338,11 +396,27 @@ function readSidebarDefaultOpen() {
   return getCookie("sidebar_state") !== "false";
 }
 
+function readServerSidebarDefaultOpen() {
+  return true;
+}
+
+function subscribeToSidebarPreference() {
+  return () => undefined;
+}
+
+function resolveTeacherDisplayName(user: User) {
+  return user.displayName ?? user.email ?? "Teacher";
+}
+
 function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }
 
-function isActiveDashboardRoute(target: string, pathname: string, activeHash: string) {
+function isActiveDashboardRoute(
+  target: string,
+  pathname: string,
+  activeHash: string,
+) {
   const route = parseDashboardRoute(target);
   if (route.pathname !== pathname) {
     return false;
