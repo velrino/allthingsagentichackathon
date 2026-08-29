@@ -89,7 +89,17 @@ export function LoginPage() {
             Teachers use Google. Students enter from the game.
           </p>
 
-          <form className="mt-6 space-y-3 text-left" onSubmit={handleEmailSubmit} noValidate>
+          <div className="mt-6">
+            <GoogleIdentityButton onCredential={handleCredential} onLoadError={handleLoadError} disabled={busy} />
+          </div>
+
+          <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" />
+            or
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <form className="space-y-3 text-left" onSubmit={handleEmailSubmit} noValidate>
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</span>
               <input
@@ -125,14 +135,6 @@ export function LoginPage() {
             </button>
             <p className="text-center text-xs text-slate-500">Demo teacher account for the hackathon jury — already filled in.</p>
           </form>
-
-          <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            <span className="h-px flex-1 bg-slate-200" />
-            or
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
-
-          <GoogleIdentityButton onCredential={handleCredential} onLoadError={handleLoadError} disabled={busy} />
 
           {error ? (
             <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
