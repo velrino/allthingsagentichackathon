@@ -120,12 +120,6 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
   }, []);
 
   useEffect(() => {
-    if (auth.status === "signed_out") {
-      router.replace("/login?next=/dashboard");
-    }
-  }, [auth.status, router]);
-
-  useEffect(() => {
     if (auth.status !== "signed_in" || !auth.user) {
       return;
     }
@@ -529,7 +523,6 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
 
   async function handleSignOut() {
     await auth.signOutTeacher();
-    router.replace("/login");
   }
 
   function handleOpenMissionBuilder() {
@@ -650,27 +643,10 @@ export function DashboardPage({ initialClassId }: { readonly initialClassId?: st
     }
   }
 
-  if (
-    auth.status === "checking" ||
-    auth.status === "signed_out" ||
-    !auth.user
-  ) {
-    return (
-      <main className="grid min-h-svh place-items-center bg-slate-950 px-4 text-white">
-        <div className="text-center">
-          <p className="text-xs font-bold uppercase text-cyan-300">ClassGame</p>
-          <p className="mt-3 text-lg font-semibold">
-            Checking teacher session...
-          </p>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <DashboardShell
       teacherClasses={teacherClasses}
-      user={auth.user}
+      user={auth.user!}
       onSignOut={handleSignOut}
     >
       <Main id="main-content" className="space-y-4">

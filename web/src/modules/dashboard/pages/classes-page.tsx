@@ -1,7 +1,6 @@
 "use client";
 
 import { BookOpenCheck, ClipboardList, Gamepad2, Plus, Users } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
@@ -23,7 +22,6 @@ import { MetricCard } from "../components/metric-card";
 import { rememberSelectedClass, sortTeacherClasses, upsertTeacherClass } from "../utils/teacher-class-state";
 
 export function ClassesPage() {
-  const router = useRouter();
   const auth = useTeacherAuth();
   const [teacherClasses, setTeacherClasses] = useState<IApiTeacherClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<IApiTeacherClass | null>(null);
@@ -38,12 +36,6 @@ export function ClassesPage() {
   const [processing, setProcessing] = useState(false);
   const [approving, setApproving] = useState(false);
   const [draftVersion, setDraftVersion] = useState(0);
-
-  useEffect(() => {
-    if (auth.status === "signed_out") {
-      router.replace("/login?next=/dashboard/classes");
-    }
-  }, [auth.status, router]);
 
   useEffect(() => {
     if (auth.status !== "signed_in" || !auth.user) {
@@ -212,24 +204,12 @@ export function ClassesPage() {
 
   async function handleSignOut() {
     await auth.signOutTeacher();
-    router.replace("/login");
-  }
-
-  if (auth.status === "checking" || auth.status === "signed_out" || !auth.user) {
-    return (
-      <main className="grid min-h-svh place-items-center bg-slate-950 px-4 text-white">
-        <div className="text-center">
-          <p className="text-xs font-bold uppercase text-cyan-300">ClassGame</p>
-          <p className="mt-3 text-lg font-semibold">Checking teacher session...</p>
-        </div>
-      </main>
-    );
   }
 
   return (
     <DashboardShell
       teacherClasses={teacherClasses}
-      user={auth.user}
+      user={auth.user!}
       onSignOut={handleSignOut}
     >
       <Main id="main-content" className="space-y-4">

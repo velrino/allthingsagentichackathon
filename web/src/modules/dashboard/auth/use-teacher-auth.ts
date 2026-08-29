@@ -10,7 +10,15 @@ import {
   type AuthCredential,
   type User,
 } from "firebase/auth";
-import { useCallback, useEffect, useState } from "react";
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { getFirebaseAuth, isFirebaseConfigured } from "@/shared/firebase/client";
 
@@ -45,7 +53,7 @@ function describeSignInError(error: unknown) {
   return "Sign-in failed. Please try again.";
 }
 
-export function useTeacherAuth() {
+function useTeacherAuthValue() {
   const firebaseConfigured = isFirebaseConfigured();
   const [state, setState] = useState<TeacherAuthState>(() => ({
     status: firebaseConfigured ? "checking" : "signed_out",
@@ -133,4 +141,23 @@ export function useTeacherAuth() {
     reportSignInError,
     signOutTeacher,
   };
+}
+
+type TeacherAuthContextValue = ReturnType<typeof useTeacherAuthValue>;
+
+const TeacherAuthContext = createContext<TeacherAuthContextValue | null>(null);
+
+export function TeacherAuthProvider({ children }: { readonly children: ReactNode }) {
+  const value = useTeacherAuthValue();
+
+  return createElement(TeacherAuthContext.Provider, { value }, children);
+}
+
+export function useTeacherAuth() {
+  const value = useContext(TeacherAuthContext);
+  if (!value) {
+    throw new Error("useTeacherAuth must be used inside TeacherAuthProvider.");
+  }
+
+  return value;
 }

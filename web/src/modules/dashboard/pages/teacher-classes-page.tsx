@@ -32,12 +32,6 @@ export function TeacherClassesPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (auth.status === "signed_out") {
-      router.replace("/login?next=/dashboard");
-    }
-  }, [auth.status, router]);
-
-  useEffect(() => {
     if (auth.status !== "signed_in" || !auth.user) {
       return;
     }
@@ -76,7 +70,6 @@ export function TeacherClassesPage() {
 
   async function handleSignOut() {
     await auth.signOutTeacher();
-    router.replace("/login");
   }
 
   function handleSelectClass(teacherClass: IApiTeacherClass) {
@@ -121,19 +114,8 @@ export function TeacherClassesPage() {
     }
   }
 
-  if (auth.status === "checking" || auth.status === "signed_out" || !auth.user) {
-    return (
-      <main className="grid min-h-svh place-items-center bg-slate-950 px-4 text-white">
-        <div className="text-center">
-          <p className="text-xs font-bold uppercase text-cyan-300">ClassGame</p>
-          <p className="mt-3 text-lg font-semibold">Checking teacher session...</p>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <DashboardShell teacherClasses={teacherClasses} user={auth.user} onSignOut={handleSignOut}>
+    <DashboardShell teacherClasses={teacherClasses} user={auth.user!} onSignOut={handleSignOut}>
       <Main id="main-content" className="space-y-4 py-4 sm:py-6">
         {error ? (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
