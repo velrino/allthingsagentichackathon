@@ -101,6 +101,7 @@ export function TeacherClassesPage() {
       return;
     }
 
+    const isCreatingClass = !value.class_id?.trim();
     setSaving(true);
     setClassFormError(null);
     try {
@@ -109,6 +110,10 @@ export function TeacherClassesPage() {
       setTeacherClasses((current) => upsertTeacherClass(current, response.teacher_class));
       setSelectedClass(response.teacher_class);
       setClassFormOpen(false);
+
+      if (isCreatingClass) {
+        handleSelectClass(response.teacher_class);
+      }
     } catch (caughtError) {
       setClassFormError(caughtError instanceof Error ? caughtError.message : "Could not save class.");
     } finally {
