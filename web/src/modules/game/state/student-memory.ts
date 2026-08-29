@@ -1,4 +1,5 @@
-import { POD_PLANS, type NoteKind } from "../content/algebra-mission";
+import type { NoteKind } from "../content/algebra-mission";
+import { FALLBACK_GAME_MISSION, type GameMission } from "../content/game-mission";
 import { POD_ORDER, type ExplanationStyle, type PodId, type PodStatus } from "../types/game";
 
 /** One thing the tutor wrote down about how this student thinks. */
@@ -67,14 +68,15 @@ export type LearningEvent = {
   readonly occurredAt: number;
 };
 
-/** Everything the tutor remembers about one student. Firestore document shape, mirrored in localStorage for the mock. */
+/** Full server evidence for one student. Only recoverable progress/preferences are cached in the browser. */
 export type StudentMemory = {
-  readonly version: 1;
+  readonly version: 2;
   readonly notes: readonly StudentNote[];
   readonly preferences: StudentPreferences;
   readonly progress: Record<PodId, PodProgress>;
   readonly decisions: readonly DecisionEntry[];
   readonly events: readonly LearningEvent[];
+  readonly eventSequence: number;
   /** The tutor redirects at most once per mission, so the demo never ping-pongs. */
   readonly redirected: boolean;
   /** Pod to go back to once a review is done. */
@@ -82,13 +84,38 @@ export type StudentMemory = {
   readonly lastPod: PodId | null;
 };
 
-const STORAGE_KEY = "classgame.student.v1";
+export type StudentSessionCheckpoint = {
+  readonly stageId: PodId;
+  readonly questionId: string;
+  readonly phase: string;
+  readonly stepIndex: number;
+  readonly explainIndex: number;
+  readonly lines: readonly string[];
+  readonly wrongChoice: string;
+  readonly wrongMisconceptionId: string;
+  readonly decisionAction: DecisionAction | "";
+  readonly decisionTarget: PodId | "";
+  readonly decisionMessage: string;
+  readonly decisionWhy: string;
+  readonly tutorMessage: string;
+  readonly whyPrompt: string;
+  readonly clean: boolean;
+  readonly seated: boolean;
+};
 
-export function createInitialMemory(): StudentMemory {
+export type StudentRecovery = {
+  readonly memory: StudentMemory;
+  readonly checkpoint: StudentSessionCheckpoint | null;
+  readonly revision: number;
+};
+
+const STORAGE_KEY_PREFIX = "classgame.student.v2";
+
+export function createInitialMemory(mission: GameMission = FALLBACK_GAME_MISSION): StudentMemory {
   const progress = {} as Record<PodId, PodProgress>;
 
   for (const podId of POD_ORDER) {
-    const plan = POD_PLANS[podId];
+    const plan = mission.stages[podId];
 
     progress[podId] = {
       status: podId === POD_ORDER[0] ? "ready" : "locked",
@@ -100,29 +127,42 @@ export function createInitialMemory(): StudentMemory {
   }
 
   return {
-    version: 1,
+    version: 2,
     notes: [],
     preferences: { explanationStyle: "steps", difficultyBias: 0 },
     progress,
     decisions: [],
     events: [],
+    eventSequence: 0,
     redirected: false,
     returnTo: null,
     lastPod: null,
   };
 }
 
-export function loadMemory(): StudentMemory | null {
+export function loadStudentRecovery(
+  mission: GameMission,
+  recoveryID = mission.id,
+): StudentRecovery | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey(recoveryID));
 
     if (!raw) {
       return null;
     }
 
-    const parsed = JSON.parse(raw) as Partial<StudentMemory>;
+    const parsed = JSON.parse(raw) as Partial<StudentMemory> & {
+      checkpoint?: StudentSessionCheckpoint;
+      snapshotRevision?: number;
+    };
 
-    return parsed.version === 1 ? normalizeStudentMemory(parsed) : null;
+    return parsed.version === 2
+      ? {
+          memory: normalizeStudentMemory(parsed, mission),
+          checkpoint: parsed.checkpoint ?? null,
+          revision: Math.max(0, parsed.snapshotRevision ?? 0),
+        }
+      : null;
   } catch {
     return null;
   }
@@ -130,8 +170,9 @@ export function loadMemory(): StudentMemory | null {
 
 export function normalizeStudentMemory(
   value: Partial<StudentMemory>,
+  mission: GameMission = FALLBACK_GAME_MISSION,
 ): StudentMemory {
-  const initial = createInitialMemory();
+  const initial = createInitialMemory(mission);
   const progress = { ...initial.progress };
 
   for (const podId of POD_ORDER) {
@@ -148,32 +189,57 @@ export function normalizeStudentMemory(
   }
 
   return {
-    version: 1,
+    version: 2,
     notes: Array.isArray(value.notes) ? value.notes : [],
     preferences: value.preferences ?? initial.preferences,
     progress,
     decisions: Array.isArray(value.decisions) ? value.decisions : [],
     events: Array.isArray(value.events) ? value.events : [],
+    eventSequence:
+      typeof value.eventSequence === "number"
+        ? value.eventSequence
+        : value.events?.at(-1)?.sequence ?? 0,
     redirected: value.redirected ?? false,
     returnTo: value.returnTo ?? null,
     lastPod: value.lastPod ?? null,
   };
 }
 
-export function saveMemory(memory: StudentMemory) {
+export function saveMemory(
+  memory: StudentMemory,
+  recoveryID: string,
+  checkpoint: StudentSessionCheckpoint | null,
+  snapshotRevision: number,
+) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
+    // Only the recoverable game position is cached on the student's device.
+    // Teacher notes, event history and tutor decisions remain server-side.
+    window.localStorage.setItem(
+      storageKey(recoveryID),
+      JSON.stringify({
+        ...memory,
+        notes: [],
+        decisions: [],
+        events: [],
+        checkpoint,
+        snapshotRevision,
+      }),
+    );
   } catch {
     // Storage is a convenience here; the session keeps working without it.
   }
 }
 
-export function clearMemory() {
+export function clearMemory(recoveryID: string) {
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(storageKey(recoveryID));
   } catch {
     // ignore
   }
+}
+
+function storageKey(recoveryID: string) {
+  return `${STORAGE_KEY_PREFIX}:${recoveryID}`;
 }
 
 /** The pod the tutor should be standing at for this memory. */

@@ -4,15 +4,17 @@
  */
 import {
   GUESSED_ID,
-  MISCONCEPTIONS,
-  POD_PLANS,
   TUTOR_NAME,
-  getMisconception,
   type Misconception,
   type Question,
 } from "../content/algebra-mission";
+import {
+  getMissionMisconception,
+  stageLabel,
+  type GameMission,
+} from "../content/game-mission";
 import type { DecisionAction, StudentMemory, StudentNote, StudentPreferences } from "../state/student-memory";
-import { POD_LABELS, POD_ORDER, type FeedbackValue, type PodId } from "../types/game";
+import { POD_ORDER, type FeedbackValue, type PodId } from "../types/game";
 
 export type Decision = {
   readonly action: DecisionAction;
@@ -48,14 +50,18 @@ function orderBySeed<T>(items: readonly T[], seed: string) {
 }
 
 /** The clarifying question: a few plausible reasons in the student's voice, plus guessing. */
-export function buildWhyOptions(question: Question, chosenMisconception: Misconception | null): WhyOption[] {
+export function buildWhyOptions(
+  mission: GameMission,
+  question: Question,
+  chosenMisconception: Misconception | null,
+): WhyOption[] {
   const skills = new Set<PodId>([question.skill]);
 
   if (question.skill !== "fractions" && question.kind === "steps") {
     skills.add("simple-equations");
   }
 
-  const candidates = MISCONCEPTIONS.filter(
+  const candidates = mission.misconceptions.filter(
     (item) => item.id !== GUESSED_ID && (skills.has(item.skill) || item.id === chosenMisconception?.id),
   );
   const picked = new Map<string, Misconception>();
@@ -83,6 +89,7 @@ export function buildWhyOptions(question: Question, chosenMisconception: Misconc
 }
 
 export function noteFromReasoning(
+	mission: GameMission,
   question: Question,
   reasoning: { misconceptionId: string } | { text: string },
   now: number,
@@ -99,7 +106,19 @@ export function noteFromReasoning(
     };
   }
 
-  const misconception = getMisconception(reasoning.misconceptionId);
+  if (reasoning.misconceptionId === GUESSED_ID) {
+    return {
+      id: `note-${GUESSED_ID}-${question.skill}`,
+      misconceptionId: GUESSED_ID,
+      text: "Guesses when unsure — ask for the reason before showing an explanation",
+      kind: "habit",
+      skill: question.skill,
+      evidence: [question.id],
+      createdAt: now,
+    };
+  }
+
+  const misconception = getMissionMisconception(mission, reasoning.misconceptionId);
 
   if (!misconception) {
     throw new Error(`Unknown misconception: ${reasoning.misconceptionId}`);
@@ -131,6 +150,7 @@ export function applyFeedback(preferences: StudentPreferences, feedback: Feedbac
 }
 
 type FeedbackContext = {
+	readonly mission: GameMission;
   readonly memory: StudentMemory;
   readonly pod: PodId;
   readonly feedback: FeedbackValue;
@@ -140,7 +160,7 @@ type FeedbackContext = {
 
 /** After the student rates an explanation: change route, change style, or carry on. */
 export function decideAfterFeedback(context: FeedbackContext): Decision {
-  const { memory, pod, feedback, misconception, previousStyle } = context;
+  const { mission, memory, pod, feedback, misconception, previousStyle } = context;
 
   const canRedirect =
     misconception !== null &&
@@ -155,8 +175,8 @@ export function decideAfterFeedback(context: FeedbackContext): Decision {
     return {
       action: "redirect",
       target,
-      message: `That slip wasn't ${POD_LABELS[pod].toLowerCase()} — it was ${POD_LABELS[target].toLowerCase()}. Let's fix that first.`,
-      why: `Spotted: “${misconception.note}”. Reopening ${POD_LABELS[target]} for a short review before we come back.`,
+      message: `That slip connects to ${stageLabel(mission, target).toLowerCase()}. Let's fix that first.`,
+      why: `Spotted: “${misconception.note}”. Reopening ${stageLabel(mission, target)} for a short review before we come back.`,
     };
   }
 
@@ -196,7 +216,11 @@ export function decideAfterFeedback(context: FeedbackContext): Decision {
 }
 
 /** After the last clean answer of a pod. */
-export function decideAfterPodComplete(memory: StudentMemory, pod: PodId): Decision {
+export function decideAfterPodComplete(
+  mission: GameMission,
+  memory: StudentMemory,
+  pod: PodId,
+): Decision {
   const progress = memory.progress[pod];
   const cleanAnswers = `${progress.correct} clean answers`;
 
@@ -204,8 +228,8 @@ export function decideAfterPodComplete(memory: StudentMemory, pod: PodId): Decis
     return {
       action: "complete",
       target: memory.returnTo,
-      message: `${POD_LABELS[pod]} are solid again. Let's go back to where we stopped.`,
-      why: `Review passed with clean answers → ${POD_LABELS[pod]} reinforced. Returning to ${POD_LABELS[memory.returnTo]}.`,
+      message: `${stageLabel(mission, pod)} is solid again. Let's go back to where we stopped.`,
+      why: `Review passed with clean answers → ${stageLabel(mission, pod)} reinforced. Returning to ${stageLabel(mission, memory.returnTo)}.`,
     };
   }
 
@@ -216,47 +240,43 @@ export function decideAfterPodComplete(memory: StudentMemory, pod: PodId): Decis
     return {
       action: "mission-complete",
       target: null,
-      message: `Mission complete. You just solved 2x/3 + 1 = 5 on your own.`,
-      why: `${cleanAnswers} → ${POD_LABELS[pod]} mastered. Every pod is done.`,
+      message: `Mission complete. You reached the learning goal: ${mission.learningGoal}`,
+      why: `${cleanAnswers} → ${stageLabel(mission, pod)} completed. Every mission step is done.`,
     };
   }
 
   return {
     action: "complete",
     target: next,
-    message: `${POD_LABELS[pod]}: done. Next up: ${POD_LABELS[next]}.`,
-    why: `${cleanAnswers} → ${POD_LABELS[pod]} mastered. Unlocking ${POD_LABELS[next]}: ${POD_PLANS[next].tagline}`,
-  };
-}
-
-export function eraseNoteDecision(note: StudentNote): Decision {
-  return {
-    action: "erase-note",
-    target: null,
-    message: `Erased: “${note.text}”.`,
-    why: "You said that's not how you think. I'll stop planning around it.",
+    message: `${stageLabel(mission, pod)}: done. Next up: ${stageLabel(mission, next)}.`,
+    why: `${cleanAnswers} → ${stageLabel(mission, pod)} completed. Unlocking ${stageLabel(mission, next)}: ${mission.stages[next].tagline}`,
   };
 }
 
 /** What the hologram says while you're walking around. */
-export function roamingLine(memory: StudentMemory, tutorPod: PodId, resumed: boolean): string {
+export function roamingLine(
+  mission: GameMission,
+  memory: StudentMemory,
+  tutorPod: PodId,
+  resumed: boolean,
+): string {
   const status = memory.progress[tutorPod].status;
 
   if (status === "review") {
-    return `Sit back down — a quick ${POD_LABELS[tutorPod].toLowerCase()} review, then we go back.`;
+    return `Sit back down — a quick ${stageLabel(mission, tutorPod).toLowerCase()} review, then we go back.`;
   }
 
   if (POD_ORDER.every((podId) => memory.progress[podId].status === "complete")) {
-    return `Mission complete. Open my notebook to see how you think.`;
+    return `Mission complete. Your teacher has your progress.`;
   }
 
   if (resumed) {
-    return `Welcome back. Last time you were on ${POD_LABELS[tutorPod]} — take your desk and we pick up there.`;
+    return `Welcome back. Last time you were on ${stageLabel(mission, tutorPod)} — take your desk and we pick up there.`;
   }
 
   if (tutorPod === POD_ORDER[0]) {
-    return `Hi, I'm ${TUTOR_NAME}. Take the desk in front of mine — we start with ${POD_LABELS[tutorPod]}.`;
+    return `Hi, I'm ${TUTOR_NAME}. Take the desk in front of mine — we start with ${stageLabel(mission, tutorPod)}.`;
   }
 
-  return `Next: ${POD_LABELS[tutorPod]}. Sit down when you're ready.`;
+  return `Next: ${stageLabel(mission, tutorPod)}. Sit down when you're ready.`;
 }

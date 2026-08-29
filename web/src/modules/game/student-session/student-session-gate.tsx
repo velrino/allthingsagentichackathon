@@ -21,6 +21,7 @@ import {
 } from "./student-session-modal";
 import {
   clearStudentMissionSession,
+  readStudentMissionSession,
   saveStudentMissionSession,
 } from "./student-mission-session";
 import { studentSessionReadyEvent } from "./use-student-presence";
@@ -50,8 +51,15 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
     }
 
     const auth = getStudentFirebaseAuth();
-    return onAuthStateChanged(auth, () => {
+    return onAuthStateChanged(auth, (user) => {
       if (registeringRef.current) {
+        return;
+      }
+
+      if (user?.isAnonymous && readStudentMissionSession()) {
+        setStatus("ready");
+        setError(null);
+        window.dispatchEvent(new Event(studentSessionReadyEvent));
         return;
       }
 
@@ -83,6 +91,10 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
         mission_code: value.missionCode,
       });
 
+      if (!response.mission) {
+        throw new Error("The published mission content is unavailable.");
+      }
+
       saveStudentMissionSession({
         attemptId: response.user.activity.current_game.attempt_id,
         missionCode: response.user.student.mission_code,
@@ -90,15 +102,7 @@ export function StudentSessionGate({ children }: StudentSessionGateProps) {
         publishedRevision:
           response.user.activity.current_game.published_revision,
         subject: response.user.activity.current_game.subject,
-        learningMemory: {
-          strengths: response.user.student.learning_memory?.strengths ?? [],
-          improvementAreas:
-            response.user.student.learning_memory?.improvement_areas ?? [],
-          preferredExplanation:
-            response.user.student.learning_memory?.preferred_explanation ?? "",
-          nextAdaptation:
-            response.user.student.learning_memory?.next_adaptation ?? "",
-        },
+        mission: response.mission,
       });
 
       setStatus("ready");

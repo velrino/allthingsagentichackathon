@@ -1,3 +1,5 @@
+import type { IApiStudentMission } from "@/backend/api/api.interface";
+
 const studentMissionSessionKey = "classgame:student-mission-session";
 
 export type StudentMissionSession = {
@@ -6,12 +8,7 @@ export type StudentMissionSession = {
   readonly missionId: string;
   readonly publishedRevision: number;
   readonly subject: string;
-  readonly learningMemory: {
-    readonly strengths: readonly string[];
-    readonly improvementAreas: readonly string[];
-    readonly preferredExplanation: string;
-    readonly nextAdaptation: string;
-  };
+  readonly mission: IApiStudentMission;
 };
 
 export function saveStudentMissionSession(session: StudentMissionSession) {

@@ -2,18 +2,24 @@ import {
   applyFeedback,
   decideAfterFeedback,
   decideAfterPodComplete,
-  eraseNoteDecision,
   noteFromReasoning,
   roamingLine,
   type Decision,
 } from "../agent/mock-tutor";
-import { getMisconception, getQuestion, type EquationStep, type Misconception, type Question, type StepMove } from "../content/algebra-mission";
+import type { EquationStep, Misconception, Question, StepMove } from "../content/algebra-mission";
+import {
+  FALLBACK_GAME_MISSION,
+  getMissionMisconception,
+  getMissionQuestion,
+  type GameMission,
+} from "../content/game-mission";
 import { POD_ORDER, type FeedbackValue, type PodId } from "../types/game";
 import {
   createInitialMemory,
   pickTutorPod,
   type LearningEvent,
   type PodProgress,
+  type StudentSessionCheckpoint,
   type StudentMemory,
   type StudentNote,
 } from "./student-memory";
@@ -31,6 +37,8 @@ export type Lesson = {
   readonly wrong: { readonly chosen: string; readonly misconception: Misconception | null } | null;
   readonly explainIndex: number;
   readonly decision: Decision | null;
+  readonly tutorMessage: string;
+  readonly whyPrompt: string;
   /** Reset to false the moment a wrong move happens; a question only counts when clean. */
   readonly clean: boolean;
 };
@@ -38,18 +46,22 @@ export type Lesson = {
 export type Session = {
   readonly hydrated: boolean;
   readonly memory: StudentMemory;
+  readonly mission: GameMission;
   readonly lesson: Lesson | null;
   readonly seatedAt: PodId | null;
   readonly tutorPod: PodId;
   readonly tutorLine: string;
   readonly walkRequest: { readonly token: number } | null;
-  /** Bumps whenever a note is written so the notebook badge can pop. */
-  readonly noteFlash: number;
-  readonly notebookOpen: boolean;
 };
 
 export type SessionAction =
-  | { type: "hydrate"; memory: StudentMemory | null; now: number }
+  | {
+      type: "hydrate";
+      memory: StudentMemory | null;
+      mission: GameMission;
+      checkpoint?: StudentSessionCheckpoint | null;
+      now: number;
+    }
   | { type: "sit" }
   | { type: "stand" }
   | { type: "walk" }
@@ -60,53 +72,82 @@ export type SessionAction =
   | { type: "feedback"; value: FeedbackValue; now: number }
   | { type: "reveal-decision" }
   | { type: "continue"; now: number }
-  | { type: "dispute-note"; noteId: string; now: number }
-  | { type: "toggle-notebook"; open?: boolean }
+  | {
+      type: "apply-tutor-turn";
+      questionId: string;
+      message: string;
+      whyPrompt: string;
+      explanationSteps: readonly string[];
+      explanationStyle: "steps" | "visual";
+      difficultyBias: -1 | 0 | 1;
+    }
   | { type: "reset"; now: number };
 
-export function createInitialSession(): Session {
+export function createInitialSession(
+  mission: GameMission = FALLBACK_GAME_MISSION,
+): Session {
   return {
     hydrated: false,
-    memory: createInitialMemory(),
+    mission,
+    memory: createInitialMemory(mission),
     lesson: null,
     seatedAt: null,
     tutorPod: POD_ORDER[0],
     tutorLine: "",
     walkRequest: null,
-    noteFlash: 0,
-    notebookOpen: false,
   };
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-function sortByBias(ids: readonly string[], bias: -1 | 0 | 1) {
+function sortByBias(
+  mission: GameMission,
+  ids: readonly string[],
+  bias: -1 | 0 | 1,
+) {
   if (bias === 0) {
     return [...ids];
   }
 
-  return [...ids].sort((a, b) => (getQuestion(a).difficulty - getQuestion(b).difficulty) * bias);
+  return [...ids].sort(
+    (a, b) =>
+      (getMissionQuestion(mission, a).difficulty -
+        getMissionQuestion(mission, b).difficulty) *
+      bias,
+  );
 }
 
 /** Make sure there's a question at the front of the queue, pulling from the pool when needed. */
-function ensureQueue(progress: PodProgress, bias: -1 | 0 | 1): PodProgress {
+function ensureQueue(
+  mission: GameMission,
+  progress: PodProgress,
+  bias: -1 | 0 | 1,
+): PodProgress {
   if (progress.queue.length > 0 || progress.pool.length === 0) {
     return progress;
   }
 
-  const [next, ...rest] = sortByBias(progress.pool, bias);
+  const [next, ...rest] = sortByBias(mission, progress.pool, bias);
   return { ...progress, queue: [next], pool: rest };
 }
 
-function startLesson(memory: StudentMemory, pod: PodId): { lesson: Lesson | null; memory: StudentMemory } {
-  const progress = ensureQueue(memory.progress[pod], memory.preferences.difficultyBias);
+function startLesson(
+  mission: GameMission,
+  memory: StudentMemory,
+  pod: PodId,
+): { lesson: Lesson | null; memory: StudentMemory } {
+  const progress = ensureQueue(
+    mission,
+    memory.progress[pod],
+    memory.preferences.difficultyBias,
+  );
   const questionId = progress.queue[0];
 
   if (!questionId) {
     return { lesson: null, memory };
   }
 
-  const question = getQuestion(questionId);
+  const question = getMissionQuestion(mission, questionId);
 
   return {
     memory: { ...memory, progress: { ...memory.progress, [pod]: progress }, lastPod: pod },
@@ -119,13 +160,77 @@ function startLesson(memory: StudentMemory, pod: PodId): { lesson: Lesson | null
       wrong: null,
       explainIndex: 0,
       decision: null,
+      tutorMessage: "",
+      whyPrompt: "",
       clean: true,
     },
   };
 }
 
+function restoreLesson(
+  mission: GameMission,
+  checkpoint: StudentSessionCheckpoint | null | undefined,
+): Lesson | null {
+  if (!checkpoint?.seated || !isPodId(checkpoint.stageId)) {
+    return null;
+  }
+
+  const question = mission.questions.find(
+    (item) => item.id === checkpoint.questionId,
+  );
+  if (!question || question.skill !== checkpoint.stageId) {
+    return null;
+  }
+
+  const phase = isLessonPhase(checkpoint.phase)
+    ? checkpoint.phase
+    : "question";
+  const misconception = getMissionMisconception(
+    mission,
+    checkpoint.wrongMisconceptionId,
+  );
+  const decision = isDecisionAction(checkpoint.decisionAction)
+    ? {
+        action: checkpoint.decisionAction,
+        target: isPodId(checkpoint.decisionTarget)
+          ? checkpoint.decisionTarget
+          : null,
+        message: checkpoint.decisionMessage,
+        why: checkpoint.decisionWhy,
+      }
+    : null;
+
+  return {
+    pod: checkpoint.stageId,
+    question,
+    phase:
+      (phase === "thinking" || phase === "decision") && !decision
+        ? "question"
+        : phase,
+    stepIndex: Math.max(0, checkpoint.stepIndex),
+    lines:
+      checkpoint.lines.length > 0
+        ? checkpoint.lines
+        : question.kind === "steps"
+          ? [question.equation]
+          : [],
+    wrong: checkpoint.wrongChoice
+      ? { chosen: checkpoint.wrongChoice, misconception }
+      : null,
+    explainIndex: Math.max(0, checkpoint.explainIndex),
+    decision,
+    tutorMessage: checkpoint.tutorMessage,
+    whyPrompt: checkpoint.whyPrompt,
+    clean: checkpoint.clean,
+  };
+}
+
 /** A wrong answer sends the question to the back of the line; a fresh one comes forward if it's the only one. */
-function requeueCurrent(progress: PodProgress, bias: -1 | 0 | 1): PodProgress {
+function requeueCurrent(
+  mission: GameMission,
+  progress: PodProgress,
+  bias: -1 | 0 | 1,
+): PodProgress {
   const [current, ...rest] = progress.queue;
 
   if (!current) {
@@ -133,7 +238,7 @@ function requeueCurrent(progress: PodProgress, bias: -1 | 0 | 1): PodProgress {
   }
 
   if (rest.length === 0 && progress.pool.length > 0) {
-    const [fresh, ...pool] = sortByBias(progress.pool, bias);
+    const [fresh, ...pool] = sortByBias(mission, progress.pool, bias);
     return { ...progress, queue: [fresh, current], pool };
   }
 
@@ -186,7 +291,7 @@ function appendLearningEvent(
   memory: StudentMemory,
   event: Omit<LearningEvent, "id" | "sequence">,
 ): StudentMemory {
-  const sequence = (memory.events.at(-1)?.sequence ?? 0) + 1;
+  const sequence = memory.eventSequence + 1;
   const nextEvent: LearningEvent = {
     ...event,
     id: `event-${event.occurredAt}-${sequence}`,
@@ -196,6 +301,7 @@ function appendLearningEvent(
   return {
     ...memory,
     events: [...memory.events, nextEvent].slice(-160),
+    eventSequence: sequence,
   };
 }
 
@@ -213,8 +319,13 @@ function leaveSeat(session: Session, memory: StudentMemory, tutorPod: PodId, tut
 
 /** Stay at the desk and open the next stage right away; stand up only if it has nothing to ask. */
 function continueSeated(session: Session, memory: StudentMemory, tutorPod: PodId): Session {
-  const started = startLesson(memory, tutorPod);
-  const tutorLine = roamingLine(started.memory, tutorPod, false);
+  const started = startLesson(session.mission, memory, tutorPod);
+  const tutorLine = roamingLine(
+    session.mission,
+    started.memory,
+    tutorPod,
+    false,
+  );
 
   if (!started.lesson) {
     return leaveSeat(session, started.memory, tutorPod, tutorLine);
@@ -228,15 +339,27 @@ function continueSeated(session: Session, memory: StudentMemory, tutorPod: PodId
 export function sessionReducer(session: Session, action: SessionAction): Session {
   switch (action.type) {
     case "hydrate": {
-      const memory = action.memory ?? createInitialMemory();
-      const tutorPod = pickTutorPod(memory);
+      const memory = action.memory ?? createInitialMemory(action.mission);
+      const restoredLesson = restoreLesson(
+        action.mission,
+        action.checkpoint,
+      );
+      const tutorPod = restoredLesson?.pod ?? pickTutorPod(memory);
 
       return {
         ...session,
         hydrated: true,
+        mission: action.mission,
         memory,
+        lesson: restoredLesson,
+        seatedAt: restoredLesson?.pod ?? null,
         tutorPod,
-        tutorLine: roamingLine(memory, tutorPod, action.memory !== null),
+        tutorLine: roamingLine(
+          action.mission,
+          memory,
+          tutorPod,
+          action.memory !== null,
+        ),
         walkRequest: null,
       };
     }
@@ -253,13 +376,13 @@ export function sessionReducer(session: Session, action: SessionAction): Session
         return session;
       }
 
-      const started = startLesson(session.memory, pod);
+      const started = startLesson(session.mission, session.memory, pod);
 
       if (!started.lesson) {
         return session;
       }
 
-      return { ...session, memory: started.memory, lesson: started.lesson, seatedAt: pod, notebookOpen: false };
+      return { ...session, memory: started.memory, lesson: started.lesson, seatedAt: pod };
     }
 
     case "stand":
@@ -309,7 +432,13 @@ export function sessionReducer(session: Session, action: SessionAction): Session
           ...lesson,
           phase: "why",
           clean: false,
-          wrong: { chosen: option.text, misconception: getMisconception(option.misconception) },
+          wrong: {
+            chosen: option.text,
+            misconception: getMissionMisconception(
+              session.mission,
+              option.misconception,
+            ),
+          },
         },
       };
     }
@@ -368,7 +497,13 @@ export function sessionReducer(session: Session, action: SessionAction): Session
           lines: [...lesson.lines, move.result],
           phase: "why",
           clean: false,
-          wrong: { chosen: move.op, misconception: getMisconception(move.misconception) },
+          wrong: {
+            chosen: move.op,
+            misconception: getMissionMisconception(
+              session.mission,
+              move.misconception,
+            ),
+          },
         },
       };
     }
@@ -380,10 +515,20 @@ export function sessionReducer(session: Session, action: SessionAction): Session
         return session;
       }
 
-      const draft = noteFromReasoning(lesson.question, action.reasoning, action.now);
+      const draft = noteFromReasoning(
+        session.mission,
+        lesson.question,
+        action.reasoning,
+        action.now,
+      );
       const notes = mergeNote(session.memory.notes, draft);
       const misconception =
-        "misconceptionId" in action.reasoning ? getMisconception(action.reasoning.misconceptionId) : lesson.wrong?.misconception ?? null;
+        "misconceptionId" in action.reasoning
+          ? getMissionMisconception(
+              session.mission,
+              action.reasoning.misconceptionId,
+            )
+          : lesson.wrong?.misconception ?? null;
 
       const reasoningText =
         "misconceptionId" in action.reasoning
@@ -403,7 +548,6 @@ export function sessionReducer(session: Session, action: SessionAction): Session
             occurredAt: action.now,
           },
         ),
-        noteFlash: session.noteFlash + 1,
         lesson: {
           ...lesson,
           phase: "explain",
@@ -451,6 +595,7 @@ export function sessionReducer(session: Session, action: SessionAction): Session
         },
       );
       const decision = decideAfterFeedback({
+        mission: session.mission,
         memory,
         pod: lesson.pod,
         feedback: action.value,
@@ -493,7 +638,11 @@ export function sessionReducer(session: Session, action: SessionAction): Session
 
         if (correct >= progress.required) {
           const nextMemory: StudentMemory = { ...memory, progress: { ...memory.progress, [lesson.pod]: updated } };
-          const decision = decideAfterPodComplete(nextMemory, lesson.pod);
+          const decision = decideAfterPodComplete(
+            session.mission,
+            nextMemory,
+            lesson.pod,
+          );
 
           return {
             ...session,
@@ -502,9 +651,9 @@ export function sessionReducer(session: Session, action: SessionAction): Session
           };
         }
 
-        updated = ensureQueue(updated, bias);
+        updated = ensureQueue(session.mission, updated, bias);
         const nextMemory: StudentMemory = { ...memory, progress: { ...memory.progress, [lesson.pod]: updated } };
-        const started = startLesson(nextMemory, lesson.pod);
+        const started = startLesson(session.mission, nextMemory, lesson.pod);
 
         return started.lesson ? { ...session, memory: started.memory, lesson: started.lesson } : leaveSeat(session, nextMemory, session.tutorPod, session.tutorLine);
       }
@@ -517,9 +666,17 @@ export function sessionReducer(session: Session, action: SessionAction): Session
 
       switch (decision.action) {
         case "next": {
-          const progress = requeueCurrent(memory.progress[lesson.pod], bias);
+          const progress = requeueCurrent(
+            session.mission,
+            memory.progress[lesson.pod],
+            bias,
+          );
           const nextMemory: StudentMemory = { ...memory, progress: { ...memory.progress, [lesson.pod]: progress } };
-          const started = startLesson(nextMemory, lesson.pod);
+          const started = startLesson(
+            session.mission,
+            nextMemory,
+            lesson.pod,
+          );
 
           return started.lesson ? { ...session, memory: started.memory, lesson: started.lesson } : leaveSeat(session, nextMemory, session.tutorPod, session.tutorLine);
         }
@@ -527,7 +684,11 @@ export function sessionReducer(session: Session, action: SessionAction): Session
         case "redirect": {
           const target = decision.target ?? POD_ORDER[0];
           const review = memory.progress[target];
-          const [first, second, ...pool] = sortByBias(review.pool, bias);
+          const [first, second, ...pool] = sortByBias(
+            session.mission,
+            review.pool,
+            bias,
+          );
           const reviewQueue = [first, second].filter((id): id is string => Boolean(id));
           const nextMemory: StudentMemory = {
             ...memory,
@@ -555,7 +716,17 @@ export function sessionReducer(session: Session, action: SessionAction): Session
           const nextMemory: StudentMemory = { ...memory, progress, returnTo: null };
 
           if (!target) {
-            return leaveSeat(session, nextMemory, lesson.pod, roamingLine(nextMemory, lesson.pod, false));
+            return leaveSeat(
+              session,
+              nextMemory,
+              lesson.pod,
+              roamingLine(
+                session.mission,
+                nextMemory,
+                lesson.pod,
+                false,
+              ),
+            );
           }
 
           return continueSeated(session, nextMemory, target);
@@ -568,39 +739,97 @@ export function sessionReducer(session: Session, action: SessionAction): Session
       return session;
     }
 
-    case "dispute-note": {
-      const note = session.memory.notes.find((item) => item.id === action.noteId);
+    case "apply-tutor-turn": {
+      const lesson = session.lesson;
+      const preferences = {
+        explanationStyle: action.explanationStyle,
+        difficultyBias: action.difficultyBias,
+      } as const;
 
-      if (!note) {
-        return session;
+      if (!lesson || lesson.question.id !== action.questionId) {
+        return {
+          ...session,
+          memory: { ...session.memory, preferences },
+          tutorLine: action.message || session.tutorLine,
+        };
       }
 
-      const memory = logDecision(
-        { ...session.memory, notes: session.memory.notes.filter((item) => item.id !== note.id) },
-        eraseNoteDecision(note),
-        action.now,
-      );
+      const explanationSteps = action.explanationSteps.filter(Boolean);
+      const question =
+        explanationSteps.length > 0
+          ? {
+              ...lesson.question,
+              explanation: {
+                ...lesson.question.explanation,
+                steps: explanationSteps,
+              },
+            }
+          : lesson.question;
+      const decision = lesson.decision
+        ? {
+            ...lesson.decision,
+            message: action.message || lesson.decision.message,
+          }
+        : null;
 
-      return { ...session, memory };
+      return {
+        ...session,
+        memory: { ...session.memory, preferences },
+        lesson: {
+          ...lesson,
+          question,
+          decision,
+          tutorMessage: action.message,
+          whyPrompt: action.whyPrompt,
+        },
+      };
     }
 
-    case "toggle-notebook":
-      return { ...session, notebookOpen: action.open ?? !session.notebookOpen };
-
     case "reset": {
-      const memory = createInitialMemory();
+      const memory = createInitialMemory(session.mission);
       const tutorPod = POD_ORDER[0];
 
       return {
-        ...createInitialSession(),
+        ...createInitialSession(session.mission),
         hydrated: true,
         memory,
         tutorPod,
-        tutorLine: roamingLine(memory, tutorPod, false),
+        tutorLine: roamingLine(
+          session.mission,
+          memory,
+          tutorPod,
+          false,
+        ),
         walkRequest: null,
       };
     }
   }
+}
+
+function isPodId(value: string): value is PodId {
+  return POD_ORDER.some((podId) => podId === value);
+}
+
+function isLessonPhase(value: string): value is LessonPhase {
+  return [
+    "question",
+    "correct",
+    "why",
+    "explain",
+    "feedback",
+    "thinking",
+    "decision",
+  ].includes(value);
+}
+
+function isDecisionAction(value: string): value is Decision["action"] {
+  return [
+    "next",
+    "complete",
+    "redirect",
+    "mission-complete",
+    "erase-note",
+  ].includes(value);
 }
 
 // ── derived views used by the board ─────────────────────────────────────────

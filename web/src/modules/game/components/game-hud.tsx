@@ -3,24 +3,23 @@
 import { useState } from "react";
 
 import { getAvatarPreset, teacherAvatarPresetId } from "../avatars/avatar-presets";
-import { MISSION_TITLE, TUTOR_NAME } from "../content/algebra-mission";
+import { TUTOR_NAME } from "../content/algebra-mission";
+import { stageLabel, type GameMission } from "../content/game-mission";
 import type { PodProgress } from "../state/student-memory";
-import { POD_LABELS, POD_ORDER, type MovementRef, type PodId, type PodStatus } from "../types/game";
+import { POD_ORDER, type MovementRef, type PodId, type PodStatus } from "../types/game";
 import { AvatarPicker, AvatarPortrait } from "./avatar-picker";
 import { MovementPad } from "./movement-pad";
 
 type GameHudProps = {
+  readonly mission: GameMission;
   readonly movementRef: MovementRef;
   readonly progress: Record<PodId, PodProgress>;
   readonly tutorPod: PodId;
   readonly tutorLine: string;
   readonly nearSeat: boolean;
-  readonly noteCount: number;
-  readonly noteFlash: number;
   readonly avatarPresetId: string;
   readonly onSelectAvatar: (presetId: string) => void;
   readonly onSit: () => void;
-  readonly onOpenNotebook: () => void;
 };
 
 const SEGMENT_CLASS: Record<PodStatus, string> = {
@@ -31,13 +30,13 @@ const SEGMENT_CLASS: Record<PodStatus, string> = {
 };
 
 /** Three short bars: the mission at a glance. Also used on the chalkboard header. */
-export function PodDots({ progress, className = "" }: { readonly progress: Record<PodId, PodProgress>; readonly className?: string }) {
+export function PodDots({ mission, progress, className = "" }: { readonly mission?: GameMission; readonly progress: Record<PodId, PodProgress>; readonly className?: string }) {
   return (
     <div className={`flex items-center gap-1 ${className}`} aria-label="Mission progress" role="img">
       {POD_ORDER.map((podId) => (
         <span
           key={podId}
-          title={`${POD_LABELS[podId]} · ${progress[podId].status}`}
+          title={`${mission ? stageLabel(mission, podId) : podId} · ${progress[podId].status}`}
           className={`h-1.5 w-5 rounded-full transition-colors duration-500 ${SEGMENT_CLASS[progress[podId].status]}`}
         />
       ))}
@@ -45,26 +44,15 @@ export function PodDots({ progress, className = "" }: { readonly progress: Recor
   );
 }
 
-function NotebookIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M6 3.5h11a1.5 1.5 0 0 1 1.5 1.5v14A1.5 1.5 0 0 1 17 20.5H6" />
-      <path d="M6 3.5v17" />
-      <path d="M3.5 7h2.5M3.5 12h2.5M3.5 17h2.5" />
-      <path d="M10 8.5h5M10 12h5" />
-    </svg>
-  );
-}
-
 const pill =
   "pointer-events-auto font-display inline-flex h-12 select-none items-center justify-center gap-2 rounded-full px-5 text-center text-[0.95rem] font-semibold tracking-tight transition active:translate-y-px disabled:opacity-60";
 
-function sitLabel(status: PodStatus, pod: PodId) {
+function sitLabel(mission: GameMission, status: PodStatus, pod: PodId) {
   if (status === "complete") {
     return "Mission complete";
   }
 
-  return `Sit down · ${POD_LABELS[pod]}`;
+  return `Sit down · ${stageLabel(mission, pod)}`;
 }
 
 /**
@@ -73,17 +61,15 @@ function sitLabel(status: PodStatus, pod: PodId) {
  * and the one action you can take right now.
  */
 export function GameHud({
+  mission,
   movementRef,
   progress,
   tutorPod,
   tutorLine,
   nearSeat,
-  noteCount,
-  noteFlash,
   avatarPresetId,
   onSelectAvatar,
   onSit,
-  onOpenNotebook,
 }: GameHudProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const avatar = getAvatarPreset(avatarPresetId);
@@ -95,16 +81,16 @@ export function GameHud({
     <div className="pointer-events-none absolute inset-0 z-10 select-none text-white">
       {/* Mission chip */}
       <div className="glass animate-rise absolute top-[max(env(safe-area-inset-top),0.75rem)] left-3 flex h-12 items-center gap-2.5 rounded-2xl px-3 sm:h-auto sm:gap-3 sm:px-3.5 sm:py-2.5 sm:left-5">
-        <PodDots progress={progress} />
+        <PodDots mission={mission} progress={progress} />
         <div className="font-display leading-none">
-          <p className="text-[0.56rem] font-semibold tracking-[0.12em] text-cyan-200/90 uppercase sm:text-[0.62rem] sm:tracking-[0.2em]">{MISSION_TITLE}</p>
+          <p className="text-[0.56rem] font-semibold tracking-[0.12em] text-cyan-200/90 uppercase sm:text-[0.62rem] sm:tracking-[0.2em]">{mission.title}</p>
           <p className="mt-1 hidden text-xs font-medium text-slate-300 sm:block">
-            Next up · <span className="text-white">{POD_LABELS[tutorPod]}</span>
+            Next up · <span className="text-white">{stageLabel(mission, tutorPod)}</span>
           </p>
         </div>
       </div>
 
-      {/* Top-right: who you are, and the teacher's notebook */}
+      {/* Top-right: the student's character. Teacher-only memory stays off this screen. */}
       <div className="absolute top-[max(env(safe-area-inset-top),0.75rem)] right-3 flex items-center gap-2 sm:right-5">
         <button
           type="button"
@@ -118,22 +104,6 @@ export function GameHud({
           <svg viewBox="0 0 24 24" className={`hidden size-4 text-slate-400 transition sm:block ${pickerOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="m6 9 6 6 6-6" />
           </svg>
-        </button>
-
-        <button
-          type="button"
-          onClick={onOpenNotebook}
-          className="glass animate-rise pointer-events-auto flex h-12 items-center gap-2 rounded-full pr-2 pl-3.5 text-slate-100 transition hover:bg-white/10 active:translate-y-px"
-          aria-label={`Open ${TUTOR_NAME}'s notebook`}
-        >
-          <NotebookIcon />
-          <span className="font-display hidden text-sm font-semibold sm:inline">Notebook</span>
-          <span
-            key={noteFlash}
-            className={`font-display grid size-8 place-items-center rounded-full bg-gradient-to-br from-cyan-300 to-violet-300 text-sm font-bold text-slate-950 ${noteFlash > 0 ? "animate-pop" : ""}`}
-          >
-            {noteCount}
-          </span>
         </button>
       </div>
 
@@ -173,7 +143,7 @@ export function GameHud({
             <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M5 4v6M19 4v6M5 10h14v4H5zM7 14v6M17 14v6" />
             </svg>
-            {sitLabel(stageStatus, tutorPod)}
+            {sitLabel(mission, stageStatus, tutorPod)}
           </button>
         ) : null}
 

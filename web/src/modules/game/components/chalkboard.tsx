@@ -4,16 +4,15 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 import { buildWhyOptions } from "../agent/mock-tutor";
 import {
-  MISSION_TITLE,
   TUTOR_NAME,
   type Explanation,
   type Question,
   type Visual,
 } from "../content/algebra-mission";
+import { stageLabel, type GameMission } from "../content/game-mission";
 import { shuffledMoves, type Lesson } from "../state/session-reducer";
-import type { PodProgress, StudentNote } from "../state/student-memory";
+import type { PodProgress } from "../state/student-memory";
 import {
-  POD_LABELS,
   type ExplanationStyle,
   type FeedbackValue,
   type PodId,
@@ -21,9 +20,9 @@ import {
 import { PodDots } from "./game-hud";
 
 type ChalkboardProps = {
+  readonly mission: GameMission;
   readonly lesson: Lesson;
   readonly progress: Record<PodId, PodProgress>;
-  readonly notes: readonly StudentNote[];
   readonly explanationStyle: ExplanationStyle;
   readonly onChoose: (index: number) => void;
   readonly onStep: (index: number) => void;
@@ -33,7 +32,6 @@ type ChalkboardProps = {
   readonly onExplainNext: () => void;
   readonly onFeedback: (value: FeedbackValue) => void;
   readonly onContinue: () => void;
-  readonly onOpenNotebook: () => void;
 };
 
 /** Slight, deterministic tilt per option so the board reads as handwriting, not a form. */
@@ -259,9 +257,10 @@ function CorrectPhase({
       </p>
       <p className="chalk mt-[0.3em] text-[1.9em]">{lastLine}</p>
       <p className="chalk mt-[0.6em] text-[1.05em] text-chalk-ink/80">
-        {lesson.clean
-          ? "Clean. That one counts."
-          : "Right — and now you know why."}
+        {lesson.tutorMessage ||
+          (lesson.clean
+            ? "Clean. That one counts."
+            : "Right — and now you know why.")}
       </p>
       <div className="mt-auto pt-[1em]">
         <button
@@ -277,9 +276,10 @@ function CorrectPhase({
 }
 
 function WhyPhase({
+  mission,
   lesson,
   onWhy,
-}: Pick<ChalkboardProps, "lesson" | "onWhy">) {
+}: Pick<ChalkboardProps, "mission" | "lesson" | "onWhy">) {
   const [writing, setWriting] = useState(false);
   const [text, setText] = useState("");
   const wrong = lesson.wrong;
@@ -288,7 +288,7 @@ function WhyPhase({
     return null;
   }
 
-  const options = buildWhyOptions(lesson.question, wrong.misconception);
+  const options = buildWhyOptions(mission, lesson.question, wrong.misconception);
   const isSteps = lesson.question.kind === "steps";
 
   return (
@@ -314,11 +314,15 @@ function WhyPhase({
         Not yet — and I&apos;m not telling you the answer.
       </p>
       <p className="chalk mt-[0.35em] text-[1.7em] leading-tight">
-        Why did you pick{" "}
-        <span className="underline decoration-wavy decoration-chalk-wrong/70">
-          {wrong.chosen}
-        </span>
-        ?
+        {lesson.whyPrompt || (
+          <>
+            Why did you pick{" "}
+            <span className="underline decoration-wavy decoration-chalk-wrong/70">
+              {wrong.chosen}
+            </span>
+            ?
+          </>
+        )}
       </p>
 
       {writing ? (
@@ -514,9 +518,7 @@ function questionLabel(question: Question) {
  * The board fills the screen; text shrinks to fit rather than scroll.
  */
 export function Chalkboard(props: ChalkboardProps) {
-  const { lesson, progress, notes, onFeedback, onOpenNotebook } =
-    props;
-  const recentNotes = notes.slice(0, 3);
+  const { lesson, mission, progress, onFeedback } = props;
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useFitScale(bodyRef, [
@@ -535,7 +537,7 @@ export function Chalkboard(props: ChalkboardProps) {
           <header className="flex items-start justify-between gap-3">
             <div className="chalk leading-tight">
               <p className="text-sm text-chalk-ink/80 sm:text-lg">
-                {MISSION_TITLE} · {POD_LABELS[lesson.pod]}
+                {mission.title} · {stageLabel(mission, lesson.pod)}
               </p>
               <p className="text-xs text-chalk-ink/60 sm:text-base">
                 Prof. {TUTOR_NAME} · {questionLabel(lesson.question)}
@@ -563,37 +565,6 @@ export function Chalkboard(props: ChalkboardProps) {
             {lesson.phase === "decision" ? <DecisionPhase {...props} /> : null}
           </div>
         </section>
-
-        {/* Pinned notes: one thin row under the board. You leave the desk when the mission ends. */}
-        <div className="mt-2 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenNotebook}
-            className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto rounded-md px-1 py-1 text-left"
-            aria-label={`Open ${TUTOR_NAME}'s notebook`}
-          >
-            <span className="font-display shrink-0 text-[0.62rem] font-semibold tracking-[0.18em] text-slate-300 uppercase">
-              📌 Notes
-            </span>
-            {recentNotes.length === 0 ? (
-              <span className="text-xs text-slate-400">nothing pinned yet</span>
-            ) : (
-              recentNotes.map((note, index) => (
-                <span
-                  key={note.id}
-                  className={`paper-note relative max-w-[11rem] shrink-0 truncate rounded-sm px-2.5 pt-2 pb-1 text-[0.7rem] ${index === 0 ? "animate-pop" : ""} ${TILT[index]}`}
-                >
-                  {note.text}
-                </span>
-              ))
-            )}
-            {notes.length > 3 ? (
-              <span className="shrink-0 text-xs text-slate-300">
-                +{notes.length - 3}
-              </span>
-            ) : null}
-          </button>
-        </div>
 
         {lesson.phase === "feedback" ? (
           <div className="mt-1 pb-[max(env(safe-area-inset-bottom),0.25rem)]">
