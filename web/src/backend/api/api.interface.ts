@@ -12,6 +12,12 @@ export interface IApiRequest {
   headers?: Headers;
   access_token?: string;
   keepalive?: boolean;
+  signal?: AbortSignal;
+}
+
+export interface IApiDemoAccount {
+  email: string;
+  password: string;
 }
 
 export interface IApiStudentSession {

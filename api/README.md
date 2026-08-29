@@ -35,6 +35,7 @@ curl http://localhost:4004/
 ## Runtime
 
 - `GET /` returns the health check and service dependency status.
+- `GET /demo-account` returns the intentionally public demo teacher credentials used by the login page, with caching disabled. A failed request lets `/login` report that the API is unavailable.
 - `POST /users/student-session/validate` resolves an active, six-digit numeric class code before anonymous Firebase sign-in.
 - `POST /users/student-session` verifies an anonymous Firebase ID token, joins that class, and upserts `users/{firebase_uid}` in Firestore without selecting a mission.
 - `POST /users/student-mission` verifies that a chosen mission is currently published in the joined class and returns its pinned student-safe payload.

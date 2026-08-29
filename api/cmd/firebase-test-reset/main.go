@@ -14,13 +14,13 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+
+	"classgame-api/internal/demoaccount"
 )
 
 const (
 	authDeleteBatchSize = 1000
 	expectedProjectID   = "allthingsagentichackatho-ee359"
-	// The shared demo teacher the jury signs in with; a reset must not take it down.
-	demoTeacherEmail = "velrino@gmail.com"
 )
 
 func main() {
@@ -40,7 +40,7 @@ func run() error {
 	var keepEmails string
 
 	flag.StringVar(&projectID, "project", "", "Firebase project ID to clean")
-	flag.StringVar(&keepEmails, "keep-emails", demoTeacherEmail, "Comma-separated emails of Firebase Auth users to keep")
+	flag.StringVar(&keepEmails, "keep-emails", demoaccount.DefaultEmail, "Comma-separated emails of Firebase Auth users to keep")
 	flag.StringVar(&credentialsFile, "credentials-file", "", "Firebase service account JSON path")
 	flag.BoolVar(&dryRun, "dry-run", false, "List what would be deleted")
 	flag.BoolVar(&skipAuth, "skip-auth", false, "Do not delete Firebase Authentication users")

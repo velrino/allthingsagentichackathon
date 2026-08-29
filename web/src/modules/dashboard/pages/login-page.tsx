@@ -3,9 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
+import { API } from "@/backend/api/api.endpoints";
+import type { IApiDemoAccount } from "@/backend/api/api.interface";
 import { INPUT_LIMITS } from "@/shared/input-limits";
 
-import { DEMO_TEACHER } from "../auth/demo-account";
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import { GoogleIdentityButton } from "../components/google-identity-button";
 
@@ -21,6 +22,46 @@ export function LoginPage() {
     status,
   } = useTeacherAuth();
   const [exchanging, setExchanging] = useState(false);
+  const [demoAccount, setDemoAccount] = useState<IApiDemoAccount | null>(null);
+  const [demoAccountLoading, setDemoAccountLoading] = useState(true);
+  const [demoAccountError, setDemoAccountError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+
+    void API.demoAccount
+      .get(controller.signal)
+      .then((account) => {
+        if (!active) {
+          return;
+        }
+        setDemoAccount(account);
+        setDemoAccountError(null);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setDemoAccount(null);
+        setDemoAccountError(
+          "Couldn't reach the ClassGame API. Check that it is running and reload this page.",
+        );
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (active) {
+          setDemoAccountLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (status === "signed_in") {
@@ -46,11 +87,14 @@ export function LoginPage() {
   const handleEmailSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      if (!demoAccount) {
+        return;
+      }
       setExchanging(true);
       try {
         const user = await signInWithEmail(
-          DEMO_TEACHER.email,
-          DEMO_TEACHER.password,
+          demoAccount.email,
+          demoAccount.password,
         );
         if (user) {
           router.replace(nextPath);
@@ -59,7 +103,7 @@ export function LoginPage() {
         setExchanging(false);
       }
     },
-    [nextPath, router, signInWithEmail],
+    [demoAccount, nextPath, router, signInWithEmail],
   );
 
   const handleLoadError = useCallback(() => {
@@ -69,6 +113,18 @@ export function LoginPage() {
   }, [reportSignInError]);
 
   const busy = exchanging || status === "checking";
+  const apiUnavailable = demoAccountLoading || !demoAccount;
+  const signInDisabled = busy || apiUnavailable;
+  let demoSignInLabel = "Sign in";
+  if (demoAccountLoading) {
+    demoSignInLabel = "Checking API...";
+  } else if (!demoAccount) {
+    demoSignInLabel = "API unavailable";
+  } else if (status === "checking") {
+    demoSignInLabel = "Checking your session...";
+  } else if (exchanging) {
+    demoSignInLabel = "Signing in...";
+  }
 
   return (
     <main className="flex min-h-svh flex-col justify-center bg-primary text-slate-950 lg:grid lg:grid-cols-2 lg:bg-white">
@@ -103,7 +159,7 @@ export function LoginPage() {
             <GoogleIdentityButton
               onCredential={handleCredential}
               onLoadError={handleLoadError}
-              disabled={busy}
+              disabled={signInDisabled}
             />
           </div>
 
@@ -119,8 +175,7 @@ export function LoginPage() {
             noValidate
           >
             <p className="text-xs leading-5 text-slate-500">
-              Demo account for the hackathon jury (already filled in, just sign
-              in)
+              Demo account loaded from the ClassGame API (just sign in).
             </p>
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -132,7 +187,7 @@ export function LoginPage() {
                 autoComplete="username"
                 inputMode="email"
                 spellCheck={false}
-                value={DEMO_TEACHER.email}
+                value={demoAccount?.email ?? ""}
                 readOnly
                 aria-readonly="true"
                 tabIndex={-1}
@@ -148,7 +203,7 @@ export function LoginPage() {
                 type="password"
                 name="password"
                 autoComplete="current-password"
-                value={DEMO_TEACHER.password}
+                value={demoAccount?.password ?? ""}
                 readOnly
                 aria-readonly="true"
                 tabIndex={-1}
@@ -158,16 +213,21 @@ export function LoginPage() {
             </label>
             <button
               type="submit"
-              disabled={busy}
+              disabled={signInDisabled}
               className="h-11 w-full rounded-md bg-primary text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {busy
-                ? status === "checking"
-                  ? "Checking your session..."
-                  : "Signing in..."
-                : "Sign in"}
+              {demoSignInLabel}
             </button>
           </form>
+
+          {demoAccountError ? (
+            <p
+              role="alert"
+              className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
+            >
+              {demoAccountError}
+            </p>
+          ) : null}
 
           {error ? (
             <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">

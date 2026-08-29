@@ -4,6 +4,7 @@ import {
   type IApiCreateTeacherClassMissionRequest,
   type IApiDashboardOverviewRequest,
   type IApiDashboardOverviewResponse,
+  type IApiDemoAccount,
   type IApiStudentSession,
   type IApiStudentSessionValidation,
   type IApiStudentSessionValidationResponse,
@@ -23,6 +24,21 @@ import {
 import { ApiResources } from "./api.service";
 
 export const API = {
+  demoAccount: {
+    async get(signal?: AbortSignal): Promise<IApiDemoAccount> {
+      const res = await ApiResources.request({
+        method: IApiRequestMethod.GET,
+        path: "/demo-account",
+        signal,
+      });
+
+      if (!res.ok) {
+        throw await apiError(res, "DEMO_ACCOUNT_GET_FAILED");
+      }
+
+      return (await res.json()) as IApiDemoAccount;
+    },
+  },
   users: {
     async validateStudentSession(data: IApiStudentSessionValidation): Promise<IApiStudentSessionValidationResponse> {
       const res = await ApiResources.request({

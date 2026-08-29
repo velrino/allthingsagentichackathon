@@ -24,6 +24,7 @@ export const ApiResources = {
       headers,
       keepalive: parameters.keepalive,
       method: parameters.method,
+      signal: parameters.signal,
     };
 
     if (parameters.method === IApiRequestMethod.GET && parameters.data) {

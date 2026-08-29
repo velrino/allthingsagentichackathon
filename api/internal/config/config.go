@@ -7,13 +7,8 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
-)
 
-const (
-	defaultDemoTeacherEmail = "velrino@gmail.com"
-	// Intentionally public hackathon credential, also pre-filled by the web app.
-	defaultDemoTeacherPassword    = "2vl5Jsh1QIiemKPmIapzcKissFuu"
-	defaultDemoTeacherDisplayName = "Emily"
+	"classgame-api/internal/demoaccount"
 )
 
 type Config struct {
@@ -96,9 +91,9 @@ func Load() (Config, error) {
 		AuthGoogleWebClientID:           reader.getString("AUTH_GOOGLE_WEB_CLIENT_ID", "245584783597-t05j7fj2iucesiad4jpu4mlh72kgcs12.apps.googleusercontent.com"),
 		AuthTeacherProviders:            reader.getString("AUTH_TEACHER_PROVIDERS", "google"),
 		AuthStudentProviders:            reader.getString("AUTH_STUDENT_PROVIDERS", "anonymous"),
-		DemoTeacherEmail:                reader.getString("DEMO_TEACHER_EMAIL", defaultDemoTeacherEmail),
-		DemoTeacherPassword:             reader.getString("DEMO_TEACHER_PASSWORD", defaultDemoTeacherPassword),
-		DemoTeacherDisplayName:          reader.getString("DEMO_TEACHER_DISPLAY_NAME", defaultDemoTeacherDisplayName),
+		DemoTeacherEmail:                reader.getString("DEMO_TEACHER_EMAIL", demoaccount.DefaultEmail),
+		DemoTeacherPassword:             reader.getString("DEMO_TEACHER_PASSWORD", demoaccount.DefaultPassword),
+		DemoTeacherDisplayName:          reader.getString("DEMO_TEACHER_DISPLAY_NAME", demoaccount.DefaultDisplayName),
 		GenAIEnabled:                    reader.getBool("GENAI_ENABLED", true),
 		GenAIBackend:                    reader.getString("GENAI_BACKEND", "vertex"),
 		GenAIModel:                      reader.getString("GENAI_MODEL", "gemini-3.7-flash"),

@@ -22,13 +22,12 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"google.golang.org/api/option"
 
+	"classgame-api/internal/demoaccount"
 	sharedfirebase "classgame-api/internal/shared/google/firebase"
 )
 
 const (
 	expectedProjectID = "allthingsagentichackatho-ee359"
-	defaultEmail      = "velrino@gmail.com"
-	defaultName       = "Emily"
 )
 
 func main() {
@@ -47,9 +46,9 @@ func run() error {
 
 	flag.StringVar(&projectID, "project", "", "Firebase project ID")
 	flag.StringVar(&credentialsFile, "credentials-file", "", "Firebase service account JSON path (default: Application Default Credentials)")
-	flag.StringVar(&email, "email", defaultEmail, "Demo teacher email")
+	flag.StringVar(&email, "email", demoaccount.DefaultEmail, "Demo teacher email")
 	flag.StringVar(&password, "password", os.Getenv("DEMO_TEACHER_PASSWORD"), "Password to set (or DEMO_TEACHER_PASSWORD)")
-	flag.StringVar(&displayName, "display-name", defaultName, "Display name")
+	flag.StringVar(&displayName, "display-name", demoaccount.DefaultDisplayName, "Display name")
 	flag.Parse()
 
 	projectID = strings.TrimSpace(projectID)
