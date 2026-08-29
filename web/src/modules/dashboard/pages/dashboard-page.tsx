@@ -30,6 +30,7 @@ import type {
 } from "@/backend/api/api.interface";
 import { Main } from "@/components/layout/main";
 import { Button } from "@/components/ui/button";
+import { miaAnalytics } from "@/lib/mia-analytics";
 import {
   Card,
   CardContent,
@@ -468,6 +469,7 @@ export function DashboardPage({
       return;
     }
 
+    const isCreatingMission = !value.mission_id?.trim();
     setProcessing(true);
     setError(null);
     try {
@@ -495,7 +497,18 @@ export function DashboardPage({
       setSelectedClassId(response.mission.class_id);
       setMissionBuilderOpen(true);
       setActiveDashboardTab("mission");
+      if (isCreatingMission) {
+        miaAnalytics.missionCreated({
+          class_id: response.mission.class_id,
+          mission_id: response.mission.id,
+        });
+      }
     } catch (caughtError) {
+      if (isCreatingMission) {
+        miaAnalytics.missionCreationFailed(caughtError, {
+          class_id: value.class_id,
+        });
+      }
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -511,6 +524,7 @@ export function DashboardPage({
       return;
     }
 
+    let missionPublished = false;
     setApproving(true);
     setError(null);
     try {
@@ -521,12 +535,23 @@ export function DashboardPage({
         mission.id,
         buildApproveMissionRequest(mission),
       );
+      missionPublished = true;
+      miaAnalytics.missionPublished({
+        class_id: response.mission.class_id,
+        mission_id: response.mission.id,
+      });
       setPreviewMission(response.mission);
       setMissions((current) => upsertClassMission(current, response.mission));
       await loadOverview(token, response.mission.class_id);
       setMissionBuilderOpen(false);
       setActiveDashboardTab("mission");
     } catch (caughtError) {
+      if (!missionPublished) {
+        miaAnalytics.missionPublishFailed(caughtError, {
+          class_id: mission.class_id,
+          mission_id: mission.id,
+        });
+      }
       setError(
         caughtError instanceof Error
           ? caughtError.message

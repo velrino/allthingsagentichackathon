@@ -9,6 +9,7 @@ import type {
   IApiUpsertTeacherClassRequest,
 } from "@/backend/api/api.interface";
 import { Main } from "@/components/layout/main";
+import { miaAnalytics } from "@/lib/mia-analytics";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import { ClassFormModal } from "../components/class-form-modal";
@@ -105,9 +106,15 @@ export function TeacherClassesPage() {
       setClassFormOpen(false);
 
       if (isCreatingClass) {
+        miaAnalytics.classCreated({
+          class_id: response.teacher_class.class_id,
+        });
         handleSelectClass(response.teacher_class);
       }
     } catch (caughtError) {
+      if (isCreatingClass) {
+        miaAnalytics.classCreationFailed(caughtError);
+      }
       setClassFormError(caughtError instanceof Error ? caughtError.message : "Could not save class.");
     } finally {
       setSaving(false);

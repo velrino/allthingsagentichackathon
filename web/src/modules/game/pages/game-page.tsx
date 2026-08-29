@@ -4,6 +4,7 @@ import { signOut } from "firebase/auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
+import { miaAnalytics } from "@/lib/mia-analytics";
 import { getStudentFirebaseAuth } from "@/shared/firebase/client";
 
 import { Chalkboard } from "../components/chalkboard";
@@ -18,6 +19,7 @@ import {
 import {
   clearStudentMissionSession,
   clearStudentSession,
+  readStudentMissionSession,
   saveStudentClassSession,
   saveStudentMissionSession,
 } from "../student-session/student-mission-session";
@@ -46,6 +48,23 @@ export function GamePage({
     null,
   );
   const autoSitMissionIDRef = useRef("");
+  const gameAccessTrackedRef = useRef(false);
+  const missionCompletionRef = useRef<{
+    attemptId: string;
+    captured: boolean;
+    wasComplete: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (gameAccessTrackedRef.current) {
+      return;
+    }
+
+    gameAccessTrackedRef.current = true;
+    miaAnalytics.gameAccessed({
+      has_prefilled_class_code: Boolean(initialClassCode),
+    });
+  }, [initialClassCode]);
 
   const leaveMission = useCallback(() => {
     clearStudentMissionSession();
@@ -87,6 +106,44 @@ export function GamePage({
     Object.values(session.memory.progress).every(
       (progress) => progress.status === "complete",
     );
+
+  useEffect(() => {
+    const missionSession = readStudentMissionSession();
+    if (
+      !session.hydrated ||
+      !classSession ||
+      !missionSession ||
+      missionSession.missionId !== session.mission.id
+    ) {
+      return;
+    }
+
+    const trackedCompletion = missionCompletionRef.current;
+    if (trackedCompletion?.attemptId !== missionSession.attemptId) {
+      missionCompletionRef.current = {
+        attemptId: missionSession.attemptId,
+        // A completed attempt restored from storage is not a new completion.
+        captured: completedMission,
+        wasComplete: completedMission,
+      };
+      return;
+    }
+
+    if (
+      completedMission &&
+      !trackedCompletion.wasComplete &&
+      !trackedCompletion.captured
+    ) {
+      miaAnalytics.missionCompleted({
+        attempt_id: missionSession.attemptId,
+        class_id: classSession.classId,
+        mission_id: missionSession.missionId,
+      });
+      trackedCompletion.captured = true;
+    }
+    trackedCompletion.wasComplete = completedMission;
+  }, [classSession, completedMission, session.hydrated, session.mission.id]);
+
   const completedMissionKeys = useMemo(() => {
     const completed = new Set(persistedCompletedMissionKeys);
     if (completedMission) {
@@ -154,6 +211,18 @@ export function GamePage({
     const selectedMission = missions.find((mission) => mission.id === missionID);
     const user = getStudentFirebaseAuth().currentUser;
     if (!classSession || !selectedMission || !user?.isAnonymous) {
+      const errorCode = !classSession
+        ? "missing_class_session"
+        : !selectedMission
+          ? "mission_not_found_locally"
+          : "missing_anonymous_user";
+      miaAnalytics.missionStartFailed(
+        { code: errorCode, name: "MissionStartPreconditionError" },
+        {
+          ...(classSession ? { class_id: classSession.classId } : {}),
+          mission_id: missionID,
+        },
+      );
       setMissionStartError(studentEntryCopy.errors.offline);
       return false;
     }
@@ -191,10 +260,19 @@ export function GamePage({
         subject: response.mission.subject,
         mission: response.mission,
       });
+      miaAnalytics.missionStarted({
+        attempt_id: response.user.activity.current_game.attempt_id,
+        class_id: classSession.classId,
+        mission_id: response.mission.id,
+      });
       autoSitMissionIDRef.current = response.mission.id;
       window.dispatchEvent(new Event(studentSessionReadyEvent));
       return true;
     } catch (error) {
+      miaAnalytics.missionStartFailed(error, {
+        class_id: classSession.classId,
+        mission_id: missionID,
+      });
       const scope = studentSessionErrorScope(error);
       if (scope === "class") {
         leaveUnavailableClass();

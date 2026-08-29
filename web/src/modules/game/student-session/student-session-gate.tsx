@@ -10,6 +10,7 @@ import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
+import { miaAnalytics } from "@/lib/mia-analytics";
 import {
   getStudentFirebaseAuth,
   isFirebaseConfigured,
@@ -134,12 +135,15 @@ export function StudentSessionGate({
     setLoading(true);
     registeringRef.current = true;
     let newAnonymousUser: User | null = null;
+    let joinStage: Parameters<typeof miaAnalytics.gameJoinFailed>[1]["stage"] =
+      "class_validation";
 
     try {
       await API.users.validateStudentSession({
         class_code: value.classCode,
       });
 
+      joinStage = "authentication";
       const auth = getStudentFirebaseAuth();
       const { isNew, user } = await anonymousUser(auth.currentUser);
       if (isNew) {
@@ -147,20 +151,24 @@ export function StudentSessionGate({
       }
       const idToken = await user.getIdToken(true);
 
+      joinStage = "session_creation";
       const response = await API.users.studentSession(idToken, {
         student_name: value.studentName,
         class_code: value.classCode,
       });
 
       if (!response.class) {
+        joinStage = "response_validation";
         throw new Error("The class is unavailable.");
       }
 
       saveStudentClassSession(response.class, value.studentName);
+      miaAnalytics.gameJoined({ class_id: response.class.id });
 
       setStatus("ready");
       window.dispatchEvent(new Event(studentSessionReadyEvent));
     } catch (caughtError) {
+      miaAnalytics.gameJoinFailed(caughtError, { stage: joinStage });
       if (newAnonymousUser) {
         await newAnonymousUser.delete().catch(() => undefined);
       }

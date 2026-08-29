@@ -11,6 +11,7 @@ import type {
 } from "@/backend/api/api.interface";
 import { Main } from "@/components/layout/main";
 import { Button } from "@/components/ui/button";
+import { miaAnalytics } from "@/lib/mia-analytics";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import { ClassFormModal } from "../components/class-form-modal";
@@ -97,6 +98,7 @@ export function ClassesPage() {
       return;
     }
 
+    const isCreatingClass = !value.class_id?.trim();
     setSaving(true);
     setClassFormError(null);
     try {
@@ -105,7 +107,15 @@ export function ClassesPage() {
       setTeacherClasses((current) => upsertTeacherClass(current, response.teacher_class));
       setSelectedClass(response.teacher_class);
       rememberSelectedClass(response.teacher_class.class_id);
+      if (isCreatingClass) {
+        miaAnalytics.classCreated({
+          class_id: response.teacher_class.class_id,
+        });
+      }
     } catch (caughtError) {
+      if (isCreatingClass) {
+        miaAnalytics.classCreationFailed(caughtError);
+      }
       setClassFormError(caughtError instanceof Error ? caughtError.message : "Could not save class.");
     } finally {
       setSaving(false);
