@@ -9,6 +9,35 @@ import { INPUT_LIMITS } from "@/shared/input-limits";
 import { useTeacherAuth } from "../auth/use-teacher-auth";
 import { GoogleIdentityButton } from "../components/google-identity-button";
 
+const LOGIN_HERO_PHRASES = [
+  "Set what your class should reinforce, then read Mia's notebook after students play.",
+  "Turn every mission into evidence you can scan before the next lesson.",
+  "Pick the skill to practice, let Mia guide the game, and review the why behind each answer.",
+  "See who is ready, who needs a hint, and what the class should revisit tomorrow.",
+  "Give students a playful route through practice while your dashboard keeps the signal clear.",
+  "Build missions around your goals, then use Mia's notes to plan the follow-up.",
+  "Watch patterns emerge from student choices, not just from final scores.",
+  "Keep reinforcement focused while Mia turns each question into a small conversation.",
+  "Start with a topic, launch the game, and come back to a notebook full of teachable moments.",
+  "See mistakes, explanations, confidence, and next steps in one teacher view.",
+  "Let students explore at game speed while you keep the learning path intentional.",
+  "Use each play session to find the misconception hiding behind the answer.",
+  "Create a mission in minutes and leave with sharper insight into tomorrow's class.",
+  "Help students practice the why, then review Mia's notes when the room gets quiet.",
+  "Track progress without losing the story behind each student's decision.",
+  "Send the class into a mission and return to clear evidence for your next move.",
+  "Turn practice into a feedback loop your students can play and you can trust.",
+  "Meet every answer with a reason, then bring the useful patterns back to instruction.",
+  "Keep the game light for students and the learning data serious for teachers.",
+  "Reinforce the lesson, capture the thinking, and plan what comes next from Mia's notebook.",
+] as const;
+
+type TypewriterMode = "holding" | "deleting" | "typing";
+
+const HERO_PHRASE_HOLD_MS = 2200;
+const HERO_PHRASE_TYPE_DELAY_MS = 28;
+const HERO_PHRASE_DELETE_DELAY_MS = 16;
+
 export function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -26,6 +55,15 @@ export function LoginPage() {
   const [apiAvailable, setApiAvailable] = useState(false);
   const [apiLoading, setApiLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [heroPhraseIndex, setHeroPhraseIndex] = useState(0);
+  const [heroPhraseLength, setHeroPhraseLength] = useState(
+    LOGIN_HERO_PHRASES[0].length,
+  );
+  const [heroPhraseMode, setHeroPhraseMode] =
+    useState<TypewriterMode>("holding");
+
+  const heroPhrase = LOGIN_HERO_PHRASES[heroPhraseIndex];
+  const typedHeroPhrase = heroPhrase.slice(0, heroPhraseLength);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -63,6 +101,43 @@ export function LoginPage() {
       controller.abort();
     };
   }, []);
+
+  useEffect(() => {
+    let timeout: number | undefined;
+
+    if (heroPhraseMode === "holding") {
+      timeout = window.setTimeout(() => {
+        setHeroPhraseMode("deleting");
+      }, HERO_PHRASE_HOLD_MS);
+    } else if (heroPhraseMode === "deleting") {
+      if (heroPhraseLength === 0) {
+        timeout = window.setTimeout(() => {
+          setHeroPhraseIndex(
+            (index) => (index + 1) % LOGIN_HERO_PHRASES.length,
+          );
+          setHeroPhraseMode("typing");
+        }, HERO_PHRASE_TYPE_DELAY_MS);
+      } else {
+        timeout = window.setTimeout(() => {
+          setHeroPhraseLength((length) => Math.max(0, length - 1));
+        }, HERO_PHRASE_DELETE_DELAY_MS);
+      }
+    } else if (heroPhraseLength >= heroPhrase.length) {
+      timeout = window.setTimeout(() => {
+        setHeroPhraseMode("holding");
+      }, HERO_PHRASE_TYPE_DELAY_MS);
+    } else {
+      timeout = window.setTimeout(() => {
+        setHeroPhraseLength((length) => Math.min(heroPhrase.length, length + 1));
+      }, HERO_PHRASE_TYPE_DELAY_MS);
+    }
+
+    return () => {
+      if (timeout) {
+        window.clearTimeout(timeout);
+      }
+    };
+  }, [heroPhrase.length, heroPhraseLength, heroPhraseMode]);
 
   useEffect(() => {
     if (status === "signed_in") {
@@ -137,9 +212,17 @@ export function LoginPage() {
           <h1 className="text-3xl font-bold sm:text-4xl lg:text-6xl">
             Teacher dashboard
           </h1>
-          <p className="mx-auto mt-4 max-w-lg text-base leading-7 text-white/85 sm:text-lg sm:leading-8 lg:mx-0">
-            Set what your class should reinforce, then read Mia&apos;s
-            notebook after students play.
+          <p
+            className="mx-auto mt-4 min-h-[5.25rem] max-w-lg text-base leading-7 text-white/85 sm:min-h-16 sm:text-lg sm:leading-8 lg:mx-0"
+            aria-label={heroPhrase}
+          >
+            <span aria-hidden="true">{typedHeroPhrase}</span>
+            <span
+              aria-hidden="true"
+              className="ml-0.5 inline-block animate-pulse text-white"
+            >
+              |
+            </span>
           </p>
         </div>
         <p className="hidden text-sm text-white/60 lg:block">
