@@ -1,8 +1,13 @@
 # ClassGame
 
-<p align="center">
-  <img src="assets/diagrams/architecture/architecture-graphviz.svg" alt="ClassGame production architecture" width="100%" />
-</p>
+**For judges with little time:** no local setup is needed. Start with the hosted **Google Cloud production build**.
+
+| Start here | Link | What to verify |
+|---|---|---|
+| **3:53 demo video** | [Watch the full loop](https://www.youtube.com/watch?v=mvsbSKlGfyE) | Teacher creates a mission, student plays, Mia adapts, dashboard receives evidence. |
+| **Teacher dashboard** | [Open on GCP Cloud Run](https://classgame-web-2057331207.us-east1.run.app/dashboard) | Use the Devpost credentials, generate or inspect a mission, then open student evidence. |
+| **Student game** | [Open with class code `367501`](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501) | Enter any name, start the mission, answer wrong once, see Mia ask *why*. |
+| **API health** | [Open production API](https://classgame-api-2057331207.us-east1.run.app/) | Cloud Run API is live with Firebase and Redis health checks. |
 
 **ClassGame is the optional homework that takes notes for the teacher.**
 
@@ -18,13 +23,13 @@ Built for the **All Things Agentic Hackathon**, category **The Collaborative Par
 
 ClassGame is that example, with a classroom around it: the "dense document" is the teacher's lesson and worksheet, the quiz is the mission, the concepts you struggle with are named misconceptions, and the adaptation is visible on the chalkboard and in the teacher's dashboard.
 
-## Judge this in 3 minutes
+## Judge Fast Path
 
-The fastest way to evaluate the submission is the hosted Google Cloud production build:
+If you have only a few minutes, verify this path in the hosted GCP build:
 
-1. Open the **[teacher dashboard on Cloud Run](https://classgame-web-2057331207.us-east1.run.app/dashboard)** and generate a mission from a lesson prompt or worksheet.
-2. Open the **[student game on Cloud Run with class code `367501` prefilled](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501)** and answer one question incorrectly.
-3. Mia asks *why*, retrieves the relevant lesson chunks, adapts the explanation, and records a teacher-only observation.
+1. Open the **[teacher dashboard](https://classgame-web-2057331207.us-east1.run.app/dashboard)** and sign in with the Devpost credentials.
+2. Open the **[student game with class code `367501`](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501)**, enter any name, choose the mission and press **Start**.
+3. Answer one question incorrectly; Mia asks *why*, retrieves the relevant lesson chunks, adapts the explanation, and records a teacher-only observation.
 4. Close and reopen the student tab; the exact checkpoint restores from Firestore.
 5. Finish the mission; Cloud Tasks finalizes the learning trace and class synthesis.
 6. Return to the dashboard; Firestore realtime updates show live progress, RAG provenance, student memory and the next-lesson prompt.
@@ -56,6 +61,10 @@ ClassGame is not a mockup around screenshots. The submitted app is a deployed Go
 | Runtime secrets | GCP Secret Manager |
 | Distributed GenAI quotas and health gates | Redis, configured from Secret Manager |
 | Production build and rollout | GCP Cloud Build, Artifact Registry, Cloud Logging |
+
+<p align="center">
+  <img src="assets/diagrams/architecture/architecture-graphviz.svg" alt="ClassGame production architecture" width="100%" />
+</p>
 
 ## Product tour
 
