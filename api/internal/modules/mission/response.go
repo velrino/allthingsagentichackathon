@@ -2,6 +2,7 @@ package mission
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -162,7 +163,12 @@ func AttachmentStoragePublicURL(storage *MissionAttachmentStorage) string {
 		return ""
 	}
 
-	return "https://storage.googleapis.com/" + url.PathEscape(bucket) + "/" + escapeObjectPath(objectPath)
+	publicURL := "https://storage.googleapis.com/" + url.PathEscape(bucket) + "/" + escapeObjectPath(objectPath)
+	if version := attachmentStoragePublicURLVersion(storage); version != "" {
+		publicURL += "?v=" + url.QueryEscape(version)
+	}
+
+	return publicURL
 }
 
 func attachmentsWithPublicStorageURLs(attachments []MissionAttachment) []MissionAttachment {
@@ -190,6 +196,16 @@ func escapeObjectPath(objectPath string) string {
 	}
 
 	return strings.Join(segments, "/")
+}
+
+func attachmentStoragePublicURLVersion(storage *MissionAttachmentStorage) string {
+	for _, timestamp := range []time.Time{storage.UpdatedAt, storage.StoredAt} {
+		if !timestamp.IsZero() {
+			return strconv.FormatInt(timestamp.UnixNano(), 10)
+		}
+	}
+
+	return ""
 }
 
 func formatTime(value time.Time) string {

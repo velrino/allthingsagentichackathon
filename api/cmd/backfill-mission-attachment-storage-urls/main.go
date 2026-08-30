@@ -335,10 +335,15 @@ func storageObject(storage map[string]any) storedObjectRef {
 		return storedObjectRef{}
 	}
 
+	publicURL := "https://storage.googleapis.com/" + url.PathEscape(bucket) + "/" + escapeObjectPath(objectPath)
+	if version := storageVersion(storage); version != "" {
+		publicURL += "?v=" + url.QueryEscape(version)
+	}
+
 	return storedObjectRef{
 		bucket:     bucket,
 		objectPath: objectPath,
-		publicURL:  "https://storage.googleapis.com/" + url.PathEscape(bucket) + "/" + escapeObjectPath(objectPath),
+		publicURL:  publicURL,
 	}
 }
 
@@ -417,6 +422,26 @@ func asString(value any) string {
 	text, _ := value.(string)
 
 	return strings.TrimSpace(text)
+}
+
+func storageVersion(storage map[string]any) string {
+	for _, key := range []string{"updated_at", "stored_at"} {
+		switch value := storage[key].(type) {
+		case time.Time:
+			if !value.IsZero() {
+				return fmt.Sprintf("%d", value.UnixNano())
+			}
+		case string:
+			if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value)); err == nil && !parsed.IsZero() {
+				return fmt.Sprintf("%d", parsed.UnixNano())
+			}
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+
+	return ""
 }
 
 func isUploadcareURL(value string) bool {

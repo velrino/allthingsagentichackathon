@@ -1258,6 +1258,11 @@ function mergeMissionAttachments(
 }
 
 function attachmentOriginalURL(attachment: IApiMissionAttachment) {
+  const cdnURL = attachment.cdn_url.trim();
+  if (attachment.storage?.status === "stored" && isPublicStorageURL(cdnURL)) {
+    return cdnURL;
+  }
+
   const storagePublicURL = attachment.storage?.public_url?.trim();
   if (attachment.storage?.status === "stored" && storagePublicURL) {
     return storagePublicURL;
@@ -1283,7 +1288,28 @@ function attachmentStorageURL(storage: IApiMissionAttachment["storage"]) {
     .map((segment) => encodeURIComponent(segment))
     .join("/");
 
-  return `https://storage.googleapis.com/${encodeURIComponent(bucket)}/${encodedObjectPath}`;
+  const storageURL = `https://storage.googleapis.com/${encodeURIComponent(bucket)}/${encodedObjectPath}`;
+  const version = attachmentStorageVersion(storage);
+
+  return version ? `${storageURL}?v=${encodeURIComponent(version)}` : storageURL;
+}
+
+function attachmentStorageVersion(storage: IApiMissionAttachment["storage"]) {
+  const timestamp = storage?.updated_at || storage?.stored_at;
+  if (!timestamp) {
+    return "";
+  }
+
+  const time = Date.parse(timestamp);
+  return Number.isNaN(time) ? timestamp : String(time);
+}
+
+function isPublicStorageURL(value: string) {
+  try {
+    return new URL(value).hostname === "storage.googleapis.com";
+  } catch {
+    return false;
+  }
 }
 
 function getAttachmentKind(attachment: IApiMissionAttachment): AttachmentKind {
