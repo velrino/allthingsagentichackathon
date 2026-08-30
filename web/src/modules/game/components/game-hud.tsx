@@ -34,7 +34,10 @@ type GameHudProps = {
   readonly tutorLine: string;
   readonly nearSeat: boolean;
   readonly avatarPresetId: string;
+  readonly musicEnabled: boolean;
+  readonly musicWaitingForGesture: boolean;
   readonly onSelectAvatar: (presetId: string) => void;
+  readonly onToggleMusic: (enabled: boolean) => void;
   readonly onSelectMission: (missionID: string) => Promise<boolean>;
   readonly onEndSession: () => void;
 };
@@ -97,7 +100,10 @@ export function GameHud({
   tutorLine,
   nearSeat,
   avatarPresetId,
+  musicEnabled,
+  musicWaitingForGesture,
   onSelectAvatar,
+  onToggleMusic,
   onSelectMission,
   onEndSession,
 }: GameHudProps) {
@@ -170,10 +176,13 @@ export function GameHud({
       {pickerOpen ? (
         <AvatarPicker
           selectedAvatarId={avatarPresetId}
+          musicEnabled={musicEnabled}
+          musicWaitingForGesture={musicWaitingForGesture}
           onSelect={(presetId) => {
             onSelectAvatar(presetId);
             setPickerOpen(false);
           }}
+          onToggleMusic={onToggleMusic}
           onClose={() => setPickerOpen(false)}
           onLogout={onEndSession}
         />

@@ -1,5 +1,6 @@
 "use client";
 
+import { Volume2, VolumeX } from "lucide-react";
 import Image from "next/image";
 
 import {
@@ -16,6 +17,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
+import { BACKGROUND_MUSIC } from "../audio/background-music";
 import {
   getAvatarPortraitPath,
   getAvatarPreset,
@@ -39,7 +41,10 @@ export function AvatarPortrait({ preset, className = "" }: { readonly preset: Av
 
 type AvatarPickerProps = {
   readonly selectedAvatarId: string;
+  readonly musicEnabled: boolean;
+  readonly musicWaitingForGesture: boolean;
   readonly onSelect: (avatarId: string) => void;
+  readonly onToggleMusic: (enabled: boolean) => void;
   readonly onClose: () => void;
   readonly onLogout: () => void;
 };
@@ -47,7 +52,10 @@ type AvatarPickerProps = {
 /** Player menu: character selection and session settings. */
 export function AvatarPicker({
   selectedAvatarId,
+  musicEnabled,
+  musicWaitingForGesture,
   onSelect,
+  onToggleMusic,
   onClose,
   onLogout,
 }: AvatarPickerProps) {
@@ -133,6 +141,63 @@ export function AvatarPicker({
                   Your current character
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 gap-3">
+                  <span
+                    className={`grid size-11 shrink-0 place-items-center rounded-full border ${
+                      musicEnabled
+                        ? "border-cyan-200/30 bg-cyan-300/15 text-cyan-100 shadow-[0_0_18px_rgba(103,232,249,0.22)]"
+                        : "border-white/10 bg-white/[0.05] text-slate-400"
+                    }`}
+                    aria-hidden
+                  >
+                    {musicEnabled ? (
+                      <Volume2 className="size-5" />
+                    ) : (
+                      <VolumeX className="size-5" />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-display text-sm font-semibold text-white">
+                      Background music
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-slate-300">
+                      {BACKGROUND_MUSIC.title} · {BACKGROUND_MUSIC.genre}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {BACKGROUND_MUSIC.credit}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={musicEnabled}
+                  aria-label="Toggle background music"
+                  onClick={() => onToggleMusic(!musicEnabled)}
+                  className={`relative mt-1 h-7 w-12 shrink-0 rounded-full border transition ${
+                    musicEnabled
+                      ? "border-cyan-200/35 bg-cyan-300/35"
+                      : "border-white/15 bg-white/10"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 size-5 rounded-full bg-white shadow transition ${
+                      musicEnabled ? "left-6" : "left-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {musicEnabled && musicWaitingForGesture ? (
+                <p className="mt-3 rounded-lg border border-yellow-200/15 bg-yellow-300/10 px-3 py-2 text-xs leading-5 text-yellow-100">
+                  Tap anywhere to start the music.
+                </p>
+              ) : null}
             </div>
 
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">

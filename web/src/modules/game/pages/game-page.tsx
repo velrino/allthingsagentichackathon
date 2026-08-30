@@ -10,6 +10,8 @@ import { getStudentFirebaseAuth } from "@/shared/firebase/client";
 import { Chalkboard } from "../components/chalkboard";
 import { GameCanvas } from "../components/game-canvas";
 import { GameHud } from "../components/game-hud";
+import { MissionReward } from "../components/mission-reward";
+import { useBackgroundMusic } from "../audio/background-music";
 import { sourceStageID, stageLabel } from "../content/game-mission";
 import { useGameSession } from "../state/use-game-session";
 import {
@@ -47,6 +49,7 @@ export function GamePage({
   const [missionStartError, setMissionStartError] = useState<string | null>(
     null,
   );
+  const [rewardOpen, setRewardOpen] = useState(false);
   const autoSitMissionIDRef = useRef("");
   const gameAccessTrackedRef = useRef(false);
   const missionCompletionRef = useRef<{
@@ -70,6 +73,7 @@ export function GamePage({
     clearStudentMissionSession();
     handlers.leaveMission();
     setStartingMissionID("");
+    setRewardOpen(false);
     autoSitMissionIDRef.current = "";
     setMissionStartError(null);
   }, [handlers]);
@@ -78,6 +82,7 @@ export function GamePage({
     clearStudentSession();
     handlers.leaveMission();
     setStartingMissionID("");
+    setRewardOpen(false);
     autoSitMissionIDRef.current = "";
     setMissionStartError(null);
     void signOut(getStudentFirebaseAuth()).catch(() => undefined);
@@ -98,6 +103,11 @@ export function GamePage({
     onClassUnavailable: leaveUnavailableClass,
     onMissionUnavailable: leaveMission,
   });
+  const {
+    musicEnabled,
+    musicWaitingForGesture,
+    setMusicEnabled,
+  } = useBackgroundMusic(classSession !== null && missionsReady);
 
   const seatedLesson =
     session.seatedAt && session.lesson ? session.lesson : null;
@@ -139,6 +149,7 @@ export function GamePage({
         class_id: classSession.classId,
         mission_id: missionSession.missionId,
       });
+      setRewardOpen(true);
       trackedCompletion.captured = true;
     }
     trackedCompletion.wasComplete = completedMission;
@@ -237,6 +248,7 @@ export function GamePage({
     }
 
     setStartingMissionID(missionID);
+    setRewardOpen(false);
     setMissionStartError(null);
     try {
       const idToken = await user.getIdToken();
@@ -331,11 +343,20 @@ export function GamePage({
             tutorLine={session.hydrated ? session.tutorLine : ""}
             nearSeat={report.nearSeat}
             avatarPresetId={avatarPresetId}
+            musicEnabled={musicEnabled}
+            musicWaitingForGesture={musicWaitingForGesture}
             onSelectAvatar={handlers.selectAvatar}
+            onToggleMusic={setMusicEnabled}
             onSelectMission={startMission}
             onEndSession={leaveClass}
           />
         )}
+
+        <MissionReward
+          open={rewardOpen && completedMission}
+          mission={session.mission}
+          onDismiss={() => setRewardOpen(false)}
+        />
       </main>
     </StudentSessionGate>
   );
