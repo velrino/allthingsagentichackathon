@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   MarkerType,
+  Position,
   ReactFlow,
   type Edge,
   type Node,
@@ -22,11 +23,18 @@ type MissionFlowPendingNode = {
   readonly description: string;
 };
 
+type MissionFlowOrientation = "vertical" | "horizontal";
+
 type MissionFlowPreviewProps = {
   /** Overrides the canvas box (default 560px tall) — e.g. `h-auto flex-1` to fill a flex column. */
   readonly className?: string;
   readonly emptyMessage?: string;
   readonly flow?: IApiMissionFlow | null;
+  /**
+   * The backend always lays the path out top-to-bottom; `horizontal` transposes it so the
+   * path reads left-to-right (better for wide panels with few tall cards).
+   */
+  readonly orientation?: MissionFlowOrientation;
   /** Appends a spinner node after the last node, for paths still being recorded. */
   readonly pending?: MissionFlowPendingNode;
 };
@@ -50,6 +58,54 @@ const nodePositionScale = {
   x: 1.55,
   y: 1.45,
 };
+
+/**
+ * Horizontal mode ignores how far apart the backend (or Gemini) placed nodes and lays them out
+ * by order instead: every distinct `y` becomes one column wide enough for the 215px card, and
+ * every distinct `x` becomes a lane below the main path (e.g. the incorrect/support branch).
+ */
+const horizontalLayout = {
+  columnStep: 280,
+  laneStep: 200,
+};
+
+const orientationHandles: Record<
+  MissionFlowOrientation,
+  { sourcePosition: Position; targetPosition: Position }
+> = {
+  vertical: { sourcePosition: Position.Bottom, targetPosition: Position.Top },
+  horizontal: { sourcePosition: Position.Right, targetPosition: Position.Left },
+};
+
+type FlowPosition = IApiMissionFlowNode["position"];
+
+type PositionMapper = (position: FlowPosition) => { x: number; y: number };
+
+/** Backend positions are authored top-to-bottom; horizontal mode transposes them by rank. */
+function createPositionMapper(
+  positions: readonly FlowPosition[],
+  orientation: MissionFlowOrientation,
+): PositionMapper {
+  if (orientation === "vertical") {
+    return (position) => ({
+      x: position.x * nodePositionScale.x,
+      y: position.y * nodePositionScale.y,
+    });
+  }
+
+  const columnByY = rankValues(positions.map((position) => position.y));
+  const laneByX = rankValues(positions.map((position) => position.x));
+  return (position) => ({
+    x: (columnByY.get(position.y) ?? columnByY.size) * horizontalLayout.columnStep,
+    y: (laneByX.get(position.x) ?? laneByX.size) * horizontalLayout.laneStep,
+  });
+}
+
+/** Maps each distinct value to its sorted index, so 0/105/210 and 0/135/270 both become 0/1/2. */
+function rankValues(values: readonly number[]) {
+  const sorted = [...new Set(values)].sort((a, b) => a - b);
+  return new Map(sorted.map((value, index) => [value, index] as const));
+}
 
 const nodeStyles: Record<string, CSSProperties> = {
   start: {
@@ -125,6 +181,7 @@ export function MissionFlowPreview({
   className,
   emptyMessage = "Generate a preview to see Mia's mission flow.",
   flow,
+  orientation = "vertical",
   pending,
 }: MissionFlowPreviewProps) {
   const pendingLabel = pending?.label;
@@ -133,11 +190,12 @@ export function MissionFlowPreview({
     () =>
       buildReactFlow(
         flow,
+        orientation,
         pendingLabel
           ? { label: pendingLabel, description: pendingDescription ?? "" }
           : undefined,
       ),
-    [flow, pendingLabel, pendingDescription],
+    [flow, orientation, pendingLabel, pendingDescription],
   );
 
   if (nodes.length === 0) {
@@ -159,7 +217,8 @@ export function MissionFlowPreview({
         nodes={nodes}
         edges={edges}
         fitView
-        fitViewOptions={{ padding: 0.32 }}
+        fitViewOptions={{ padding: orientation === "horizontal" ? 0.1 : 0.32 }}
+        minZoom={0.15}
         nodesConnectable={false}
         nodesDraggable={false}
         elementsSelectable={false}
@@ -174,6 +233,7 @@ export function MissionFlowPreview({
 
 function buildReactFlow(
   flow: IApiMissionFlow | null | undefined,
+  orientation: MissionFlowOrientation,
   pending: MissionFlowPendingNode | undefined,
 ): {
   nodes: MissionReactFlowNode[];
@@ -184,13 +244,30 @@ function buildReactFlow(
     return { nodes: [], edges: [] };
   }
 
+  const handles = orientationHandles[orientation];
+  const anchor = flowNodes.reduce<IApiMissionFlowNode | null>(
+    (lowest, node) =>
+      lowest && lowest.position.y >= node.position.y ? lowest : node,
+    null,
+  );
+  const pendingPosition: FlowPosition | null = pending
+    ? {
+        x: anchor?.position.x ?? 0,
+        y: (anchor?.position.y ?? -stackedNodeGap) + stackedNodeGap,
+      }
+    : null;
+  const toCanvasPosition = createPositionMapper(
+    [
+      ...flowNodes.map((node) => node.position),
+      ...(pendingPosition ? [pendingPosition] : []),
+    ],
+    orientation,
+  );
   const nodes = flowNodes.map<MissionReactFlowNode>((node) => ({
     id: node.id,
     type: "default",
-    position: {
-      x: node.position.x * nodePositionScale.x,
-      y: node.position.y * nodePositionScale.y,
-    },
+    position: toCanvasPosition(node.position),
+    ...handles,
     data: {
       label: <MissionFlowNodeCard node={node} />,
     },
@@ -217,19 +294,12 @@ function buildReactFlow(
       markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8" },
     }));
 
-  if (pending) {
-    const anchor = flowNodes.reduce<IApiMissionFlowNode | null>(
-      (lowest, node) =>
-        lowest && lowest.position.y >= node.position.y ? lowest : node,
-      null,
-    );
+  if (pending && pendingPosition) {
     nodes.push({
       id: pendingNodeId,
       type: "default",
-      position: {
-        x: (anchor?.position.x ?? 0) * nodePositionScale.x,
-        y: ((anchor?.position.y ?? -stackedNodeGap) + stackedNodeGap) * nodePositionScale.y,
-      },
+      position: toCanvasPosition(pendingPosition),
+      ...handles,
       data: { label: <PendingFlowNodeCard pending={pending} /> },
       style: {
         ...nodeBaseStyle,

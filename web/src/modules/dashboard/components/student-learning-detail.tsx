@@ -332,6 +332,7 @@ function LearningFlowPanel({
         </FlowProvenance>
         <MissionFlowPreview
           className="h-auto min-h-0 flex-1"
+          orientation="horizontal"
           flow={{ nodes: [startNode], edges: [] }}
           pending={{
             label: "Listening for the first answer",
@@ -349,7 +350,11 @@ function LearningFlowPanel({
   return (
     <>
       <FlowProvenance kinds={kinds}>{provenance}</FlowProvenance>
-      <MissionFlowPreview className="h-auto min-h-0 flex-1" flow={flow} />
+      <MissionFlowPreview
+        className="h-auto min-h-0 flex-1"
+        orientation="horizontal"
+        flow={flow}
+      />
     </>
   );
 }
