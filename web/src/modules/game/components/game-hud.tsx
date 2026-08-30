@@ -105,6 +105,7 @@ export function GameHud({
   const [missionPickerOpen, setMissionPickerOpen] = useState(false);
   const avatar = getAvatarPreset(avatarPresetId);
   const canChooseMission = nearSeat && pendingMissionCount > 0;
+  const modalOpen = pickerOpen || missionPickerOpen;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 select-none text-white">
@@ -199,7 +200,7 @@ export function GameHud({
 
       {/* The one action */}
       <div className="absolute inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 flex justify-center sm:inset-x-auto sm:right-6 sm:bottom-7 sm:items-end">
-        {nearSeat && pendingMissionCount > 0 ? (
+        {!modalOpen && nearSeat && pendingMissionCount > 0 ? (
           <button
             type="button"
             disabled={!canChooseMission}
@@ -212,12 +213,16 @@ export function GameHud({
       </div>
 
       {/* Controls hint, fades on its own */}
-      <p className="font-display animate-fade-out absolute inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] text-center text-[0.7rem] font-medium tracking-wide text-white/60 sm:hidden">
-        Drag here to walk · swipe the room to look around
-      </p>
-      <p className="font-display animate-fade-out absolute inset-x-0 top-[max(env(safe-area-inset-top),1.25rem)] hidden text-center text-xs font-medium tracking-wide text-white/50 sm:block">
-        WASD to walk · drag to look around · click the glowing desk to go there
-      </p>
+      {!modalOpen ? (
+        <>
+          <p className="font-display animate-fade-out absolute inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] text-center text-[0.7rem] font-medium tracking-wide text-white/60 sm:hidden">
+            Drag here to walk · swipe the room to look around
+          </p>
+          <p className="font-display animate-fade-out absolute inset-x-0 top-[max(env(safe-area-inset-top),1.25rem)] hidden text-center text-xs font-medium tracking-wide text-white/50 sm:block">
+            WASD to walk · drag to look around · click the glowing desk to go there
+          </p>
+        </>
+      ) : null}
 
       <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-10 h-[190px] sm:hidden">
         <MovementPad movementRef={movementRef} />
