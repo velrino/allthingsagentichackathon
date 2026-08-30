@@ -2,11 +2,12 @@
 # requires-python = ">=3.11"
 # dependencies = ["diagrams>=0.25,<0.26", "pillow>=11,<13"]
 # ///
-"""Render an alternate ClassGame architecture with mingrammer/diagrams.
+"""Render an icon-led ClassGame architecture with mingrammer/diagrams.
 
-This version intentionally follows the compact, icon-led Graphviz language of
-``portfolio-front/diagrams/wpp.py``.  It complements the hand-laid-out 16:9
-diagram in ``architecture.py``; it does not replace it.
+Graphviz owns the topology; this script only shapes it: nodes are compact
+icon cards (icon on top, bold title, muted subtitle), clusters are quiet
+rounded panels, and the finished graph is fitted below a slide header on an
+exact 16:9 canvas. Nothing is stretched, so type stays readable.
 
 Run from any directory:
 
@@ -23,17 +24,18 @@ import mimetypes
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from diagrams import Cluster, Diagram, Edge
+from diagrams import Cluster, Diagram, Edge, Node
+from diagrams.gcp.api import Endpoints
 from diagrams.gcp.compute import Run
 from diagrams.gcp.database import Firestore
 from diagrams.gcp.devtools import Tasks
-from diagrams.gcp.ml import VertexAI
+from diagrams.gcp.ml import AIPlatform, VertexAI
+from diagrams.gcp.operations import Monitoring
 from diagrams.gcp.security import Iam
 from diagrams.gcp.storage import GCS
-from diagrams.generic.storage import Storage
 from diagrams.onprem.client import Users
 from diagrams.onprem.inmemory import Redis
-from diagrams.programming.flowchart import Decision, PredefinedProcess
+from diagrams.programming.flowchart import Decision, Document
 from diagrams.programming.framework import React
 from diagrams.programming.language import Go
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -43,9 +45,17 @@ ROOT = Path(__file__).resolve().parent
 RAW_OUTPUT = ROOT / "architecture-graphviz-raw"
 OUTPUT = ROOT / "architecture-graphviz.png"
 SVG_OUTPUT = ROOT / "architecture-graphviz.svg"
+
 LOGICAL_SIZE = (1920, 1080)
 PNG_SCALE = 2
 CANVAS_SIZE = tuple(dimension * PNG_SCALE for dimension in LOGICAL_SIZE)
+# Slide header band (logical px). The graph is fitted into the space below it.
+HEADER_HEIGHT = 112
+FRAME_MARGIN_X = 48
+FRAME_MARGIN_BOTTOM = 40
+
+TITLE = "ClassGame · Production Architecture"
+SUBTITLE = "Teacher intent becomes a mission with M.I.A (Multimodal Intelligence Agent)"
 
 BLUE = "#3b63f3"
 PURPLE = "#8b5cf6"
@@ -55,6 +65,9 @@ GREEN = "#16a368"
 RED = "#dc382d"
 INK = "#211833"
 MUTED = "#645b73"
+PANEL_FILL = "#f6f7fb"
+PANEL_LINE = "#d8dce8"
+SANS = "Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -80,31 +93,78 @@ def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.Im
 FONT_TITLE = font(36 * PNG_SCALE, bold=True)
 FONT_SUBTITLE = font(17 * PNG_SCALE)
 
+# No `ratio`/`size`: Graphviz lays the graph out at its natural density and we
+# fit the result onto the slide afterwards, so spacing and type scale together.
 graph_attr = {
     "bgcolor": "white",
-    "dpi": str(120 * PNG_SCALE),
-    "pad": "0.65",
-    "ratio": "fill",
-    "size": "16,9!",
-    "nodesep": "0.5",
-    "ranksep": "1.7",
-    "splines": "ortho",
-    "fontname": "Arial",
-    "fontsize": "22",
+    "dpi": "192",
+    "pad": "0.3",
+    "nodesep": "0.42",
+    "ranksep": "1.25",
+    "splines": "spline",
+    "newrank": "true",
     "compound": "true",
+    # Best effort only: dot keeps a node's out-edges in declaration order, but
+    # heads inside different clusters may still be reordered.
+    "ordering": "out",
+    "fontname": "Helvetica",
 }
 node_attr = {
-    "fontname": "Arial",
-    "fontsize": "16",
+    "fontname": "Helvetica",
+    "fontcolor": INK,
 }
 edge_attr = {
     "color": BLUE,
     "fontcolor": MUTED,
-    "fontname": "Arial",
-    "fontsize": "14",
-    "penwidth": "2.4",
-    "arrowsize": "0.9",
+    "fontname": "Helvetica",
+    "fontsize": "12.5",
+    "penwidth": "1.6",
+    "arrowsize": "0.75",
+    "labeldistance": "1.2",
 }
+cluster_attr = {
+    "style": "rounded,filled",
+    "fillcolor": PANEL_FILL,
+    "bgcolor": PANEL_FILL,
+    "pencolor": PANEL_LINE,
+    "penwidth": "1.2",
+    "fontname": "Helvetica-Bold",
+    "fontsize": "13",
+    "fontcolor": MUTED,
+    "labeljust": "r",
+    "margin": "22",
+}
+
+
+def card(icon: type[Node], title: str, subtitle: str, **attrs) -> Node:
+    """Icon on top, bold title, muted subtitle — one compact card per component."""
+    label = (
+        f'<<font point-size="16"><b>{title}</b></font>'
+        f'<br/><font point-size="12" color="{MUTED}">{subtitle}</font>>'
+    )
+    return icon(
+        label,
+        width="1.45",
+        height="2.0",
+        fixedsize="true",
+        imagescale="true",
+        imagepos="tc",
+        labelloc="b",
+        **attrs,
+    )
+
+
+def panel(title: str) -> Cluster:
+    return Cluster(title, graph_attr=cluster_attr)
+
+
+def flow(color: str = BLUE, label: str = "", **attrs) -> Edge:
+    return Edge(color=color, label=label, **attrs)
+
+
+def pulse(color: str, label: str = "", **attrs) -> Edge:
+    """Realtime / telemetry traffic: same weight, dashed."""
+    return Edge(color=color, label=label, style="dashed", **attrs)
 
 
 with Diagram(
@@ -117,147 +177,137 @@ with Diagram(
     node_attr=node_attr,
     edge_attr=edge_attr,
 ):
-    # Browser-facing experiences. Both are delivered by the same Next.js
-    # service, but remain separate product surfaces in the diagram.
-    with Cluster("Web experiences"):
-        students = Users("Students\nanonymous session")
-        student_game = React("3D learning game\nReact · Three.js")
-        teachers = Users("Teachers\nGoogle / demo account")
-        dashboard = React("Teacher dashboard\nmissions · live evidence")
+    # Both surfaces ship from the same Next.js service but stay separate
+    # product experiences on the slide.
+    with panel("BROWSER"):
+        students = card(Users, "Students", "anonymous session")
+        student_game = card(React, "3D learning game", "React · Three.js")
+        teachers = card(Users, "Teachers", "Google / demo account")
+        dashboard = card(React, "Teacher dashboard", "missions · live evidence")
 
-        students >> Edge(color=BLUE, label="play") >> student_game
-        teachers >> Edge(color=BLUE, label="plan / observe") >> dashboard
+        students >> flow(label="play", weight="3") >> student_game
+        teachers >> flow(label="plan · observe", weight="3") >> dashboard
 
-    # Cloud Run is the synchronous spine. Browser identity is verified again
-    # by the Go API before tenant-scoped work is dispatched.
-    with Cluster("Cloud Run application"):
-        web = Run("classgame-web\nNext.js")
-        api = Go("classgame-api\nGo + Echo")
+    # Cloud Run is the synchronous spine; the Go API re-verifies browser
+    # identity before any tenant-scoped work.
+    with panel("CLOUD RUN"):
+        web = card(Run, "classgame-web", "Next.js")
+        api = card(Go, "classgame-api", "Go + Echo")
 
-        web >> Edge(color=BLUE, label="HTTPS + ID token") >> api
+        web >> flow(label="HTTPS + ID token", weight="8") >> api
 
-    # These are custom application agents, not an ADK runtime. The policy gate
-    # keeps prompts grounded in server-owned mission and learning state.
-    with Cluster("Agent runtime"):
-        mission = PredefinedProcess("Mission Agent\npreview · revise · publish")
-        tutor = PredefinedProcess("Mia Tutor Agent\nRAG · memory · multi-turn")
-        learning = PredefinedProcess("Learning Agent\ntrace · memory · synthesis")
-        policy = Decision("Policy + grounding\nvalidation · safe fallback")
+    # Custom application agents (not an ADK runtime). Stacked in one column;
+    # every model call funnels through the policy gate.
+    with panel("AGENT RUNTIME"):
+        mission = card(AIPlatform, "Mission Agent", "preview · revise · publish")
+        tutor = card(AIPlatform, "Mia Tutor Agent", "RAG · memory · multi-turn")
+        learning = card(AIPlatform, "Learning Agent", "trace · memory · synthesis")
+        policy = card(Decision, "Policy + grounding", "validation · safe fallback")
 
-        # Invisible ordering produces the horizontal cluster treatment used by
-        # the WPP reference without implying another business flow.
-        mission >> Edge(style="invis") >> tutor
-        tutor >> Edge(style="invis") >> learning
-        learning >> Edge(color=PURPLE, label="grounded context") >> policy
-        mission >> Edge(color=PURPLE, constraint="false") >> policy
-        tutor >> Edge(color=PURPLE, constraint="false") >> policy
+        mission >> flow(PURPLE) >> policy
+        tutor >> flow(PURPLE, label="grounded context") >> policy
+        learning >> flow(PURPLE) >> policy
 
-    with Cluster("AI generation"):
-        vertex = VertexAI("Gemini 3.7 Flash\nstructured JSON via Vertex AI")
+    with panel("GEMINI"):
+        vertex = card(VertexAI, "Gemini 3.7 Flash", "structured JSON · Vertex AI")
 
-    with Cluster("Async + operations"):
-        cloud_tasks = Tasks("Cloud Tasks\nfinalize · watchdog · copy")
-        task_handlers = PredefinedProcess("OIDC task handlers\nidempotent workers")
-        redis = Redis("Redis\ndistributed quotas + health")
+    # Cloud Tasks only calls API-owned worker endpoints; the queue never owns
+    # business state.
+    with panel("ASYNC WORK + OPERATIONS"):
+        cloud_tasks = card(Tasks, "Cloud Tasks", "finalize · watchdog · copy")
+        task_handlers = card(Endpoints, "OIDC task handlers", "idempotent workers")
+        redis = card(Redis, "Redis", "quotas · health")
+        posthog = card(Monitoring, "PostHog", "analytics · exceptions")
 
-        cloud_tasks >> Edge(color=ORANGE, label="OIDC delivery") >> task_handlers
-        task_handlers >> Edge(style="invis") >> redis
+        cloud_tasks >> flow(ORANGE, label="OIDC delivery") >> task_handlers
 
-    with Cluster("Firebase platform"):
-        firebase_auth = Iam("Firebase Auth\nGoogle · password · anonymous")
-        firestore = Firestore("Firestore\nmissions · attempts · memory")
-        storage = GCS("Cloud Storage\nimmutable published attachments")
+    with panel("FIREBASE"):
+        firebase_auth = card(Iam, "Firebase Auth", "Google · password · anonymous")
+        firestore = card(Firestore, "Firestore", "missions · attempts · realtime")
+        storage = card(GCS, "Cloud Storage", "immutable published attachments")
 
-        firebase_auth >> Edge(style="invis") >> firestore
-        firestore >> Edge(style="invis") >> storage
-
-    with Cluster("Telemetry + attachment intake"):
-        posthog = PredefinedProcess("PostHog\nanalytics · exceptions")
-        uploadcare = Storage("Uploadcare\ntemporary direct uploads")
-
-        uploadcare >> Edge(style="invis") >> posthog
+    # Kept out of the operations panel: a cluster spanning many ranks would be
+    # forced into its own full-width row.
+    with panel("INTAKE"):
+        uploadcare = card(Document, "Uploadcare", "temporary direct uploads")
 
     # Experience entry points.
-    student_game >> Edge(color=BLUE, label="student routes") >> web
-    dashboard >> Edge(color=BLUE, label="teacher routes") >> web
+    student_game >> flow(weight="3") >> web
+    dashboard >> flow(weight="3") >> web
 
-    # Authentication, persistence, and synchronous orchestration.
-    api >> Edge(color=GREEN, label="verify identity") >> firebase_auth
-    api >> Edge(color=BLUE, label="preview / publish") >> mission
-    api >> Edge(color=BLUE, label="answer / feedback") >> tutor
-    api >> Edge(color=BLUE, label="snapshot / summarize") >> learning
-    api >> Edge(color=BLUE, label="read / write") >> firestore
-    api >> Edge(color=RED, label="rate limits") >> redis
+    # API fan-out. `minlen` pushes the leaf services to the right so no column
+    # stacks more than four cards and the graph stays close to 16:9.
+    api >> flow(label="preview · publish") >> mission
+    api >> flow(label="answer · feedback") >> tutor
+    api >> flow(label="snapshot · summarize") >> learning
+    api >> flow(ORANGE, label="enqueue") >> cloud_tasks
+    api >> Edge(style="invis") >> uploadcare
+    # One compound edge into the Firebase panel (clipped at its border): two
+    # node-level edges cannot both be straight, and the loser loops around the
+    # operations panel.
+    api >> flow(
+        label="verify identity · read / write",
+        lhead="cluster_FIREBASE",
+        minlen="3",
+        weight="10",
+    ) >> firebase_auth
+    api >> flow(RED, label="rate limits") >> redis
+    api >> pulse(TEAL, label="analytics · exceptions", minlen="2") >> posthog
 
-    # All model calls pass the application-owned safety and grounding gate.
-    policy >> Edge(color=PURPLE, label="grounded prompt") >> vertex
+    # Every prompt leaves through the application-owned safety gate.
+    policy >> flow(PURPLE, label="grounded prompt", weight="4") >> vertex
 
-    # Durable background work. Cloud Tasks calls API-owned worker endpoints;
-    # the queue never owns business state.
-    api >> Edge(color=ORANGE, label="enqueue") >> cloud_tasks
-    task_handlers >> Edge(color=ORANGE, label="monotonic updates") >> firestore
-    task_handlers >> Edge(color=ORANGE, label="canonical copy") >> storage
-    uploadcare >> Edge(color=ORANGE, label="approved upload") >> task_handlers
+    # Durable background work.
+    task_handlers >> flow(ORANGE, label="monotonic updates") >> firestore
+    task_handlers >> flow(ORANGE, label="canonical copy") >> storage
+    uploadcare >> flow(ORANGE, label="approved upload") >> task_handlers
 
-    # Browser-safe Firestore projections and product telemetry. The listener
-    # edge points left-to-right to keep Graphviz from wrapping a reverse edge
-    # around the entire composition.
-    web >> Edge(
-        color=TEAL,
-        style="dashed",
-        label="Firestore realtime listeners",
-    ) >> firestore
-    api >> Edge(
-        color=TEAL,
-        style="dashed",
-        label="web + API analytics / exceptions",
-    ) >> posthog
+    # The browser's direct Firestore listeners are deliberately not drawn: a
+    # rank-1 → rank-6 edge can only be routed as a huge arc around every panel.
+    # Firestore's subtitle carries "realtime" instead.
 
 
-# Graphviz controls topology well but may return a canvas a few pixels narrower
-# than the requested ratio. Fit the native render onto an exact 4K 16:9 canvas
-# so icons and typography retain their proportions.
-raw_png = RAW_OUTPUT.with_suffix(".png")
-with Image.open(raw_png) as source:
-    fitted = ImageOps.contain(
-        source.convert("RGB"),
-        CANVAS_SIZE,
-        method=Image.Resampling.LANCZOS,
+def frame_box(scale: int) -> tuple[int, int, int, int]:
+    """Slide area reserved for the graph (left, top, right, bottom), in canvas px."""
+    return (
+        FRAME_MARGIN_X * scale,
+        HEADER_HEIGHT * scale,
+        (LOGICAL_SIZE[0] - FRAME_MARGIN_X) * scale,
+        (LOGICAL_SIZE[1] - FRAME_MARGIN_BOTTOM) * scale,
     )
-canvas = Image.new("RGB", CANVAS_SIZE, "white")
-canvas.paste(
-    fitted,
-    (
-        # Preserve the original header's full subtitle in the empty top-left
-        # area without covering the Agent runtime cluster.
-        (CANVAS_SIZE[0] - fitted.width) // 2 + 40 * PNG_SCALE,
-        (CANVAS_SIZE[1] - fitted.height) // 2,
-    ),
-)
-draw = ImageDraw.Draw(canvas)
-draw.text(
-    (42 * PNG_SCALE, 22 * PNG_SCALE),
-    "ClassGame · Production Architecture",
-    fill=INK,
-    font=FONT_TITLE,
-)
-draw.text(
-    (44 * PNG_SCALE, 66 * PNG_SCALE),
-    "Teacher intent becomes a mission with M.I.A (Multimodal Intelligence Agent",
-    fill=MUTED,
-    font=FONT_SUBTITLE,
-)
-canvas.save(OUTPUT, quality=95)
-raw_png.unlink()
+
+
+def write_slide_png() -> None:
+    """Fit the native Graphviz render under the header on an exact 4K 16:9 canvas."""
+    raw_png = RAW_OUTPUT.with_suffix(".png")
+    left, top, right, bottom = frame_box(PNG_SCALE)
+    frame = (right - left, bottom - top)
+    with Image.open(raw_png) as source:
+        fitted = ImageOps.contain(
+            source.convert("RGB"), frame, method=Image.Resampling.LANCZOS
+        )
+
+    canvas = Image.new("RGB", CANVAS_SIZE, "white")
+    canvas.paste(
+        fitted,
+        (left + (frame[0] - fitted.width) // 2, top + (frame[1] - fitted.height) // 2),
+    )
+    draw = ImageDraw.Draw(canvas)
+    draw.text((42 * PNG_SCALE, 22 * PNG_SCALE), TITLE, fill=INK, font=FONT_TITLE)
+    draw.text((44 * PNG_SCALE, 66 * PNG_SCALE), SUBTITLE, fill=MUTED, font=FONT_SUBTITLE)
+    canvas.save(OUTPUT, quality=95)
+    raw_png.unlink()
 
 
 def svg_number(value: str) -> float:
     """Parse a Graphviz SVG dimension such as ``1208pt``."""
-    return float("".join(character for character in value if character.isdigit() or character in ".-"))
+    return float(
+        "".join(character for character in value if character.isdigit() or character in ".-")
+    )
 
 
 def write_portable_svg() -> None:
-    """Wrap the Graphviz SVG in 16:9 and inline every icon as a data URI."""
+    """Wrap the Graphviz SVG in 16:9 under the header and inline every icon."""
     raw_svg = RAW_OUTPUT.with_suffix(".svg")
     raw_root = ET.parse(raw_svg).getroot()
     svg_namespace = "http://www.w3.org/2000/svg"
@@ -285,14 +335,14 @@ def write_portable_svg() -> None:
         raw_width = svg_number(raw_root.get("width", "1920"))
         raw_height = svg_number(raw_root.get("height", "1080"))
 
-    scale = min(LOGICAL_SIZE[0] / raw_width, LOGICAL_SIZE[1] / raw_height)
+    left, top, right, bottom = frame_box(1)
+    frame_width, frame_height = right - left, bottom - top
+    scale = min(frame_width / raw_width, frame_height / raw_height)
     fitted_width = raw_width * scale
     fitted_height = raw_height * scale
-    fitted_x = (LOGICAL_SIZE[0] - fitted_width) / 2 + 40
-    fitted_y = (LOGICAL_SIZE[1] - fitted_height) / 2
 
-    raw_root.set("x", f"{fitted_x:.2f}")
-    raw_root.set("y", f"{fitted_y:.2f}")
+    raw_root.set("x", f"{left + (frame_width - fitted_width) / 2:.2f}")
+    raw_root.set("y", f"{top + (frame_height - fitted_height) / 2:.2f}")
     raw_root.set("width", f"{fitted_width:.2f}")
     raw_root.set("height", f"{fitted_height:.2f}")
     raw_root.set("preserveAspectRatio", "xMidYMid meet")
@@ -321,29 +371,24 @@ def write_portable_svg() -> None:
             "x": "42",
             "y": "55",
             "fill": INK,
-            "font-family": "Arial, Helvetica, sans-serif",
+            "font-family": SANS,
             "font-size": "36",
             "font-weight": "700",
         },
     )
-    title.text = "ClassGame · Production Architecture"
+    title.text = TITLE
     subtitle = ET.SubElement(
         outer,
         f"{{{svg_namespace}}}text",
-        {
-            "x": "44",
-            "y": "82",
-            "fill": MUTED,
-            "font-family": "Arial, Helvetica, sans-serif",
-            "font-size": "17",
-        },
+        {"x": "44", "y": "82", "fill": MUTED, "font-family": SANS, "font-size": "17"},
     )
-    subtitle.text = "Teacher intent becomes a mission with M.I.A (Multimodal Intelligence Agent"
+    subtitle.text = SUBTITLE
 
     ET.ElementTree(outer).write(SVG_OUTPUT, encoding="utf-8", xml_declaration=True)
     raw_svg.unlink()
 
 
+write_slide_png()
 write_portable_svg()
 print(f"Wrote {OUTPUT} ({CANVAS_SIZE[0]}x{CANVAS_SIZE[1]})")
 print(f"Wrote {SVG_OUTPUT} (vector {LOGICAL_SIZE[0]}x{LOGICAL_SIZE[1]} viewBox)")
