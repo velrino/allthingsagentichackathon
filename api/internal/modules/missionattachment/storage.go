@@ -137,7 +137,7 @@ func (copier *StorageCopier) Copy(ctx context.Context, input CopyInput) (StoredO
 	writer := conditionedObject.NewWriter(ctx)
 	writer.ChunkSize = defaultWriterChunkBytes
 	writer.ContentType = contentType
-	writer.ContentDisposition = mime.FormatMediaType("attachment", map[string]string{
+	writer.ContentDisposition = mime.FormatMediaType("inline", map[string]string{
 		"filename": strings.TrimSpace(input.FileName),
 	})
 	writer.Metadata = map[string]string{

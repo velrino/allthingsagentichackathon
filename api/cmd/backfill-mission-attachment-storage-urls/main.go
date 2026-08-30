@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"mime"
 	"net/url"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -49,7 +51,7 @@ type runState struct {
 
 func main() {
 	apply := flag.Bool("apply", false, "write updates to Firestore")
-	makePublic := flag.Bool("make-public", false, "grant allUsers read access to stored attachment objects")
+	makePublic := flag.Bool("make-public", false, "grant allUsers read access and inline disposition to stored attachment objects")
 	sampleLimit := flag.Int("sample-limit", 5, "number of public storage URLs to print")
 	flag.Parse()
 
@@ -116,7 +118,7 @@ func main() {
 			fmt.Printf("Dry-run: would grant public read to %d stored object(s)\n", len(state.objects))
 			return
 		}
-		if err := makeStoredObjectsPublic(ctx, storageClient, state.objects); err != nil {
+		if err := makeStoredObjectsPublicAndInline(ctx, storageClient, state.objects); err != nil {
 			log.Fatalf("make stored objects public: %v", err)
 		}
 	}
@@ -354,7 +356,7 @@ func (state *runState) recordStoredObject(object storedObjectRef) {
 	}
 }
 
-func makeStoredObjectsPublic(
+func makeStoredObjectsPublicAndInline(
 	ctx context.Context,
 	client *gcs.Client,
 	objects map[string]storedObjectRef,
@@ -368,13 +370,21 @@ func makeStoredObjectsPublic(
 	updated := 0
 	for _, key := range keys {
 		object := objects[key]
-		if err := client.Bucket(object.bucket).Object(object.objectPath).ACL().Set(ctx, gcs.AllUsers, gcs.RoleReader); err != nil {
+		handle := client.Bucket(object.bucket).Object(object.objectPath)
+		if err := handle.ACL().Set(ctx, gcs.AllUsers, gcs.RoleReader); err != nil {
 			return fmt.Errorf("set public ACL for gs://%s/%s: %w", object.bucket, object.objectPath, err)
+		}
+		if _, err := handle.Update(ctx, gcs.ObjectAttrsToUpdate{
+			ContentDisposition: mime.FormatMediaType("inline", map[string]string{
+				"filename": path.Base(object.objectPath),
+			}),
+		}); err != nil {
+			return fmt.Errorf("set inline disposition for gs://%s/%s: %w", object.bucket, object.objectPath, err)
 		}
 		updated++
 	}
 
-	fmt.Printf("Granted public read to %d stored object(s)\n", updated)
+	fmt.Printf("Granted public read and inline disposition to %d stored object(s)\n", updated)
 	return nil
 }
 
