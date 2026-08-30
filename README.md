@@ -22,8 +22,8 @@ ClassGame is that example, with a classroom around it: the "dense document" is t
 
 The fastest way to evaluate the submission is the hosted Google Cloud production build:
 
-1. Open the **teacher dashboard** on Cloud Run and generate a mission from a lesson prompt or worksheet.
-2. Open the **student game** on Cloud Run, join with the class code, and answer one question incorrectly.
+1. Open the **[teacher dashboard on Cloud Run](https://classgame-web-2057331207.us-east1.run.app/dashboard)** and generate a mission from a lesson prompt or worksheet.
+2. Open the **[student game on Cloud Run with class code `367501` prefilled](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501)** and answer one question incorrectly.
 3. Mia asks *why*, retrieves the relevant lesson chunks, adapts the explanation, and records a teacher-only observation.
 4. Close and reopen the student tab; the exact checkpoint restores from Firestore.
 5. Finish the mission; Cloud Tasks finalizes the learning trace and class synthesis.
@@ -33,8 +33,8 @@ The fastest way to evaluate the submission is the hosted Google Cloud production
 
 | Experience | Link |
 |---|---|
-| 🎮 **Student game on GCP Cloud Run** | [Enter the 3D classroom](https://classgame-web-mzkj6f7g3a-ue.a.run.app/home) |
-| 🧑‍🏫 **Teacher dashboard on GCP Cloud Run** | [Create and monitor missions](https://classgame-web-mzkj6f7g3a-ue.a.run.app/dashboard) |
+| 🎮 **Student game on GCP Cloud Run** | [Enter the 3D classroom with class code `367501`](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501) |
+| 🧑‍🏫 **Teacher dashboard on GCP Cloud Run** | [Create and monitor missions](https://classgame-web-2057331207.us-east1.run.app/dashboard) |
 | ⚙️ **API on GCP Cloud Run** | [Open the production API](https://classgame-api-2057331207.us-east1.run.app/) |
 | 🎬 **Demo video** | [Watch on YouTube](https://www.youtube.com/watch?v=mvsbSKlGfyE) |
 | 💬 **Build story** | [Read the LinkedIn post](https://www.linkedin.com/posts/velrino_allthingsagentichackathon-ugcPost-7499787792177262593-g9Mz) |
@@ -368,7 +368,7 @@ Allow 10–15 minutes and use two browser windows (or a laptop and a phone). Use
 
 **Teacher**
 
-1. Open the [teacher login](https://classgame-web-mzkj6f7g3a-ue.a.run.app/login) and sign in.
+1. Open the [teacher login](https://classgame-web-2057331207.us-east1.run.app/login) and sign in.
 2. Create a class (name, subject, grade) or open an existing one.
 3. In **Missions**, enter a mission name, learning goal and teacher prompt. Optionally attach a Grade 5 worksheet from [`assets/grade/5th/`](assets/grade/5th/); [`assets/grade/README.md`](assets/grade/README.md) contains ready-to-copy mission inputs. Select **Generate preview**.
 4. Verify the generated questions, expected answers, misconception traps, flow graph, education guardrail and **Gemini** provenance badge. Change the prompt and select **Update preview** to verify revision history.
@@ -376,7 +376,7 @@ Allow 10–15 minutes and use two browser windows (or a laptop and a phone). Use
 
 **Student** (phone recommended)
 
-6. Open the [student game](https://classgame-web-mzkj6f7g3a-ue.a.run.app/home), enter the class code and a name, choose a character, walk to the glowing desk and start the published mission.
+6. Open the [student game with class code `367501` prefilled](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501), enter a name, choose a character, walk to the glowing desk and start the published mission.
 7. Answer the first question incorrectly on purpose. Mia should ask *why*. Choose a reason, read the explanation, then select **Confusing**; Mia adapts the explanation and states why it changed.
 8. Answer another question, close the tab and reopen the same URL in the same browser. The mission should resume at the exact saved question and phase.
 9. Complete the mission. Alternatively, leave it for two minutes to exercise the abandonment watchdog and partial learning trace.
@@ -390,7 +390,7 @@ Allow 10–15 minutes and use two browser windows (or a laptop and a phone). Use
 Expected production smoke checks:
 
 ```bash
-curl -I https://classgame-web-mzkj6f7g3a-ue.a.run.app/home
+curl -I 'https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501'
 curl https://classgame-api-2057331207.us-east1.run.app/
 curl -X POST https://classgame-api-2057331207.us-east1.run.app/users/student-session/validate \
   -H 'Content-Type: application/json' \
