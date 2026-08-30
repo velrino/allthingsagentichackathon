@@ -18,7 +18,7 @@ ClassGame
 
 ### Elevator Pitch
 
-The optional homework that takes notes for the teacher: Mia, the Multimodal Intelligence Agent powered by Gemini, turns today's lesson into a 3D review mission, asks students why they got things wrong, remembers how each one thinks across sessions, and hands the teacher the evidence — live.
+Supporting teachers as they guide their class through Mia, the Multimodal Intelligence Agent, in a 3D world of missions that adapt to every student — so each one learns and levels up.
 
 ## Project Details
 
