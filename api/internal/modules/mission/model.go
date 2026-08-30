@@ -135,6 +135,7 @@ type MissionAttachmentStorage struct {
 	Bucket     string    `firestore:"bucket,omitempty" json:"bucket,omitempty"`
 	ObjectPath string    `firestore:"object_path,omitempty" json:"object_path,omitempty"`
 	GSURI      string    `firestore:"gs_uri,omitempty" json:"gs_uri,omitempty"`
+	PublicURL  string    `firestore:"-" json:"public_url,omitempty"`
 	MimeType   string    `firestore:"mime_type,omitempty" json:"mime_type,omitempty"`
 	SizeBytes  int64     `firestore:"size_bytes,omitempty" json:"size_bytes,omitempty"`
 	Attempts   int       `firestore:"attempts" json:"attempts"`

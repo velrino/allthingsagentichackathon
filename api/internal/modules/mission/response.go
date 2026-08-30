@@ -1,6 +1,8 @@
 package mission
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	"classgame-api/internal/modules/orchestrator"
@@ -82,7 +84,7 @@ func ToResponse(mission MissionDocument) MissionResponse {
 		TeacherPrompt:    mission.TeacherPrompt,
 		AudienceType:     mission.AudienceType,
 		TargetStudentIDs: mission.TargetStudentIDs,
-		Attachments:      mission.Attachments,
+		Attachments:      attachmentsWithPublicStorageURLs(mission.Attachments),
 		PreviewQuestions: orchestrator.PlayablePreviewQuestions(orchestrator.BuildMissionInput{
 			ClassID:       mission.ClassID,
 			ClassName:     mission.ClassName,
@@ -133,6 +135,61 @@ func ToResponses(missions []MissionDocument) []MissionResponse {
 	}
 
 	return responses
+}
+
+func AttachmentStorageWithPublicURL(storage *MissionAttachmentStorage) *MissionAttachmentStorage {
+	if storage == nil {
+		return nil
+	}
+
+	output := *storage
+	output.PublicURL = AttachmentStoragePublicURL(&output)
+
+	return &output
+}
+
+func AttachmentStoragePublicURL(storage *MissionAttachmentStorage) string {
+	if storage == nil || storage.Status != AttachmentStorageStored {
+		return ""
+	}
+
+	bucket := strings.TrimSpace(storage.Bucket)
+	objectPath := strings.Trim(strings.TrimSpace(storage.ObjectPath), "/")
+	if (bucket == "" || objectPath == "") && strings.HasPrefix(strings.TrimSpace(storage.GSURI), "gs://") {
+		bucket, objectPath = parseGSURI(storage.GSURI)
+	}
+	if bucket == "" || objectPath == "" {
+		return ""
+	}
+
+	return "https://storage.googleapis.com/" + url.PathEscape(bucket) + "/" + escapeObjectPath(objectPath)
+}
+
+func attachmentsWithPublicStorageURLs(attachments []MissionAttachment) []MissionAttachment {
+	output := make([]MissionAttachment, len(attachments))
+	copy(output, attachments)
+
+	for index := range output {
+		output[index].Storage = AttachmentStorageWithPublicURL(output[index].Storage)
+	}
+
+	return output
+}
+
+func parseGSURI(value string) (string, string) {
+	path := strings.TrimPrefix(strings.TrimSpace(value), "gs://")
+	bucket, objectPath, _ := strings.Cut(path, "/")
+
+	return strings.TrimSpace(bucket), strings.Trim(strings.TrimSpace(objectPath), "/")
+}
+
+func escapeObjectPath(objectPath string) string {
+	segments := strings.Split(objectPath, "/")
+	for index, segment := range segments {
+		segments[index] = url.PathEscape(segment)
+	}
+
+	return strings.Join(segments, "/")
 }
 
 func formatTime(value time.Time) string {

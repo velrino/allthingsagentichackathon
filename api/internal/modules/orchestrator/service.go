@@ -438,7 +438,7 @@ func (service *Service) summarizeAttachment(
 		return "", GenAIUsage{}, fmt.Errorf("unsupported inline attachment MIME type %q", mimeType)
 	}
 
-	data, err := fetchUploadcareAttachment(ctx, attachment.CDNURL)
+	data, err := fetchAttachment(ctx, attachment)
 	if err != nil {
 		return "", GenAIUsage{}, err
 	}
@@ -560,7 +560,7 @@ func buildAttachmentFileParts(ctx context.Context, attachments []AttachmentInput
 			continue
 		}
 
-		data, err := fetchUploadcareAttachment(ctx, attachment.CDNURL)
+		data, err := fetchAttachment(ctx, attachment)
 		if err != nil {
 			slog.Warn("skip genai attachment", "file_name", attachment.FileName, "error", err)
 			continue
@@ -575,49 +575,82 @@ func buildAttachmentFileParts(ctx context.Context, attachments []AttachmentInput
 	return fileParts
 }
 
+func fetchAttachment(ctx context.Context, attachment AttachmentInput) ([]byte, error) {
+	if strings.TrimSpace(attachment.StorageURL) != "" {
+		data, err := fetchPublicStorageAttachment(ctx, attachment.StorageURL)
+		if err == nil {
+			return data, nil
+		}
+		if strings.TrimSpace(attachment.CDNURL) == "" {
+			return nil, err
+		}
+
+		slog.Warn("fallback to uploadcare attachment", "file_name", attachment.FileName, "error", err)
+	}
+
+	if isPublicStorageURL(attachment.CDNURL) {
+		return fetchPublicStorageAttachment(ctx, attachment.CDNURL)
+	}
+
+	return fetchUploadcareAttachment(ctx, attachment.CDNURL)
+}
+
+func fetchPublicStorageAttachment(ctx context.Context, rawURL string) ([]byte, error) {
+	return fetchHTTPAttachment(ctx, rawURL, validatePublicStorageURL, "storage")
+}
+
 func fetchUploadcareAttachment(ctx context.Context, rawURL string) ([]byte, error) {
+	return fetchHTTPAttachment(ctx, rawURL, validateUploadcareURL, "uploadcare")
+}
+
+func fetchHTTPAttachment(
+	ctx context.Context,
+	rawURL string,
+	validate func(*url.URL) error,
+	sourceLabel string,
+) ([]byte, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
-		return nil, fmt.Errorf("parse uploadcare url: %w", err)
+		return nil, fmt.Errorf("parse %s url: %w", sourceLabel, err)
 	}
-	if err := validateUploadcareURL(parsedURL); err != nil {
+	if err := validate(parsedURL); err != nil {
 		return nil, err
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("create uploadcare request: %w", err)
+		return nil, fmt.Errorf("create %s request: %w", sourceLabel, err)
 	}
 
 	client := http.Client{
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(request *http.Request, via []*http.Request) error {
 			if len(via) >= 3 {
-				return fmt.Errorf("too many uploadcare redirects")
+				return fmt.Errorf("too many %s redirects", sourceLabel)
 			}
 
-			return validateUploadcareURL(request.URL)
+			return validate(request.URL)
 		},
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("download uploadcare attachment: %w", err)
+		return nil, fmt.Errorf("download %s attachment: %w", sourceLabel, err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("download uploadcare attachment returned status %d", response.StatusCode)
+		return nil, fmt.Errorf("download %s attachment returned status %d", sourceLabel, response.StatusCode)
 	}
 	if response.ContentLength > maxInlineAttachmentBytes {
-		return nil, fmt.Errorf("uploadcare attachment is larger than %d bytes", maxInlineAttachmentBytes)
+		return nil, fmt.Errorf("%s attachment is larger than %d bytes", sourceLabel, maxInlineAttachmentBytes)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxInlineAttachmentBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("read uploadcare attachment: %w", err)
+		return nil, fmt.Errorf("read %s attachment: %w", sourceLabel, err)
 	}
 	if len(data) > maxInlineAttachmentBytes {
-		return nil, fmt.Errorf("uploadcare attachment is larger than %d bytes", maxInlineAttachmentBytes)
+		return nil, fmt.Errorf("%s attachment is larger than %d bytes", sourceLabel, maxInlineAttachmentBytes)
 	}
 
 	return data, nil
@@ -625,6 +658,34 @@ func fetchUploadcareAttachment(ctx context.Context, rawURL string) ([]byte, erro
 
 func validateUploadcareURL(parsedURL *url.URL) error {
 	return shareduploadcare.ValidateCDNURL(parsedURL)
+}
+
+func validatePublicStorageURL(parsedURL *url.URL) error {
+	if parsedURL == nil ||
+		parsedURL.Scheme != "https" ||
+		parsedURL.User != nil ||
+		parsedURL.Hostname() != "storage.googleapis.com" {
+		return fmt.Errorf("invalid public storage URL")
+	}
+	if port := parsedURL.Port(); port != "" && port != "443" {
+		return fmt.Errorf("invalid public storage URL")
+	}
+
+	segments := strings.Split(strings.Trim(parsedURL.EscapedPath(), "/"), "/")
+	if len(segments) < 2 || segments[0] == "" || segments[1] == "" {
+		return fmt.Errorf("invalid public storage URL")
+	}
+
+	return nil
+}
+
+func isPublicStorageURL(rawURL string) bool {
+	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return false
+	}
+
+	return validatePublicStorageURL(parsedURL) == nil
 }
 
 func isSupportedInlineMIMEType(value string) bool {
@@ -2708,15 +2769,17 @@ func normalizeAttachments(attachments []AttachmentInput) []AttachmentInput {
 		fileName := normalizeText(attachment.FileName)
 		mimeType := normalizeText(attachment.MimeType)
 		cdnURL := strings.TrimSpace(attachment.CDNURL)
-		if fileName == "" && cdnURL == "" {
+		storageURL := strings.TrimSpace(attachment.StorageURL)
+		if fileName == "" && cdnURL == "" && storageURL == "" {
 			continue
 		}
 
 		normalized = append(normalized, AttachmentInput{
-			FileName: fileName,
-			MimeType: mimeType,
-			CDNURL:   cdnURL,
-			Summary:  truncateText(normalizeText(attachment.Summary), maxAttachmentSummaryCharacters),
+			FileName:   fileName,
+			MimeType:   mimeType,
+			CDNURL:     cdnURL,
+			StorageURL: storageURL,
+			Summary:    truncateText(normalizeText(attachment.Summary), maxAttachmentSummaryCharacters),
 		})
 	}
 

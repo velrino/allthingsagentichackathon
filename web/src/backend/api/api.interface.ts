@@ -370,6 +370,7 @@ export interface IApiMissionAttachment {
     bucket?: string;
     object_path?: string;
     gs_uri?: string;
+    public_url?: string;
     mime_type?: string;
     size_bytes?: number;
     attempts?: number;

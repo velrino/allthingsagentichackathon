@@ -964,11 +964,13 @@ function AttachmentFileIcon({
   readonly kind: AttachmentKind;
 }) {
   if (kind === "image") {
+    const previewURL = attachmentOriginalURL(attachment);
+
     return (
       <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-muted">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={attachment.cdn_url}
+          src={previewURL}
           alt=""
           className="size-full object-cover"
         />
@@ -1025,13 +1027,15 @@ function AttachmentPreview({
   readonly attachment: IApiMissionAttachment;
   readonly kind: AttachmentKind;
 }) {
+  const previewURL = attachmentOriginalURL(attachment);
+
   if (kind === "image") {
     return (
       <div className="grid gap-3">
         <div className="grid max-h-[70svh] place-items-center overflow-auto rounded-md border border-border bg-muted/30 p-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={attachment.cdn_url}
+            src={previewURL}
             alt={attachment.file_name}
             className="max-h-[calc(70svh-1.5rem)] max-w-full rounded object-contain"
           />
@@ -1046,7 +1050,7 @@ function AttachmentPreview({
       <div className="grid gap-3">
         <iframe
           title={attachment.file_name}
-          src={attachment.cdn_url}
+          src={previewURL}
           className="h-[70svh] w-full rounded-md border border-border bg-white"
         />
         <AttachmentPreviewActions attachment={attachment} />
@@ -1098,6 +1102,7 @@ function TextAttachmentPreview({
 }: {
   readonly attachment: IApiMissionAttachment;
 }) {
+  const previewURL = attachmentOriginalURL(attachment);
   const [state, setState] = useState<{
     readonly error: string | null;
     readonly loading: boolean;
@@ -1113,7 +1118,7 @@ function TextAttachmentPreview({
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(attachment.cdn_url, { signal: controller.signal })
+    fetch(previewURL, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) {
           throw new Error("Could not load text preview.");
@@ -1146,7 +1151,7 @@ function TextAttachmentPreview({
       });
 
     return () => controller.abort();
-  }, [attachment.cdn_url]);
+  }, [previewURL]);
 
   if (state.loading) {
     return (
@@ -1187,10 +1192,12 @@ function AttachmentPreviewActions({
 }: {
   readonly attachment: IApiMissionAttachment;
 }) {
+  const originalURL = attachmentOriginalURL(attachment);
+
   return (
     <div className="flex justify-end">
       <Button variant="outline" asChild>
-        <a href={attachment.cdn_url} target="_blank" rel="noopener noreferrer">
+        <a href={originalURL} target="_blank" rel="noopener noreferrer">
           <ExternalLink className="size-4" aria-hidden />
           Open original
         </a>
@@ -1248,6 +1255,35 @@ function mergeMissionAttachments(
   }
 
   return [...attachments.values()];
+}
+
+function attachmentOriginalURL(attachment: IApiMissionAttachment) {
+  const storagePublicURL = attachment.storage?.public_url?.trim();
+  if (attachment.storage?.status === "stored" && storagePublicURL) {
+    return storagePublicURL;
+  }
+
+  const storageURL = attachmentStorageURL(attachment.storage);
+  return storageURL || attachment.cdn_url;
+}
+
+function attachmentStorageURL(storage: IApiMissionAttachment["storage"]) {
+  if (!storage || storage.status !== "stored") {
+    return "";
+  }
+
+  const bucket = storage.bucket?.trim();
+  const objectPath = storage.object_path?.trim().replace(/^\/+|\/+$/g, "");
+  if (!bucket || !objectPath) {
+    return "";
+  }
+
+  const encodedObjectPath = objectPath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  return `https://storage.googleapis.com/${encodeURIComponent(bucket)}/${encodedObjectPath}`;
 }
 
 function getAttachmentKind(attachment: IApiMissionAttachment): AttachmentKind {

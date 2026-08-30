@@ -87,10 +87,11 @@ type KnowledgeChunk struct {
 }
 
 type AttachmentInput struct {
-	FileName string `json:"file_name"`
-	MimeType string `json:"mime_type"`
-	CDNURL   string `json:"cdn_url"`
-	Summary  string `json:"summary,omitempty"`
+	FileName   string `json:"file_name"`
+	MimeType   string `json:"mime_type"`
+	CDNURL     string `json:"cdn_url"`
+	StorageURL string `json:"storage_url,omitempty"`
+	Summary    string `json:"summary,omitempty"`
 }
 
 type GenAIUsage struct {

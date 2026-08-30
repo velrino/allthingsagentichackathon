@@ -337,6 +337,7 @@ func (service *Service) createDraft(
 		if existing.DraftRevision != input.ExpectedDraftRevision {
 			return MissionDocument{}, ErrMissionDraftConflict
 		}
+		input.Attachments = inheritStoredAttachments(input.Attachments, existing)
 	}
 
 	blueprint, err := service.orchestrator.BuildMission(ctx, orchestrator.BuildMissionInput{
@@ -608,9 +609,10 @@ func toOrchestratorAttachments(attachments []MissionAttachment) []orchestrator.A
 	output := make([]orchestrator.AttachmentInput, 0, len(attachments))
 	for _, attachment := range attachments {
 		output = append(output, orchestrator.AttachmentInput{
-			FileName: attachment.FileName,
-			MimeType: attachment.MimeType,
-			CDNURL:   attachment.CDNURL,
+			FileName:   attachment.FileName,
+			MimeType:   attachment.MimeType,
+			CDNURL:     attachment.CDNURL,
+			StorageURL: AttachmentStoragePublicURL(attachment.Storage),
 		})
 	}
 

@@ -762,7 +762,7 @@ func validateAttachments(value any) error {
 			return errors.New("attachments cannot contain duplicate uploadcare_uuid values")
 		}
 		seen[attachmentUUID] = struct{}{}
-		if err := validateMissionUploadcareURL(attachment.CDNURL, attachmentUUID); err != nil {
+		if err := validateMissionAttachmentURL(attachment.CDNURL, attachmentUUID); err != nil {
 			return err
 		}
 		if err := validation.Validate(attachment.FileName, validation.Required, validation.Length(1, 255)); err != nil {
@@ -776,21 +776,42 @@ func validateAttachments(value any) error {
 	return nil
 }
 
-func validateMissionUploadcareURL(rawURL string, uploadcareUUID string) error {
+func validateMissionAttachmentURL(rawURL string, uploadcareUUID string) error {
 	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || parsedURL.Scheme != "https" || parsedURL.User != nil {
-		return errors.New("each attachment requires a valid Uploadcare HTTPS URL")
+		return errors.New("each attachment requires a valid HTTPS URL")
 	}
 	if port := parsedURL.Port(); port != "" && port != "443" {
-		return errors.New("each attachment requires a valid Uploadcare HTTPS URL")
+		return errors.New("each attachment requires a valid HTTPS URL")
 	}
-	if !shareduploadcare.IsCDNHost(parsedURL.Hostname()) {
-		return errors.New("each attachment URL must use Uploadcare CDN")
+	if shareduploadcare.IsCDNHost(parsedURL.Hostname()) {
+		return validateMissionUploadcareURL(parsedURL, uploadcareUUID)
+	}
+	if parsedURL.Hostname() == "storage.googleapis.com" {
+		return validateMissionPublicStorageURL(parsedURL, uploadcareUUID)
+	}
+
+	return errors.New("each attachment URL must use Uploadcare CDN or Cloud Storage")
+}
+
+func validateMissionUploadcareURL(parsedURL *url.URL, uploadcareUUID string) error {
+	path := "/" + strings.Trim(parsedURL.EscapedPath(), "/") + "/"
+	if !strings.Contains(path, "/"+url.PathEscape(uploadcareUUID)+"/") {
+		return errors.New("attachment uploadcare_uuid does not match its CDN URL")
+	}
+
+	return nil
+}
+
+func validateMissionPublicStorageURL(parsedURL *url.URL, uploadcareUUID string) error {
+	segments := strings.Split(strings.Trim(parsedURL.EscapedPath(), "/"), "/")
+	if len(segments) < 2 || segments[0] == "" || segments[1] == "" {
+		return errors.New("each attachment requires a valid Cloud Storage URL")
 	}
 
 	path := "/" + strings.Trim(parsedURL.EscapedPath(), "/") + "/"
 	if !strings.Contains(path, "/"+url.PathEscape(uploadcareUUID)+"/") {
-		return errors.New("attachment uploadcare_uuid does not match its CDN URL")
+		return errors.New("attachment uploadcare_uuid does not match its Cloud Storage URL")
 	}
 
 	return nil
