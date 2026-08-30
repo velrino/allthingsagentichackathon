@@ -175,6 +175,7 @@ type CreateMissionInput struct {
 	Attachments           []MissionAttachment
 	Teacher               teacherclass.TeacherSummary
 	Blueprint             orchestrator.MissionBlueprint
+	Progress              orchestrator.MissionProgressReporter
 	Status                string
 	PublishedAt           time.Time
 	Timestamp             time.Time

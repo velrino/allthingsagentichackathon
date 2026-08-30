@@ -24,6 +24,7 @@ import type {
   IApiDashboardOverviewResponse,
   IApiDashboardStudent,
   IApiClassLearningSummary,
+  IApiMissionPreviewProgress,
   IApiSuggestion,
   IApiTeacherClass,
   IApiTeacherClassMission,
@@ -113,6 +114,8 @@ export function DashboardPage({
   const [missionsLoading, setMissionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [missionProgress, setMissionProgress] =
+    useState<IApiMissionPreviewProgress | null>(null);
   const [approving, setApproving] = useState(false);
   const [deletingMissionId, setDeletingMissionId] = useState<string | null>(
     null,
@@ -471,10 +474,15 @@ export function DashboardPage({
 
     const isCreatingMission = !value.mission_id?.trim();
     setProcessing(true);
+    setMissionProgress({
+      stage: "starting",
+      message: "Starting mission preview.",
+      percent: 1,
+    });
     setError(null);
     try {
       const token = await auth.user.getIdToken();
-      const response = await API.teacherClassMissions.preview(
+      const response = await API.teacherClassMissions.previewStream(
         token,
         value.class_id,
         {
@@ -489,6 +497,9 @@ export function DashboardPage({
           audience_type: value.audience_type,
           target_student_ids: value.target_student_ids,
           attachments: value.attachments,
+        },
+        {
+          onProgress: setMissionProgress,
         },
       );
       setPreviewMission(response.mission);
@@ -516,6 +527,7 @@ export function DashboardPage({
       );
     } finally {
       setProcessing(false);
+      setMissionProgress(null);
     }
   }
 
@@ -945,6 +957,7 @@ export function DashboardPage({
             open={missionBuilderOpen}
             previewMission={previewMission}
             processing={processing}
+            progress={missionProgress}
             requestError={error}
             teacherClass={selectedClass}
             onApprove={handleApproveMission}

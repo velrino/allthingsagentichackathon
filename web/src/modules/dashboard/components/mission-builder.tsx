@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChevronDown,
   ExternalLink,
   File,
   FileText,
@@ -13,6 +14,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type {
   IApiCreateTeacherClassMissionRequest,
   IApiMissionAttachment,
+  IApiMissionPreviewProgress,
   IApiMissionPreviewQuestion,
   IApiTeacherClass,
   IApiTeacherClassMission,
@@ -45,6 +47,7 @@ type MissionBuilderProps = {
   readonly open: boolean;
   readonly previewMission: IApiTeacherClassMission | null;
   readonly processing: boolean;
+  readonly progress?: IApiMissionPreviewProgress | null;
   readonly requestError?: string | null;
   readonly teacherClass: IApiTeacherClass | null;
   readonly onApprove: (mission: IApiTeacherClassMission) => Promise<void>;
@@ -62,6 +65,7 @@ export function MissionBuilder({
   open,
   previewMission,
   processing,
+  progress,
   requestError,
   teacherClass,
 }: MissionBuilderProps) {
@@ -202,10 +206,11 @@ export function MissionBuilder({
       title={modalTitle}
       description={modalDescription}
       size="xl"
+      layout="fill"
     >
-      <section className="flex flex-col lg:flex-row">
+      <section className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6 lg:flex-row lg:overflow-hidden">
         <form
-          className="min-w-0 flex-1 rounded-lg border border-border"
+          className="min-w-0 flex-1 rounded-lg border border-border lg:min-h-0 lg:overflow-y-auto"
           onSubmit={handleSubmit}
         >
           <div className="px-4 py-5 sm:px-6">
@@ -357,10 +362,12 @@ export function MissionBuilder({
               : "pointer-events-none mt-0 grid-rows-[0fr] translate-y-2 opacity-0 lg:ml-0 lg:w-0 lg:translate-x-4 lg:translate-y-0",
           )}
         >
-          <div className="min-h-0 overflow-hidden lg:w-[520px]">
-            <aside className="relative rounded-lg border border-border">
-              {processing && previewDraft ? <PreviewLoadingOverlay /> : null}
-              <header className="border-b border-border px-4 py-4 sm:px-6">
+          <div className="min-h-0 overflow-hidden lg:h-full lg:w-[520px]">
+            <aside className="relative flex max-h-[calc(100svh-11rem)] flex-col overflow-hidden rounded-lg border border-border lg:h-full lg:max-h-none">
+              {processing && previewDraft ? (
+                <PreviewLoadingOverlay progress={progress} />
+              ) : null}
+              <header className="shrink-0 border-b border-border px-4 py-4 sm:px-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold uppercase text-cyan-700">
@@ -394,10 +401,10 @@ export function MissionBuilder({
                 </div>
               </header>
 
-              <div className="grid gap-4 px-4 py-5 sm:px-6">
+              <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-4 py-5 sm:px-6">
                 {previewDraft ? (
                   <>
-                    {previewDraft.education_guardrail &&
+                    {/* {previewDraft.education_guardrail &&
                     !previewDraft.education_guardrail.allowed ? (
                       <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
                         {previewDraft.education_guardrail.reason}
@@ -406,7 +413,7 @@ export function MissionBuilder({
                       <p className="rounded-md border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-semibold leading-5 text-cyan-800">
                         {previewDraft.education_guardrail.attachment_notes}
                       </p>
-                    ) : null}
+                    ) : null} */}
 
                     <Tabs defaultValue="preview">
                       <TabsList className="grid w-full grid-cols-2">
@@ -416,6 +423,7 @@ export function MissionBuilder({
 
                       <TabsContent value="preview" className="mt-3 grid gap-4">
                         <EditableMissionPreview
+                          key={`${previewDraft.id}:${previewDraft.draft_revision}`}
                           disabled={busy}
                           mission={previewDraft}
                           onMissionChange={updateEditableMission}
@@ -463,7 +471,7 @@ export function MissionBuilder({
                     ) : null}
                   </>
                 ) : processing ? (
-                  <PreviewLoadingState />
+                  <PreviewLoadingState progress={progress} />
                 ) : (
                   <p className="text-sm leading-6 text-muted-foreground">
                     The preview will appear here after Mia processes the
@@ -503,6 +511,9 @@ function EditableMissionPreview({
   const previewQuestions = normalizeMissionPreviewQuestions(
     mission.preview_questions,
   );
+  const [openQuestionIds, setOpenQuestionIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   function updateQuestion(
     questionId: string,
@@ -520,6 +531,19 @@ function EditableMissionPreview({
     }));
   }
 
+  function toggleQuestion(questionId: string) {
+    setOpenQuestionIds((current) => {
+      const next = new Set(current);
+      if (next.has(questionId)) {
+        next.delete(questionId);
+      } else {
+        next.add(questionId);
+      }
+
+      return next;
+    });
+  }
+
   return (
     <div className="grid gap-4">
       <p className="text-xs font-medium text-muted-foreground">
@@ -531,6 +555,7 @@ function EditableMissionPreview({
         <EditablePreviewField
           ariaLabel="Mission summary"
           disabled={disabled}
+          showCharacterCounter={false}
           maxLength={INPUT_LIMITS.missionSummary}
           minRows={4}
           value={mission.summary}
@@ -546,24 +571,51 @@ function EditableMissionPreview({
 
       <div className="grid gap-2">
         {previewQuestions.map((question, index) => {
+          const open = openQuestionIds.has(question.id);
           const options = question.options ?? [];
+          const panelId = `mission-preview-question-${index + 1}`;
 
           return (
             <article
               key={question.id}
-              className="rounded-md border border-border p-3"
+              className="overflow-hidden rounded-md border border-border"
             >
-              <p className="text-xs font-bold uppercase text-muted-foreground">
-                Question {index + 1}
-              </p>
+              <div className="px-3 py-3 transition hover:bg-muted/40">
+                <div className="mb-2 flex items-center gap-3">
+                  <button
+                    type="button"
+                    aria-label={`${open ? "Collapse" : "Expand"} question ${index + 1}`}
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    onClick={() => toggleQuestion(question.id)}
+                    className="flex-1 grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-xs font-bold text-primary transition hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Question {index + 1}
+                  </button>
 
-              <label className="mt-3 grid gap-2 text-sm font-medium text-foreground">
-                Prompt
+                  <button
+                    type="button"
+                    aria-label={`${open ? "Collapse" : "Expand"} question ${index + 1}`}
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    onClick={() => toggleQuestion(question.id)}
+                    className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform",
+                        open ? "rotate-180" : "",
+                      )}
+                      aria-hidden
+                    />
+                  </button>
+                </div>
                 <EditablePreviewField
                   ariaLabel={`Question ${index + 1} prompt`}
                   disabled={disabled}
+                  showCharacterCounter={false}
                   maxLength={INPUT_LIMITS.missionQuestionPrompt}
-                  minRows={3}
+                  minRows={2}
                   value={question.prompt}
                   onChange={(prompt) =>
                     updateQuestion(question.id, (current) => ({
@@ -571,64 +623,68 @@ function EditableMissionPreview({
                       prompt,
                     }))
                   }
-                  className="font-semibold text-foreground"
+                  className="text-sm font-semibold leading-5 text-foreground"
                 />
-              </label>
+              </div>
 
-              {options.length > 0 ? (
-                <div className="mt-3 grid gap-2">
-                  {options.map((option, optionIndex) => (
-                    <div
-                      key={`${question.id}:option:${optionIndex}`}
-                      className="grid gap-2"
-                    >
-                      <input
-                        aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
-                        disabled={disabled}
-                        value={option}
-                        onChange={(event) =>
-                          updateQuestion(question.id, (current) => ({
-                            ...current,
-                            options: (current.options ?? []).map(
-                              (currentOption, index) =>
-                                index === optionIndex
-                                  ? limitInput(
-                                      event.target.value,
-                                      INPUT_LIMITS.missionQuestionOption,
-                                    )
-                                  : currentOption,
-                            ),
-                          }))
-                        }
-                        maxLength={INPUT_LIMITS.missionQuestionOption}
-                        className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
-                      />
-                      <CharacterCounter
-                        value={option}
-                        maxLength={INPUT_LIMITS.missionQuestionOption}
-                      />
+              {open ? (
+                <div
+                  id={panelId}
+                  className="border-t border-border px-3 pb-3 pt-3"
+                >
+                  {options.length > 0 ? (
+                    <div className="grid gap-2">
+                      {options.map((option, optionIndex) => (
+                        <div
+                          key={`${question.id}:option:${optionIndex}`}
+                          className="grid gap-2"
+                        >
+                          <input
+                            aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
+                            disabled={disabled}
+                            value={option}
+                            onChange={(event) =>
+                              updateQuestion(question.id, (current) => ({
+                                ...current,
+                                options: (current.options ?? []).map(
+                                  (currentOption, index) =>
+                                    index === optionIndex
+                                      ? limitInput(
+                                          event.target.value,
+                                          INPUT_LIMITS.missionQuestionOption,
+                                        )
+                                      : currentOption,
+                                ),
+                              }))
+                            }
+                            maxLength={INPUT_LIMITS.missionQuestionOption}
+                            className="rounded-md border border-transparent bg-muted px-3 py-2 text-sm text-muted-foreground outline-none transition focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-70"
+                          />
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : null}
+
+                  <label className="mt-3 grid gap-2 text-sm font-medium text-emerald-700">
+                    Expected answer
+                    <EditablePreviewField
+                      ariaLabel={`Question ${index + 1} expected answer`}
+                      disabled={disabled}
+                      showCharacterCounter={false}
+                      maxLength={INPUT_LIMITS.missionExpectedAnswer}
+                      minRows={2}
+                      value={question.expected_answer}
+                      onChange={(expectedAnswer) =>
+                        updateQuestion(question.id, (current) => ({
+                          ...current,
+                          expected_answer: expectedAnswer,
+                        }))
+                      }
+                      className="font-semibold text-emerald-700"
+                    />
+                  </label>
                 </div>
               ) : null}
-
-              <label className="mt-3 grid gap-2 text-sm font-medium text-emerald-700">
-                Expected answer
-                <EditablePreviewField
-                  ariaLabel={`Question ${index + 1} expected answer`}
-                  disabled={disabled}
-                  maxLength={INPUT_LIMITS.missionExpectedAnswer}
-                  minRows={2}
-                  value={question.expected_answer}
-                  onChange={(expectedAnswer) =>
-                    updateQuestion(question.id, (current) => ({
-                      ...current,
-                      expected_answer: expectedAnswer,
-                    }))
-                  }
-                  className="font-semibold text-emerald-700"
-                />
-              </label>
             </article>
           );
         })}
@@ -644,6 +700,7 @@ function EditablePreviewField({
   maxLength,
   minRows = 1,
   onChange,
+  showCharacterCounter = true,
   value,
 }: {
   readonly ariaLabel: string;
@@ -652,6 +709,7 @@ function EditablePreviewField({
   readonly maxLength?: number;
   readonly minRows?: number;
   readonly onChange: (value: string) => void;
+  readonly showCharacterCounter?: boolean;
   readonly value: string;
 }) {
   return (
@@ -674,7 +732,7 @@ function EditablePreviewField({
           className,
         )}
       />
-      {maxLength ? (
+      {maxLength && showCharacterCounter ? (
         <CharacterCounter value={value} maxLength={maxLength} />
       ) : null}
     </div>
@@ -700,10 +758,14 @@ function CharacterCounter({
   );
 }
 
-function PreviewLoadingState() {
+function PreviewLoadingState({
+  progress,
+}: {
+  readonly progress?: IApiMissionPreviewProgress | null;
+}) {
   return (
     <div className="grid min-h-72 place-items-center rounded-md border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
-      <div className="grid justify-items-center gap-3">
+      <div className="grid w-full max-w-xs justify-items-center gap-3">
         <LoaderCircle
           className="size-7 animate-spin text-primary"
           aria-hidden
@@ -712,19 +774,21 @@ function PreviewLoadingState() {
           <p className="text-sm font-semibold text-foreground">
             Generating preview...
           </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Mia is reading the prompt and attachments.
-          </p>
+          <MissionGenerationProgress progress={progress} />
         </div>
       </div>
     </div>
   );
 }
 
-function PreviewLoadingOverlay() {
+function PreviewLoadingOverlay({
+  progress,
+}: {
+  readonly progress?: IApiMissionPreviewProgress | null;
+}) {
   return (
     <div className="absolute inset-0 z-10 grid place-items-center rounded-lg bg-background/80 backdrop-blur-sm">
-      <div className="grid justify-items-center gap-3 rounded-md border border-border bg-background px-5 py-4 shadow-lg">
+      <div className="grid w-[min(20rem,calc(100%-2rem))] justify-items-center gap-3 rounded-md border border-border bg-background px-5 py-4 shadow-lg">
         <LoaderCircle
           className="size-6 animate-spin text-primary"
           aria-hidden
@@ -732,7 +796,56 @@ function PreviewLoadingOverlay() {
         <p className="text-sm font-semibold text-foreground">
           Updating preview...
         </p>
+        <MissionGenerationProgress progress={progress} compact />
       </div>
+    </div>
+  );
+}
+
+function MissionGenerationProgress({
+  compact = false,
+  progress,
+}: {
+  readonly compact?: boolean;
+  readonly progress?: IApiMissionPreviewProgress | null;
+}) {
+  const percent =
+    typeof progress?.percent === "number"
+      ? Math.min(100, Math.max(0, progress.percent))
+      : null;
+  const detail =
+    progress?.attachment ||
+    (progress?.current && progress.total
+      ? `${progress.current}/${progress.total} files`
+      : "");
+  const message =
+    progress?.message || "Mia is reading the prompt and attachments.";
+
+  return (
+    <div className={cn("mt-1 w-full", compact ? "text-center" : "")}>
+      <p className="text-xs leading-5 text-muted-foreground">{message}</p>
+      {detail ? (
+        <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
+          {detail}
+        </p>
+      ) : null}
+      <div
+        className={cn(
+          "mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted",
+          compact ? "max-w-64" : "",
+        )}
+        aria-hidden
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-300"
+          style={{ width: `${percent ?? 12}%` }}
+        />
+      </div>
+      {percent !== null ? (
+        <p className="mt-1 text-xs font-medium tabular-nums text-muted-foreground">
+          {percent}%
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,14 +1,26 @@
 package orchestrator
 
 type BuildMissionInput struct {
-	ClassID       string            `json:"class_id"`
-	ClassName     string            `json:"class_name"`
-	MissionName   string            `json:"mission_name"`
-	Subject       string            `json:"subject"`
-	GradeLevel    string            `json:"grade_level"`
-	LearningGoal  string            `json:"learning_goal"`
-	TeacherPrompt string            `json:"teacher_prompt"`
-	Attachments   []AttachmentInput `json:"attachments"`
+	ClassID       string                  `json:"class_id"`
+	ClassName     string                  `json:"class_name"`
+	MissionName   string                  `json:"mission_name"`
+	Subject       string                  `json:"subject"`
+	GradeLevel    string                  `json:"grade_level"`
+	LearningGoal  string                  `json:"learning_goal"`
+	TeacherPrompt string                  `json:"teacher_prompt"`
+	Attachments   []AttachmentInput       `json:"attachments"`
+	Progress      MissionProgressReporter `json:"-"`
+}
+
+type MissionProgressReporter func(MissionProgress)
+
+type MissionProgress struct {
+	Stage      string `json:"stage"`
+	Message    string `json:"message"`
+	Percent    int    `json:"percent,omitempty"`
+	Current    int    `json:"current,omitempty"`
+	Total      int    `json:"total,omitempty"`
+	Attachment string `json:"attachment,omitempty"`
 }
 
 type MissionBlueprint struct {
@@ -78,6 +90,7 @@ type AttachmentInput struct {
 	FileName string `json:"file_name"`
 	MimeType string `json:"mime_type"`
 	CDNURL   string `json:"cdn_url"`
+	Summary  string `json:"summary,omitempty"`
 }
 
 type GenAIUsage struct {

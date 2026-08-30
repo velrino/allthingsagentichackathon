@@ -348,6 +348,7 @@ func (service *Service) createDraft(
 		LearningGoal:  input.LearningGoal,
 		TeacherPrompt: input.TeacherPrompt,
 		Attachments:   toOrchestratorAttachments(input.Attachments),
+		Progress:      input.Progress,
 	})
 	if err != nil {
 		return MissionDocument{}, err

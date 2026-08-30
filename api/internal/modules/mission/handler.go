@@ -2,6 +2,7 @@ package mission
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -25,7 +26,7 @@ import (
 )
 
 const (
-	defaultMissionTimeout          = 45 * time.Second
+	defaultMissionTimeout          = 3 * time.Minute
 	defaultMissionRateLimitRate    = 0.2
 	defaultMissionRateLimitBurst   = 8
 	defaultMissionRateLimitExpires = 5 * time.Minute
@@ -126,12 +127,104 @@ func RegisterRoutes(server *echo.Echo, options HandlerOptions) {
 	generationRateLimiter := missionRateLimiter(options)
 	group.GET("", handler.ListMissions)
 	group.POST("/preview", handler.PostMissionPreview, generationRateLimiter)
+	group.POST("/preview/stream", handler.PostMissionPreviewStream, generationRateLimiter)
 	group.POST("/:mission_id/approve", handler.PostMissionApprove)
 	group.DELETE("/:mission_id", handler.DeleteMission)
 }
 
 func (handler *Handler) PostMissionPreview(ctx *echo.Context) error {
 	return handler.createMission(ctx)
+}
+
+func (handler *Handler) PostMissionPreviewStream(ctx *echo.Context) error {
+	if handler.authenticator == nil || handler.missionService == nil {
+		slog.Error("teacher mission dependencies are not configured")
+		return jsonError(ctx, http.StatusInternalServerError, "not_configured", "Teacher missions are not configured.")
+	}
+
+	classID := ctx.Param("class_id")
+	if err := validateClassID(classID); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
+	}
+
+	var request CreateMissionRequest
+	if err := ctx.Bind(&request); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "bad_request", "Invalid JSON body.")
+	}
+	if err := request.Validate(); err != nil {
+		return jsonError(ctx, http.StatusBadRequest, "validation_failed", err.Error())
+	}
+
+	requestContext, cancel := context.WithTimeout(ctx.Request().Context(), handler.missionTimeout)
+	defer cancel()
+
+	identity, ok, err := handler.authenticate(requestContext, ctx)
+	if err != nil || !ok {
+		return err
+	}
+	limited, err := handler.limitGeneration(requestContext, ctx, identity)
+	if err != nil || limited {
+		return err
+	}
+
+	response := ctx.Response()
+	response.Header().Set(echo.HeaderContentType, "text/event-stream")
+	response.Header().Set(echo.HeaderCacheControl, "no-cache")
+	response.Header().Set(echo.HeaderConnection, "keep-alive")
+	response.Header().Set("X-Accel-Buffering", "no")
+	response.WriteHeader(http.StatusOK)
+
+	input := request.toInput(classID)
+	var streamErr error
+	input.Progress = func(progress orchestrator.MissionProgress) {
+		if streamErr != nil {
+			return
+		}
+		streamErr = writeSSE(ctx, "progress", progress)
+	}
+
+	if err := writeSSE(ctx, "progress", orchestrator.MissionProgress{
+		Stage:   "queued",
+		Message: "Starting mission preview.",
+		Percent: 1,
+	}); err != nil {
+		return err
+	}
+
+	mission, err := handler.missionService.Preview(requestContext, identity, input)
+	if streamErr != nil {
+		return nil
+	}
+	if err != nil {
+		slog.Error("teacher mission stream request failed", "error", err)
+		_ = writeSSE(ctx, "error", ErrorResponse{
+			Error: ErrorResponseBody{
+				Code:    "teacher_mission_failed",
+				Message: "Could not process teacher mission.",
+			},
+		})
+		return nil
+	}
+	if strings.TrimSpace(request.MissionID) == "" {
+		sharedanalytics.Track(
+			handler.analytics,
+			requestContext,
+			sharedanalytics.EventMissionCreated,
+			identity.ProviderUserID,
+			sharedanalytics.Properties{
+				"class_id":   mission.ClassID,
+				"mission_id": mission.ID,
+			},
+		)
+	}
+
+	if err := writeSSE(ctx, "done", map[string]any{
+		"mission": ToResponse(mission),
+	}); err != nil {
+		return nil
+	}
+
+	return nil
 }
 
 func (handler *Handler) PostMissionApprove(ctx *echo.Context) error {
@@ -289,21 +382,7 @@ func (handler *Handler) createMission(ctx *echo.Context) error {
 		return err
 	}
 
-	input := CreateMissionInput{
-		MissionID:             request.MissionID,
-		ExpectedDraftRevision: request.ExpectedDraftRevision,
-		ClassID:               classID,
-		ClassName:             request.ClassName,
-		MissionName:           request.MissionName,
-		Subject:               request.Subject,
-		GradeLevel:            request.GradeLevel,
-		LearningGoal:          request.LearningGoal,
-		TeacherPrompt:         request.TeacherPrompt,
-		AudienceType:          request.AudienceType,
-		TargetStudentIDs:      request.TargetStudentIDs,
-		Attachments:           toMissionAttachments(request.Attachments),
-		Status:                StatusDraft,
-	}
+	input := request.toInput(classID)
 
 	mission, err := handler.missionService.Preview(requestContext, identity, input)
 	if err != nil {
@@ -325,6 +404,40 @@ func (handler *Handler) createMission(ctx *echo.Context) error {
 	return ctx.JSON(http.StatusOK, map[string]any{
 		"mission": ToResponse(mission),
 	})
+}
+
+func (request CreateMissionRequest) toInput(classID string) CreateMissionInput {
+	return CreateMissionInput{
+		MissionID:             request.MissionID,
+		ExpectedDraftRevision: request.ExpectedDraftRevision,
+		ClassID:               classID,
+		ClassName:             request.ClassName,
+		MissionName:           request.MissionName,
+		Subject:               request.Subject,
+		GradeLevel:            request.GradeLevel,
+		LearningGoal:          request.LearningGoal,
+		TeacherPrompt:         request.TeacherPrompt,
+		AudienceType:          request.AudienceType,
+		TargetStudentIDs:      request.TargetStudentIDs,
+		Attachments:           toMissionAttachments(request.Attachments),
+		Status:                StatusDraft,
+	}
+}
+
+func writeSSE(ctx *echo.Context, event string, data any) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintf(ctx.Response(), "event: %s\ndata: %s\n\n", event, payload); err != nil {
+		return err
+	}
+	if flusher, ok := ctx.Response().(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	return nil
 }
 
 func (handler *Handler) authenticate(

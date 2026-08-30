@@ -395,6 +395,15 @@ export interface IApiCreateTeacherClassMissionRequest {
   attachments: IApiMissionAttachment[];
 }
 
+export interface IApiMissionPreviewProgress {
+  stage: string;
+  message: string;
+  percent?: number;
+  current?: number;
+  total?: number;
+  attachment?: string;
+}
+
 export interface IApiUpsertTeacherClassRequest {
   class_id?: string;
   class_name: string;
