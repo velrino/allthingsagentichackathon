@@ -26,114 +26,90 @@ The optional homework that takes notes for the teacher: Mia, the Multimodal Inte
 
 ## Inspiration
 
-Working alongside teachers, one thing keeps coming up: homework tells you *who* got it wrong, never *why*. A stack of wrong answers is a pile of question marks the teacher has to guess through.
+I have spent years building tools for teachers, and one complaint never goes away: homework tells you *who* got it wrong, never *why*. A stack of wrong answers is a pile of question marks the teacher has to guess through the next morning.
 
-Meanwhile most educational apps treat learning as a fixed path — every student gets the same lesson, the same quiz, the same next step — and the app never talks back to the teacher. Every session starts from zero.
+Most educational apps make it worse. Every student gets the same quiz and the same next step, the app never talks back to the teacher, and every session starts from zero. The good tutor at the kitchen table does the opposite: she asks why you picked that, notices what keeps tripping you up, changes how she explains, and remembers you tomorrow.
 
-The category brief describes "an expert guide that quizzes you as you go, learns which concepts you struggle with, and adapts future explanations". That is what a good tutor does at the kitchen table. **ClassGame** puts that tutor on a student's phone, gives her a memory that survives the tab and the mission, and — this is the part we cared about most — makes what she learns about each student useful to the teacher the next morning.
+The Collaborative Partner brief describes exactly that tutor. ClassGame puts her in a 3D classroom on a student's phone, gives her a memory that survives the tab and the mission, and — the part I cared about most — makes what she learns about each student useful to the teacher.
 
-## What It Does
+**ClassGame is the optional homework that takes notes for the teacher.**
 
-**For the teacher**: sign in, create a class, describe what the class covered and what you noticed, and optionally attach the worksheet (PDF, images, text). Mia turns that into a **mission**: 3–4 stages, questions whose wrong options are traps for named misconceptions, step-by-step explanations, a mission flow graph, suggestions for the next lesson — and a set of **knowledge chunks** distilled from your material that she will retrieve from while tutoring. Review the preview, adjust the prompt and regenerate; every revision stays on the same mission with its history. Approve, and it appears instantly in that class's realtime mission list.
+## What it does
 
-**For the student**: enter the class's six-digit numeric code and your name, pick a character, and enter a low-poly 3D classroom. The glowing desk appears as soon as the teacher publishes a mission; walk over, tap **START**, and choose one you have not completed. Mia runs it on the chalkboard:
+**The teacher** signs in, creates a class, writes what the lesson covered and what she noticed, and optionally attaches the real worksheets (PDF, images, text). **Mia** — the Multimodal Intelligence Agent, powered by Gemini — turns that into a mission: 3–4 stages, questions whose wrong options are deliberate traps tied to *named* misconceptions, step-by-step explanations, a lesson flow map, and a set of knowledge chunks distilled from the teacher's material that Mia will retrieve from while tutoring. The teacher reviews the preview, adjusts the prompt, regenerates (every revision stays on the same mission), and approves. The mission appears in the class in real time.
+
+**The student** enters the class's six-digit code and a name, picks a character, and walks into a low-poly 3D classroom. A glowing circle appears by the desk the moment the teacher publishes. Mia runs the mission on the chalkboard:
 
 - She asks every question and decides every next step.
-- When you're wrong she doesn't reveal the answer. She asks *why you picked it*, with reasons written in your voice — and the question she asks is generated for *your* answer.
-- She explains in short steps, or draws it, depending on what has worked for you before.
-- You rate each explanation: helpful, confusing, too easy, too hard. She adapts and says why: *"You marked 'confusing' → I'll draw the next one."*
-- Close the tab, come back tomorrow: *"Welcome back — last time you were on Fractions."* You are back at the exact question, in the exact step.
+- When the answer is wrong she does not reveal the solution. She asks *why you picked it*, with reasons written in the student's voice and generated for that specific wrong answer.
+- She explains in short steps or draws it, depending on what has worked for this student before.
+- The student rates each explanation — helpful, confusing, too easy, too hard — and Mia adapts and says why: *"You marked 'confusing' → I'll draw the next one."*
+- Close the tab, come back tomorrow: *"Welcome back — last time you were on Fractions."* Same question, same step, same lines on the board.
 
-**For the teacher, during and after**: one page per class, updating live from Firestore. Who has not started, who is at the desk with Mia right now, who is in a review, who left early, who finished. Then what Mia observed: for each student, a summary, strengths, areas to revisit, a **learning flow** graph of the path they took, and the **evidence** behind it — every answer, every explicit reason, every feedback tap, and every tutor turn with Mia's reply, her **teacher-only observation** and the **retrieved chunk ids** she used. Across the class: clustered strengths and needs, and a tiered next-lesson plan. One button — **Build tomorrow's mission** — turns those patterns into the next prompt.
+**Back on the dashboard**, the teacher watches the class live from Firestore: who has not started, who is at the desk with Mia right now, who left early, who finished. Then what Mia observed per student: a summary, strengths, areas to revisit, a learning-flow graph of the path they took, and the evidence behind every claim — each answer, each explicit reason, each feedback tap, each tutor turn with Mia's teacher-only observation and the ids of the chunks she retrieved. Across the class: clustered strengths and needs and a tiered plan for the next lesson. One button, **Build tomorrow's mission**, turns those patterns into the next prompt. That closes the loop.
 
-## How It Maps To The Collaborative Partner
+## How we built it
 
-Two people collaborate with Mia: the teacher who plans, and the student who plays. Both loops are live end to end.
+One repository, two Cloud Run services, one database, built alone in three days.
 
-| Brief | Student ↔ Mia | Teacher ↔ Mia |
-|---|---|---|
-| **Stateful, multi-turn dialogue** | Every answer, explicit "why" and feedback tap is one structured Gemini turn on the same attempt. Each turn carries the last 24 observable events and the last 12 tutor turns, so Mia's reply builds on what just happened, not on a blank slate. | Prompt → preview → revise → approve on one mission document with numbered revisions; the published version stays live while the next draft is edited. |
-| **Real-time context retrieval (RAG)** | Before each turn the API grounds the request against the published question, retrieves the top 5 knowledge chunks for *this question and this response* from the mission's chunk set, and loads the student's memory, the attempt history and the class-level patterns. Gemini reports which chunk ids it used; they are stored with the turn and shown to the teacher. | Attachments are downloaded and passed to Gemini inline at generation time, and distilled into the knowledge chunks the tutor retrieves from later. The dashboard reads the server-authorized overview and refreshes on Firestore realtime events. |
-| **Persistent memory** | Three layers in Firestore: the **attempt** (progress, events, decisions, exact checkpoint, tutor turns, trace), the **student** (`learning_memory`: strengths, improvement areas, preferred explanation, next adaptation — carried into the next mission), and the **class** (clustered strengths and needs across students). | Classes, missions, revisions, published snapshots, a student-safe realtime catalog, attachments in Cloud Storage. |
-| **Adapts from past interactions** | Explanation style, difficulty bias and next action change from feedback and repeated slips, with a stated reason. A returning student resumes at the exact phase and step. When the mission ends — or is abandoned — Gemini writes a learning trace whose `next_adaptation` tells the *next* turn how to adapt. | The class patterns pre-write tomorrow's mission prompt, so the next lesson starts from today's evidence. |
+**The agent.** Go with the Google GenAI SDK on Vertex AI (`gemini-3.7-flash`), structured JSON output, four generators in one orchestrator: `BuildMission`, `BuildTutorTurn`, `BuildLearningTrace` (after a completed *or abandoned* attempt) and `BuildClassLearningSynthesis`. Every generator has a deterministic fallback, so no endpoint fails because of the model, and every output records provider, model, `generated_by_ai`, `fallback_reason` and token usage.
 
-## How We Built It
+**One tutor turn.** The game dispatches a deterministic tutor locally so the chalkboard never waits; the API turn overwrites Mia's message, the "why" prompt, the explanation steps and the style/difficulty when it lands. Server-side: ground the request against the pinned published question → retrieve the top 5 knowledge chunks for *this question and this response* → load the student's memory, the attempt history (last 24 observable events, last 12 tutor turns) and the class context → Gemini → a **leak guard** that discards any output mentioning teacher-only or class context → persist idempotently by event id → return only student-safe fields.
 
-One repository, two Cloud Run services, one database.
+**Memory.** Three layers in Firestore: the **attempt** (progress, events, decisions, exact checkpoint, tutor turns, trace), the **student** (`learning_memory`: strengths, improvement areas, preferred explanation style, `next_adaptation` — carried into the next mission) and the **class** (clustered patterns across students). The game writes a monotonic snapshot 450 ms after every state change, every 30 s while visible, and on `pagehide`. Cloud Tasks runs finalization on completion and a 120 s abandonment watchdog that still writes a partial trace for a student who gave up; the same queue copies attachments into Cloud Storage. Redis rate-limits generation per teacher, student and IP. Firebase Auth: Google for teachers, anonymous for students.
 
-- **Agent**: Go with the **Google GenAI SDK** (Vertex AI backend, `gemini-3.7-flash`), structured JSON output for four generators in one orchestrator module: `BuildMission` (blueprint with traps, knowledge chunks, guardrail and flow graph), `BuildTutorTurn` (one live student turn), `BuildLearningTrace` (teacher-facing summary and flow after a completed or abandoned attempt) and `BuildClassLearningSynthesis` (clusters across the class). Every generator has a deterministic fallback, so no endpoint ever fails because of the model, and every output records provider, model, `generated_by_ai`, `fallback_reason` and token usage.
-- **One tutor turn**: the game dispatches a deterministic tutor locally so the chalkboard never waits; the API turn then overwrites Mia's message, the "why" prompt, the explanation steps and the style/difficulty. Server-side: ground the turn against the pinned published revision → lexical retrieval over the mission's knowledge chunks → load student memory, attempt history and class context → Gemini → a **leak guard** that discards any output mentioning teacher-only or class context → persist the turn (idempotent by event id) → return only the student-safe fields.
-- **Memory and state**: Firestore for everything durable. The game writes a monotonic snapshot with the exact checkpoint (stage, question, phase, step, lines on the board, pending decision) 450 ms after every state change, every 30 s while visible, and on `pagehide`. **Cloud Tasks** runs the finalization when a mission completes and an **abandonment watchdog** (120 s) that marks a left-early attempt and still writes a partial trace; the same queue copies Uploadcare attachments into **Cloud Storage** after approval. **Redis** rate-limits mission generation per teacher. Firebase Auth: Google (or the pre-filled demo account) for teachers, anonymous for students on a separate Firebase app instance.
-- **Business-ready tenancy**: every durable classroom record carries `organization_id`, `district_id` and `school_id`. The demo currently maps every teacher to one default tenant, but missions, teachers, classes, attempts and class summaries are already queryable by school or district.
-- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind, Three.js. The classroom is a single merged GLB split into connected islands at load time to stretch the room, spread the desks and derive colliders; classmates are the six chibi characters repainted per instance by rewriting vertex colours. The dashboard uses Firestore realtime listeners on attempts and class summaries, React Flow for the mission and learning graphs, Uploadcare for uploads with previews.
-- **3D pipeline**: **Blender** generates the avatars headless (one shared rig, vertex colours, Draco). We drove **Blender through its MCP server** from Claude Code to inspect and iterate on the models, and measured desk groups and chair seats with Node scripts against the GLB.
-- **Safety**: Firestore rules are read-only for browsers — teachers read only their own classes, attempts and summaries; students read only their class, student-safe published metadata and a minimal completion projection (`mission_id`, revision, status). Full attempts, mission content and resume state come through the API, which strips notes, observations and traces. Mission generation has a deterministic pre-model gate and a post-model `education_guardrail`; blocked missions cannot be published. Both tutor and trace prompts reason only from observable answers and are forbidden from claiming to read hidden chain-of-thought.
+**Frontend.** Next.js 16, React 19, TypeScript, Tailwind, Three.js. The classroom is one merged GLB split into connected islands at load time to stretch the room, seat classmates and derive colliders; the six chibi characters are repainted per instance by rewriting vertex colours. Avatars are generated headless in Blender (one shared rig, Draco), which I drove through its MCP server from Claude Code to inspect and iterate. The dashboard uses Firestore realtime listeners, React Flow for the mission and learning graphs, Uploadcare for uploads, PostHog for product and error analytics.
 
-Runtime flow:
+**Safety and tenancy.** Firestore rules are read-only for browsers — teachers see only their own classes, students only a student-safe projection. Mission generation has a deterministic pre-model gate and a post-model education guardrail; blocked missions cannot be published. Both tutor and trace prompts reason only from observable answers and are forbidden from claiming to read a student's mind. Every durable record already carries `organization_id`, `district_id` and `school_id`.
 
-```txt
-Teacher dashboard (Next.js on Cloud Run)
-  -> POST /teacher-classes
-  -> POST /teacher-classes/{class_id}/missions/preview
-       -> Redis rate limit -> orchestrator.BuildMission -> Gemini (attachments inline)
-       -> Firestore missions/{mission_id} draft revision n (tenant-scoped knowledge_chunks, guardrail, flow)
-  -> POST /teacher-classes/{class_id}/missions/{mission_id}/approve
-       -> published_revisions/{n} + student_class_missions/{class_id}/missions/{mission_id}
-       -> Cloud Tasks -> Cloud Storage
-  -> GET /dashboard/overview?class_id=…  + Firestore realtime listeners
+## Challenges we ran into
 
-Student game (Three.js, Next.js on Cloud Run)
-  -> POST /users/student-session/validate -> anonymous Firebase Auth -> POST /users/student-session
-       -> users/{uid} + class lobby
-  -> Firestore realtime catalog + own completion records
-  -> POST /users/student-mission -> chosen published mission (pinned revision)
-  -> POST /users/student-tutor-turn on every answer / why / feedback
-       -> ground -> retrieve chunks + memory + history + class context -> Gemini -> leak guard
-       -> student_mission_attempts/{attempt_id}.tutor_turns[]
-  -> POST /users/student-learning  snapshot + exact checkpoint
-       -> completed -> Cloud Tasks finalize | idle 120 s -> watchdog -> abandoned
-       -> orchestrator.BuildLearningTrace -> trace + users/{uid}.student.learning_memory
-       -> orchestrator.BuildClassLearningSynthesis -> class_learning_summaries/{class_id}
-  -> GET /users/student-learning?mission_id=…  exact resume
-```
+**Keeping the student's screen honest.** The first version showed Mia's notebook to the student. It felt agentic and it was wrong: a 12-year-old should not read "confuses numerator and denominator" about themselves. I moved every observation to the teacher side, made the API return a student-safe projection, denied anonymous reads in Firestore rules, and added the leak guard.
 
-## What Makes It Agentic
+**Never starting over — without faking it.** "Persistent memory" is easy to fake with `localStorage`. Real persistence meant revision numbers and server-side merge with optimistic concurrency, a checkpoint that includes the lines on the board and the pending decision, revision pinning so a republish cannot swap questions under a running attempt, and a watchdog that finalizes what a student left behind.
 
-Mia is not a chatbot in a game. She:
+**Fast and grounded at the same time.** A model call per tap makes a chalkboard feel slow. The local deterministic tutor plus the overwriting structured turn keeps the game responsive, and grounding on the server — never the client — closed the door on a browser inventing "expected answers".
 
-- Chooses the next question and the next step; the student never picks "what to study".
-- Asks a clarifying question before explaining anything — and writes that question for the specific wrong answer.
-- Retrieves from the teacher's material and from her own memory of the student before every reply, and records what she retrieved.
-- Changes explanation style and difficulty from explicit feedback and states the reason for every decision.
-- Keeps a memory that survives the tab, the session and the mission, and puts a returning student back exactly where they stopped.
-- Writes a learning trace when a student finishes — or gives up — and tells her future self how to adapt next time.
-- Turns everything she observed into something the teacher can act on, including the first draft of tomorrow's mission.
+**Structured output under pressure.** Gemini's structured-output endpoint rejected schema keywords I took for granted (`maxItems`, for one), so a generator that worked in the morning failed after a schema edit in the afternoon. I added a sanitizer that strips unsupported keywords recursively before every call, normalize every blueprint after it, and keep the deterministic fallbacks identical in shape — the UI never sees the difference.
 
-This fits **The Collaborative Partner** twice: she adapts to the student from past interactions, and what she learns is what the teacher gets back and builds on.
+**Furnishing a room from one mesh.** Seating a classmate in every chair meant recognising chairs and desk tops by their dimensions and measuring the rig's leg pivot. Repainting characters hit 8-bit colour quantisation — near-black hair and near-black shoes became the same colour — solved by matching vertices only against parts that can exist at their height.
 
-## Challenges We Faced
+## Accomplishments that we're proud of
 
-**Keeping the student's screen honest.** The first version showed Mia's notebook to the student — notes, decisions, everything. It felt agentic, but it was wrong: a 12-year-old should not read "student confuses numerator and denominator" about themselves, and the model should never be tempted to say it. We moved all observations to the teacher side, made the API return only a student-safe projection, wrote Firestore rules that deny anonymous reads outright, and added a leak guard that throws away any tutor message mentioning teacher-only or class context.
+- **Both collaboration loops run live end to end**: teacher → mission → student → evidence → next mission, with no manual step in between and no mocked data in the demo.
+- **Mia explains every decision.** Difficulty, explanation style and next action all carry a stated reason the teacher can read.
+- **Retrieval you can audit.** Every tutor turn stores the chunk ids it used, and the dashboard shows them next to the reply.
+- **Memory that resumes exactly.** A student who closes the tab mid-question returns to the same phase and step, and a student who never returns still produces a partial learning trace.
+- **A student never sees a note about themselves**, enforced in three places: rules, API projection, and the model's own output gate.
+- **125 commits in three days**, solo, shipping a Go API, a Three.js game, a realtime dashboard and a 3D asset pipeline to production on Cloud Run.
 
-**Never starting over — without lying about it.** "Persistent memory" is easy to fake with `localStorage`. Real persistence meant a monotonic snapshot protocol (revision numbers, server-side merge, optimistic concurrency), an exact checkpoint that includes the lines on the board and the pending decision, revision pinning so a teacher's republish cannot change questions under a running attempt, and a watchdog that finalizes what a student left behind.
+## What we learned
 
-**Making the tutor fast and grounded at the same time.** A Gemini call per tap would make the chalkboard feel slow. The game runs a deterministic tutor locally and lets the model's structured turn overwrite it when it arrives; if Gemini is offline the lesson still works. Grounding every turn against the published question on the server, not the client, closed the door on a student's browser inventing "expected answers".
+The strongest tutoring agent is not the one that generates the most content; it is the one that turns small signals — a chosen reason, a "confusing" tap, a repeated slip, a tab closed mid-question — into a decision it can explain and a memory it can act on later.
 
-**Making misconceptions nameable.** The notebook is only useful if a wrong answer maps to a specific way of thinking, so every generated wrong option is a deliberate trap tied to a named misconception, and the mission generation prompt is explicit about it.
+Retrieval did not need embeddings to be useful. Chunks distilled from the teacher's own material, retrieved lexically and shown to the teacher by id, earned more trust than a black-box vector search would have in a classroom.
 
-**Furnishing a room from one merged mesh.** Seating a classmate in every chair meant splitting the classroom GLB into connected islands, recognising chairs and desk tops by their dimensions, and measuring the rig's leg pivot so characters sit *on* the seat. Repainting characters hit 8-bit colour quantisation — near-black hair and near-black shoes became the same colour — solved by matching vertices only against parts that can exist at their height.
+Provenance matters as much as the answer. Labelling every block as Gemini, fallback or example is what lets a teacher — or a judge — trust what they see.
 
-## What We Learned
+And, on a personal note: with a 3D world eating every hour, the discipline that saved the project was asking of each feature, "does this make the agent's behaviour more visible?" and cutting everything that did not.
 
-The strongest tutoring agent is not the one that generates the most content; it's the one that turns small signals — a chosen reason, a "confusing" tap, a repeated slip, a tab closed mid-question — into a decision it can explain and a memory it can act on later. Retrieval did not need embeddings to be useful: chunks distilled from the teacher's own material, retrieved lexically and shown to the teacher by id, were more trustworthy than a black-box vector search would have been in a classroom. And provenance matters as much as the answer: labelling every block as Gemini, fallback or example is what lets a teacher — or a judge — trust what they see.
+## What's next for ClassGame
 
-## What's Next
+I did not build ClassGame to win a hackathon. I built it because I have watched teachers spend their evenings guessing what went wrong in thirty heads, and I believe that time belongs to their families and their students, not to a pile of paper. Winning would let me stop treating this as a three-day sprint and start treating it as the thing I actually want to spend the next years on: making a teacher's life lighter and a child's learning better, at the same time, with the same product.
 
-- Semantic retrieval over knowledge chunks (embeddings) alongside the traceable lexical pass.
-- Multi-week memory surfaced to the teacher across missions, not only inside one.
-- "Pick the next move" equation questions for generated missions (today they are played as multiple choice).
-- Signed uploads through the API so production traffic cannot abuse the public Uploadcare key.
-- Voice for Mia.
+Here is the dream, in the order I want to chase it.
+
+**More worlds, more subjects.** Today Mia teaches Grade 5 math on one chalkboard. I want her in a science lab where a wrong hypothesis makes the beaker fizz, in a history classroom where the map redraws itself as the student argues, in a language room where the conversation partner is another chibi. Every scenario is a new set of misconceptions to model — and a new way for a kid to *want* to do the optional homework.
+
+**Play that teaches.** The 3D room is still mostly a stage. I want the game itself to carry the pedagogy: the "pick the next move" equation duels I prototyped, cooperative missions where two classmates have to explain to each other before Mia lets them advance, a classroom that visibly changes as the class masters something together. Fun is not decoration here; it is the reason a student comes back on a Saturday.
+
+**A tutor that gets wiser.** Semantic retrieval over the teacher's material next to the traceable lexical pass, memory that spans weeks and subjects instead of one mission, and Mia's voice on the chalkboard so a student who struggles with reading is not locked out of the help.
+
+**Scale without losing the notebook.** The tenancy is already in every record — organization, district, school. I want a district to see, across hundreds of classrooms, which misconceptions travel together, and a new teacher to open ClassGame on day one and inherit what Mia already knows about her students. All of it with the same rule that shaped this project: the student never reads a note about themselves, and the teacher always sees the evidence.
+
+**Real classrooms.** First pilots with the teachers whose complaint started this. Their corrections, not my roadmap, decide what ships next.
+
+If ClassGame gets that chance, the win is not the prize. It is a teacher opening the dashboard on Monday morning, already knowing why — and a student walking up to a glowing desk because they want to.
 
 ## Built With
 
