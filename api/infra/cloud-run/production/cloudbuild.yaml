@@ -68,7 +68,7 @@ steps:
       - --port
       - "8080"
       - --memory
-      - 512Mi
+      - 4Gi
       - --cpu
       - "1"
       - --no-cpu-throttling
