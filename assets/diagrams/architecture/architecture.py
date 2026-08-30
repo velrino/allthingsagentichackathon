@@ -403,7 +403,7 @@ def main() -> None:
     draw.text((42, 22), "ClassGame · Production Architecture", fill=INK, font=FONT_TITLE)
     draw.text(
         (44, 66),
-        "Teacher intent becomes a mission · Mia tutors with grounded memory · observable evidence returns as class insight",
+        "Teacher intent becomes a mission with M.I.A (Multimodal Intelligence Agent",
         fill=MUTED,
         font=FONT_SUBTITLE,
     )

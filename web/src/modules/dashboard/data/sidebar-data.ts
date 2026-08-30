@@ -3,6 +3,7 @@ import {
   ClipboardList,
   Gamepad2,
   LayoutDashboard,
+  Network,
   Settings,
   Users,
 } from "lucide-react";
@@ -66,6 +67,11 @@ export const dashboardSidebarData: DashboardSidebarData = {
           title: "Students",
           url: "/dashboard#students",
           icon: Users,
+        },
+        {
+          title: "Architecture",
+          url: "/dashboard/architecture",
+          icon: Network,
         },
       ],
     },
