@@ -12,7 +12,7 @@ export function PageLoadingFallback({
   return (
     <main
       className={cn(
-        "grid min-h-svh place-items-center bg-background px-4 text-foreground",
+        "pointer-events-auto fixed inset-0 z-50 grid place-items-center bg-background px-4 text-foreground",
         className,
       )}
     >
