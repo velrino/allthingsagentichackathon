@@ -10,8 +10,10 @@ ClassGame.
 - `architecture.png` — generated 1920×1080 image.
 - `architecture_graphviz.py` — alternate icon-led Graphviz renderer inspired by
   the `mingrammer/diagrams` layout used by `portfolio-front/diagrams/wpp.py`.
-- `architecture-graphviz.png` — alternate 1920×1080 image for visual
+- `architecture-graphviz.png` — alternate 4K (3840×2160) image for visual
   comparison.
+- `architecture-graphviz.svg` — self-contained 1920×1080 vector version for
+  unlimited zoom and readable labels.
 
 ## Regenerate
 

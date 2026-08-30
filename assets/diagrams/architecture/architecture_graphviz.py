@@ -12,10 +12,16 @@ Run from any directory:
 
     uv run architecture_graphviz.py
 
-Output: architecture-graphviz.png beside this file.
+Outputs beside this file:
+
+- architecture-graphviz.png — 4K raster image.
+- architecture-graphviz.svg — self-contained vector image.
 """
 
+import base64
+import mimetypes
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from diagrams import Cluster, Diagram, Edge
 from diagrams.gcp.compute import Run
@@ -36,7 +42,10 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 ROOT = Path(__file__).resolve().parent
 RAW_OUTPUT = ROOT / "architecture-graphviz-raw"
 OUTPUT = ROOT / "architecture-graphviz.png"
-CANVAS_SIZE = (1920, 1080)
+SVG_OUTPUT = ROOT / "architecture-graphviz.svg"
+LOGICAL_SIZE = (1920, 1080)
+PNG_SCALE = 2
+CANVAS_SIZE = tuple(dimension * PNG_SCALE for dimension in LOGICAL_SIZE)
 
 BLUE = "#3b63f3"
 PURPLE = "#8b5cf6"
@@ -68,12 +77,12 @@ def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.Im
     return ImageFont.load_default()
 
 
-FONT_TITLE = font(36, bold=True)
-FONT_SUBTITLE = font(17)
+FONT_TITLE = font(36 * PNG_SCALE, bold=True)
+FONT_SUBTITLE = font(17 * PNG_SCALE)
 
 graph_attr = {
     "bgcolor": "white",
-    "dpi": "120",
+    "dpi": str(120 * PNG_SCALE),
     "pad": "0.65",
     "ratio": "fill",
     "size": "16,9!",
@@ -81,20 +90,20 @@ graph_attr = {
     "ranksep": "1.7",
     "splines": "ortho",
     "fontname": "Arial",
-    "fontsize": "18",
+    "fontsize": "22",
     "compound": "true",
 }
 node_attr = {
     "fontname": "Arial",
-    "fontsize": "12",
+    "fontsize": "16",
 }
 edge_attr = {
     "color": BLUE,
     "fontcolor": MUTED,
     "fontname": "Arial",
-    "fontsize": "11",
-    "penwidth": "2.0",
-    "arrowsize": "0.8",
+    "fontsize": "14",
+    "penwidth": "2.4",
+    "arrowsize": "0.9",
 }
 
 
@@ -103,7 +112,7 @@ with Diagram(
     filename=str(RAW_OUTPUT),
     direction="LR",
     show=False,
-    outformat="png",
+    outformat=["png", "svg"],
     graph_attr=graph_attr,
     node_attr=node_attr,
     edge_attr=edge_attr,
@@ -206,8 +215,8 @@ with Diagram(
 
 
 # Graphviz controls topology well but may return a canvas a few pixels narrower
-# than the requested ratio. Fit the native render onto an exact 16:9 canvas so
-# icons and typography retain their proportions.
+# than the requested ratio. Fit the native render onto an exact 4K 16:9 canvas
+# so icons and typography retain their proportions.
 raw_png = RAW_OUTPUT.with_suffix(".png")
 with Image.open(raw_png) as source:
     fitted = ImageOps.contain(
@@ -221,23 +230,120 @@ canvas.paste(
     (
         # Preserve the original header's full subtitle in the empty top-left
         # area without covering the Agent runtime cluster.
-        (CANVAS_SIZE[0] - fitted.width) // 2 + 40,
+        (CANVAS_SIZE[0] - fitted.width) // 2 + 40 * PNG_SCALE,
         (CANVAS_SIZE[1] - fitted.height) // 2,
     ),
 )
 draw = ImageDraw.Draw(canvas)
 draw.text(
-    (42, 22),
+    (42 * PNG_SCALE, 22 * PNG_SCALE),
     "ClassGame · Production Architecture",
     fill=INK,
     font=FONT_TITLE,
 )
 draw.text(
-    (44, 66),
+    (44 * PNG_SCALE, 66 * PNG_SCALE),
     "Teacher intent becomes a mission with M.I.A (Multimodal Intelligence Agent",
     fill=MUTED,
     font=FONT_SUBTITLE,
 )
 canvas.save(OUTPUT, quality=95)
 raw_png.unlink()
+
+
+def svg_number(value: str) -> float:
+    """Parse a Graphviz SVG dimension such as ``1208pt``."""
+    return float("".join(character for character in value if character.isdigit() or character in ".-"))
+
+
+def write_portable_svg() -> None:
+    """Wrap the Graphviz SVG in 16:9 and inline every icon as a data URI."""
+    raw_svg = RAW_OUTPUT.with_suffix(".svg")
+    raw_root = ET.parse(raw_svg).getroot()
+    svg_namespace = "http://www.w3.org/2000/svg"
+    xlink_namespace = "http://www.w3.org/1999/xlink"
+    ET.register_namespace("", svg_namespace)
+    ET.register_namespace("xlink", xlink_namespace)
+
+    for image in raw_root.iter(f"{{{svg_namespace}}}image"):
+        href_key = f"{{{xlink_namespace}}}href"
+        href = image.get(href_key) or image.get("href")
+        if not href or href.startswith("data:"):
+            continue
+        icon_path = Path(href)
+        if not icon_path.exists():
+            continue
+        mime_type = mimetypes.guess_type(icon_path.name)[0] or "image/png"
+        encoded = base64.b64encode(icon_path.read_bytes()).decode("ascii")
+        image.set(href_key, f"data:{mime_type};base64,{encoded}")
+        image.attrib.pop("href", None)
+
+    view_box = raw_root.get("viewBox")
+    if view_box:
+        _, _, raw_width, raw_height = map(float, view_box.split())
+    else:
+        raw_width = svg_number(raw_root.get("width", "1920"))
+        raw_height = svg_number(raw_root.get("height", "1080"))
+
+    scale = min(LOGICAL_SIZE[0] / raw_width, LOGICAL_SIZE[1] / raw_height)
+    fitted_width = raw_width * scale
+    fitted_height = raw_height * scale
+    fitted_x = (LOGICAL_SIZE[0] - fitted_width) / 2 + 40
+    fitted_y = (LOGICAL_SIZE[1] - fitted_height) / 2
+
+    raw_root.set("x", f"{fitted_x:.2f}")
+    raw_root.set("y", f"{fitted_y:.2f}")
+    raw_root.set("width", f"{fitted_width:.2f}")
+    raw_root.set("height", f"{fitted_height:.2f}")
+    raw_root.set("preserveAspectRatio", "xMidYMid meet")
+
+    outer = ET.Element(
+        f"{{{svg_namespace}}}svg",
+        {
+            "width": str(LOGICAL_SIZE[0]),
+            "height": str(LOGICAL_SIZE[1]),
+            "viewBox": f"0 0 {LOGICAL_SIZE[0]} {LOGICAL_SIZE[1]}",
+            "role": "img",
+            "aria-label": "ClassGame production architecture",
+        },
+    )
+    ET.SubElement(
+        outer,
+        f"{{{svg_namespace}}}rect",
+        {"width": "100%", "height": "100%", "fill": "white"},
+    )
+    outer.append(raw_root)
+
+    title = ET.SubElement(
+        outer,
+        f"{{{svg_namespace}}}text",
+        {
+            "x": "42",
+            "y": "55",
+            "fill": INK,
+            "font-family": "Arial, Helvetica, sans-serif",
+            "font-size": "36",
+            "font-weight": "700",
+        },
+    )
+    title.text = "ClassGame · Production Architecture"
+    subtitle = ET.SubElement(
+        outer,
+        f"{{{svg_namespace}}}text",
+        {
+            "x": "44",
+            "y": "82",
+            "fill": MUTED,
+            "font-family": "Arial, Helvetica, sans-serif",
+            "font-size": "17",
+        },
+    )
+    subtitle.text = "Teacher intent becomes a mission with M.I.A (Multimodal Intelligence Agent"
+
+    ET.ElementTree(outer).write(SVG_OUTPUT, encoding="utf-8", xml_declaration=True)
+    raw_svg.unlink()
+
+
+write_portable_svg()
 print(f"Wrote {OUTPUT} ({CANVAS_SIZE[0]}x{CANVAS_SIZE[1]})")
+print(f"Wrote {SVG_OUTPUT} (vector {LOGICAL_SIZE[0]}x{LOGICAL_SIZE[1]} viewBox)")
