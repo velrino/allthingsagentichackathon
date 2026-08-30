@@ -95,7 +95,7 @@ func Load() (Config, error) {
 		AuthTeacherProviders:            reader.getString("AUTH_TEACHER_PROVIDERS", "google"),
 		AuthStudentProviders:            reader.getString("AUTH_STUDENT_PROVIDERS", "anonymous"),
 		DemoTeacherEmail:                reader.getString("DEMO_TEACHER_EMAIL", demoaccount.DefaultEmail),
-		DemoTeacherPassword:             reader.getString("DEMO_TEACHER_PASSWORD", demoaccount.DefaultPassword),
+		DemoTeacherPassword:             reader.getString("DEMO_TEACHER_PASSWORD", ""),
 		DemoTeacherDisplayName:          reader.getString("DEMO_TEACHER_DISPLAY_NAME", demoaccount.DefaultDisplayName),
 		GenAIEnabled:                    reader.getBool("GENAI_ENABLED", true),
 		GenAIBackend:                    reader.getString("GENAI_BACKEND", "vertex"),

@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { API } from "@/backend/api/api.endpoints";
-import type { IApiDemoAccount } from "@/backend/api/api.interface";
 import { INPUT_LIMITS } from "@/shared/input-limits";
 
 import { useTeacherAuth } from "../auth/use-teacher-auth";
@@ -22,37 +21,39 @@ export function LoginPage() {
     status,
   } = useTeacherAuth();
   const [exchanging, setExchanging] = useState(false);
-  const [demoAccount, setDemoAccount] = useState<IApiDemoAccount | null>(null);
-  const [demoAccountLoading, setDemoAccountLoading] = useState(true);
-  const [demoAccountError, setDemoAccountError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [apiAvailable, setApiAvailable] = useState(false);
+  const [apiLoading, setApiLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     const timeout = window.setTimeout(() => controller.abort(), 5000);
 
-    void API.demoAccount
+    void API.health
       .get(controller.signal)
-      .then((account) => {
+      .then(() => {
         if (!active) {
           return;
         }
-        setDemoAccount(account);
-        setDemoAccountError(null);
+        setApiAvailable(true);
+        setApiError(null);
       })
       .catch(() => {
         if (!active) {
           return;
         }
-        setDemoAccount(null);
-        setDemoAccountError(
+        setApiAvailable(false);
+        setApiError(
           "Couldn't reach the ClassGame API. Check that it is running and reload this page.",
         );
       })
       .finally(() => {
         window.clearTimeout(timeout);
         if (active) {
-          setDemoAccountLoading(false);
+          setApiLoading(false);
         }
       });
 
@@ -87,15 +88,12 @@ export function LoginPage() {
   const handleEmailSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!demoAccount) {
+      if (!apiAvailable || !email.trim() || !password) {
         return;
       }
       setExchanging(true);
       try {
-        const user = await signInWithEmail(
-          demoAccount.email,
-          demoAccount.password,
-        );
+        const user = await signInWithEmail(email, password);
         if (user) {
           router.replace(nextPath);
         }
@@ -103,7 +101,7 @@ export function LoginPage() {
         setExchanging(false);
       }
     },
-    [demoAccount, nextPath, router, signInWithEmail],
+    [apiAvailable, email, nextPath, password, router, signInWithEmail],
   );
 
   const handleLoadError = useCallback(() => {
@@ -113,17 +111,19 @@ export function LoginPage() {
   }, [reportSignInError]);
 
   const busy = exchanging || status === "checking";
-  const apiUnavailable = demoAccountLoading || !demoAccount;
-  const signInDisabled = busy || apiUnavailable;
-  let demoSignInLabel = "Sign in";
-  if (demoAccountLoading) {
-    demoSignInLabel = "Checking API...";
-  } else if (!demoAccount) {
-    demoSignInLabel = "API unavailable";
+  const apiUnavailable = apiLoading || !apiAvailable;
+  const apiSignInDisabled = busy || apiUnavailable;
+  const passwordSignInDisabled =
+    apiSignInDisabled || !email.trim() || !password;
+  let signInLabel = "Sign in";
+  if (apiLoading) {
+    signInLabel = "Checking API...";
+  } else if (!apiAvailable) {
+    signInLabel = "API unavailable";
   } else if (status === "checking") {
-    demoSignInLabel = "Checking your session...";
+    signInLabel = "Checking your session...";
   } else if (exchanging) {
-    demoSignInLabel = "Signing in...";
+    signInLabel = "Signing in...";
   }
 
   return (
@@ -159,7 +159,7 @@ export function LoginPage() {
             <GoogleIdentityButton
               onCredential={handleCredential}
               onLoadError={handleLoadError}
-              disabled={signInDisabled}
+              disabled={apiSignInDisabled}
             />
           </div>
 
@@ -172,10 +172,9 @@ export function LoginPage() {
           <form
             className="space-y-3 text-left"
             onSubmit={handleEmailSubmit}
-            noValidate
           >
             <p className="text-xs leading-5 text-slate-500">
-              Demo account loaded from the ClassGame API (just sign in).
+              Use the teacher credentials shared with you.
             </p>
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -187,12 +186,11 @@ export function LoginPage() {
                 autoComplete="username"
                 inputMode="email"
                 spellCheck={false}
-                value={demoAccount?.email ?? ""}
-                readOnly
-                aria-readonly="true"
-                tabIndex={-1}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
                 maxLength={INPUT_LIMITS.email}
-                className="mt-1 h-11 w-full cursor-default rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none select-all"
+                className="mt-1 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </label>
             <label className="block">
@@ -203,29 +201,28 @@ export function LoginPage() {
                 type="password"
                 name="password"
                 autoComplete="current-password"
-                value={demoAccount?.password ?? ""}
-                readOnly
-                aria-readonly="true"
-                tabIndex={-1}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
                 maxLength={INPUT_LIMITS.password}
-                className="mt-1 h-11 w-full cursor-default rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none"
+                className="mt-1 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </label>
             <button
               type="submit"
-              disabled={signInDisabled}
+              disabled={passwordSignInDisabled}
               className="h-11 w-full rounded-md bg-primary text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {demoSignInLabel}
+              {signInLabel}
             </button>
           </form>
 
-          {demoAccountError ? (
+          {apiError ? (
             <p
               role="alert"
               className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
             >
-              {demoAccountError}
+              {apiError}
             </p>
           ) : null}
 

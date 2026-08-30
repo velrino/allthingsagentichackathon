@@ -8,6 +8,7 @@ API_ENV_FILE="${API_ENV_FILE:-${API_DIR}/.env}"
 
 PROJECT_ID="${PROJECT_ID:-}"
 FIREBASE_CREDENTIALS_FILE="${FIREBASE_CREDENTIALS_FILE:-}"
+DEMO_TEACHER_PASSWORD="${DEMO_TEACHER_PASSWORD:-}"
 YES=0
 DRY_RUN=0
 SKIP_AUTH=0
@@ -26,6 +27,10 @@ Options:
   --skip-firestore           Do not delete Firestore documents.
   --dry-run                  Show what would run without deleting data.
   --yes                      Required for destructive cleanup.
+
+Environment:
+  DEMO_TEACHER_PASSWORD      Required outside dry-run. Recreates or re-keys
+                             velrino@gmail.com after cleanup.
 
 Safety:
   This script refuses projects other than allthingsagentichackatho-ee359 unless
@@ -129,6 +134,10 @@ if [[ "${DRY_RUN}" -eq 0 && "${YES}" -ne 1 ]]; then
   echo "This deletes Firestore documents and Firebase Auth users. Re-run with --yes." >&2
   exit 1
 fi
+if [[ "${DRY_RUN}" -eq 0 && -z "${DEMO_TEACHER_PASSWORD}" ]]; then
+  echo "Missing DEMO_TEACHER_PASSWORD; refusing to reset without preserving the shared teacher login." >&2
+  exit 1
+fi
 if [[ -n "${FIREBASE_CREDENTIALS_FILE}" && ! -f "${FIREBASE_CREDENTIALS_FILE}" ]]; then
   echo "Credentials file not found: ${FIREBASE_CREDENTIALS_FILE}" >&2
   exit 1
@@ -163,7 +172,21 @@ fi
 )
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "Would ensure velrino@gmail.com exists after cleanup."
   echo "Dry run complete."
 else
+  teacher_flags=(
+    --project "${PROJECT_ID}"
+    --email "velrino@gmail.com"
+    --display-name "Emily"
+  )
+  if [[ -n "${FIREBASE_CREDENTIALS_FILE}" ]]; then
+    teacher_flags+=(--credentials-file "${FIREBASE_CREDENTIALS_FILE}")
+  fi
+  (
+    cd "${API_DIR}"
+    DEMO_TEACHER_PASSWORD="${DEMO_TEACHER_PASSWORD}" \
+      go run ./cmd/firebase-demo-teacher "${teacher_flags[@]}"
+  )
   echo "Firebase reset complete."
 fi

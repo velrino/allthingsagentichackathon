@@ -8,7 +8,6 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 
 	"classgame-api/internal/config"
-	"classgame-api/internal/demoaccount"
 	"classgame-api/internal/modules/dashboard"
 	healthcheck "classgame-api/internal/modules/health-check"
 	mission "classgame-api/internal/modules/mission"
@@ -74,11 +73,6 @@ func New(options Options) *echo.Echo {
 		CheckCacheTTL:  time.Minute,
 		ServiceTimeout: 3 * time.Second,
 		StartedAt:      options.StartedAt,
-	})
-	demoaccount.RegisterRoutes(server, demoaccount.HandlerOptions{
-		Enabled:  options.Config.FirebaseBootstrapEnabled,
-		Email:    options.Config.DemoTeacherEmail,
-		Password: options.Config.DemoTeacherPassword,
 	})
 	if options.MissionAttachment != nil {
 		server.POST("/internal/tasks/mission-attachments", echo.WrapHandler(options.MissionAttachment))

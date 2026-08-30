@@ -15,10 +15,11 @@ Tenant env vars are optional for local development. If unset, the API uses
 `DEFAULT_ORGANIZATION_ID`, `DEFAULT_DISTRICT_ID` and `DEFAULT_SCHOOL_ID`.
 
 On every startup, the API idempotently ensures the configured tenant hierarchy
-exists in Firestore and that the public hackathon demo teacher exists in
-Firebase Auth. Existing records and accounts are left untouched. Configure this
+exists in Firestore and that the shared teacher exists in Firebase Auth.
+Existing records and accounts are left untouched. Configure this
 with `FIREBASE_BOOTSTRAP_ENABLED`, `DEMO_TEACHER_*`, and the `DEFAULT_*` IDs and
-names from `.env.example`. Disable the bootstrap for a non-demo deployment.
+names from `.env.example`. The password has no source-code default and is never
+returned by an API route. Disable the bootstrap when it is not needed.
 
 With hot reload:
 
@@ -53,8 +54,7 @@ raw application logs and detailed operational context.
 
 ## Runtime
 
-- `GET /` returns the health check and service dependency status.
-- `GET /demo-account` returns the intentionally public demo teacher credentials used by the login page, with caching disabled. A failed request lets `/login` report that the API is unavailable.
+- `GET /` returns the cached health check and service dependency status. The login page uses it only to report API availability.
 - `POST /users/student-session/validate` resolves an active, six-digit numeric class code before anonymous Firebase sign-in.
 - `POST /users/student-session` verifies an anonymous Firebase ID token, joins that class, and upserts `users/{firebase_uid}` in Firestore without selecting a mission.
 - `POST /users/student-mission` verifies that a chosen mission is currently published in the joined class and returns its pinned student-safe payload.

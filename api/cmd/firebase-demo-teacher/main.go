@@ -1,6 +1,6 @@
-// Command firebase-demo-teacher manually creates or re-keys the shared demo
-// teacher with the password the login page pre-fills. Normal API startup now
-// creates the account when missing; use this command only when it drifts:
+// Command firebase-demo-teacher manually creates or re-keys the shared teacher
+// with a password supplied out of band. Normal API startup creates the account
+// when missing; use this command to rotate credentials or repair drift:
 //
 //	go run ./cmd/firebase-demo-teacher --project allthingsagentichackatho-ee359 \
 //	  --credentials-file /path/to/service-account.json --password '...'

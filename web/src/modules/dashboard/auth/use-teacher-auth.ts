@@ -113,7 +113,7 @@ function useTeacherAuthValue() {
     [runSignIn],
   );
 
-  /** Email + password, used by the pre-filled demo account. */
+  /** Sign in with teacher credentials entered on the login page. */
   const signInWithEmail = useCallback(
     (email: string, password: string) => runSignIn((auth) => signInWithEmailAndPassword(auth, email.trim(), password)),
     [runSignIn],

@@ -15,11 +15,6 @@ export interface IApiRequest {
   signal?: AbortSignal;
 }
 
-export interface IApiDemoAccount {
-  email: string;
-  password: string;
-}
-
 export interface IApiStudentSession {
   class_code: string;
   student_name: string;
