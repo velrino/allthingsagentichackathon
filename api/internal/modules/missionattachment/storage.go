@@ -137,6 +137,7 @@ func (copier *StorageCopier) Copy(ctx context.Context, input CopyInput) (StoredO
 	writer := conditionedObject.NewWriter(ctx)
 	writer.ChunkSize = defaultWriterChunkBytes
 	writer.ContentType = contentType
+	writer.PredefinedACL = "publicRead"
 	writer.ContentDisposition = mime.FormatMediaType("inline", map[string]string{
 		"filename": strings.TrimSpace(input.FileName),
 	})
