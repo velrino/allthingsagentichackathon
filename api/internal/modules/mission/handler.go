@@ -98,11 +98,12 @@ type ApproveMissionDraftRequest struct {
 }
 
 type MissionAttachmentRequest struct {
-	UploadcareUUID string `json:"uploadcare_uuid"`
-	CDNURL         string `json:"cdn_url"`
-	FileName       string `json:"file_name"`
-	MimeType       string `json:"mime_type"`
-	SizeBytes      int64  `json:"size_bytes"`
+	UploadcareUUID   string `json:"uploadcare_uuid"`
+	CDNURL           string `json:"cdn_url"`
+	UploadcareCDNURL string `json:"uploadcare_cdn_url"`
+	FileName         string `json:"file_name"`
+	MimeType         string `json:"mime_type"`
+	SizeBytes        int64  `json:"size_bytes"`
 }
 
 type ErrorResponse struct {
@@ -836,11 +837,12 @@ func toMissionAttachments(input []MissionAttachmentRequest) []MissionAttachment 
 	attachments := make([]MissionAttachment, 0, len(input))
 	for _, attachment := range input {
 		attachments = append(attachments, MissionAttachment{
-			UploadcareUUID: attachment.UploadcareUUID,
-			CDNURL:         attachment.CDNURL,
-			FileName:       attachment.FileName,
-			MimeType:       attachment.MimeType,
-			SizeBytes:      attachment.SizeBytes,
+			UploadcareUUID:   attachment.UploadcareUUID,
+			CDNURL:           attachment.CDNURL,
+			UploadcareCDNURL: attachment.UploadcareCDNURL,
+			FileName:         attachment.FileName,
+			MimeType:         attachment.MimeType,
+			SizeBytes:        attachment.SizeBytes,
 		})
 	}
 

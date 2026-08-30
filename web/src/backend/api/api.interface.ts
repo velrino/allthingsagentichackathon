@@ -362,6 +362,7 @@ export interface IApiDashboardOverviewRequest {
 export interface IApiMissionAttachment {
   uploadcare_uuid: string;
   cdn_url: string;
+  uploadcare_cdn_url?: string;
   file_name: string;
   mime_type: string;
   size_bytes: number;

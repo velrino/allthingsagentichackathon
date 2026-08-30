@@ -82,12 +82,13 @@ type MissionResponse struct {
 }
 
 type AttachmentResponse struct {
-	UploadcareUUID string                            `json:"uploadcare_uuid"`
-	CDNURL         string                            `json:"cdn_url"`
-	FileName       string                            `json:"file_name"`
-	MimeType       string                            `json:"mime_type"`
-	SizeBytes      int64                             `json:"size_bytes"`
-	Storage        *mission.MissionAttachmentStorage `json:"storage,omitempty"`
+	UploadcareUUID   string                            `json:"uploadcare_uuid"`
+	CDNURL           string                            `json:"cdn_url"`
+	UploadcareCDNURL string                            `json:"uploadcare_cdn_url,omitempty"`
+	FileName         string                            `json:"file_name"`
+	MimeType         string                            `json:"mime_type"`
+	SizeBytes        int64                             `json:"size_bytes"`
+	Storage          *mission.MissionAttachmentStorage `json:"storage,omitempty"`
 }
 
 type PreviewQuestion struct {
@@ -497,12 +498,13 @@ func toAttachmentResponses(attachments []mission.MissionAttachment) []Attachment
 
 	for _, attachment := range attachments {
 		responses = append(responses, AttachmentResponse{
-			UploadcareUUID: attachment.UploadcareUUID,
-			CDNURL:         attachment.CDNURL,
-			FileName:       attachment.FileName,
-			MimeType:       attachment.MimeType,
-			SizeBytes:      attachment.SizeBytes,
-			Storage:        mission.AttachmentStorageWithPublicURL(attachment.Storage),
+			UploadcareUUID:   attachment.UploadcareUUID,
+			CDNURL:           attachment.CDNURL,
+			UploadcareCDNURL: attachment.UploadcareCDNURL,
+			FileName:         attachment.FileName,
+			MimeType:         attachment.MimeType,
+			SizeBytes:        attachment.SizeBytes,
+			Storage:          mission.AttachmentStorageWithPublicURL(attachment.Storage),
 		})
 	}
 

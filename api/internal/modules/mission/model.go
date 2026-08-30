@@ -122,12 +122,13 @@ type MissionPublishedRevisionDocument struct {
 }
 
 type MissionAttachment struct {
-	UploadcareUUID string                    `firestore:"uploadcare_uuid" json:"uploadcare_uuid"`
-	CDNURL         string                    `firestore:"cdn_url" json:"cdn_url"`
-	FileName       string                    `firestore:"file_name" json:"file_name"`
-	MimeType       string                    `firestore:"mime_type" json:"mime_type"`
-	SizeBytes      int64                     `firestore:"size_bytes" json:"size_bytes"`
-	Storage        *MissionAttachmentStorage `firestore:"storage,omitempty" json:"storage,omitempty"`
+	UploadcareUUID   string                    `firestore:"uploadcare_uuid" json:"uploadcare_uuid"`
+	CDNURL           string                    `firestore:"cdn_url" json:"cdn_url"`
+	UploadcareCDNURL string                    `firestore:"uploadcare_cdn_url,omitempty" json:"uploadcare_cdn_url,omitempty"`
+	FileName         string                    `firestore:"file_name" json:"file_name"`
+	MimeType         string                    `firestore:"mime_type" json:"mime_type"`
+	SizeBytes        int64                     `firestore:"size_bytes" json:"size_bytes"`
+	Storage          *MissionAttachmentStorage `firestore:"storage,omitempty" json:"storage,omitempty"`
 }
 
 type MissionAttachmentStorage struct {

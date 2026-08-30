@@ -594,11 +594,12 @@ func normalizeAttachments(attachments []MissionAttachment) []MissionAttachment {
 		}
 
 		normalized = append(normalized, MissionAttachment{
-			UploadcareUUID: strings.TrimSpace(attachment.UploadcareUUID),
-			CDNURL:         cdnURL,
-			FileName:       fileName,
-			MimeType:       normalizeText(attachment.MimeType),
-			SizeBytes:      attachment.SizeBytes,
+			UploadcareUUID:   strings.TrimSpace(attachment.UploadcareUUID),
+			CDNURL:           cdnURL,
+			UploadcareCDNURL: strings.TrimSpace(attachment.UploadcareCDNURL),
+			FileName:         fileName,
+			MimeType:         normalizeText(attachment.MimeType),
+			SizeBytes:        attachment.SizeBytes,
 		})
 	}
 

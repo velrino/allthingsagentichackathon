@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -13,6 +15,7 @@ import (
 
 	"classgame-api/internal/modules/missionattachment"
 	teacherclass "classgame-api/internal/modules/teacher-class"
+	shareduploadcare "classgame-api/internal/shared/uploadcare"
 )
 
 func (repository *Repository) Prepare(
@@ -107,6 +110,12 @@ func (repository *Repository) MarkStored(
 		storage.UpdatedAt = now
 		storage.StoredAt = now
 		attachment.Storage = storage
+		if attachment.UploadcareCDNURL == "" {
+			attachment.UploadcareCDNURL = uploadcareCDNURL(attachment.CDNURL)
+		}
+		if storageURL := AttachmentStoragePublicURL(storage); storageURL != "" {
+			attachment.CDNURL = storageURL
+		}
 	})
 }
 
@@ -372,6 +381,20 @@ func copyAttachmentStorage(storage *MissionAttachmentStorage) *MissionAttachment
 
 	copy := *storage
 	return &copy
+}
+
+func uploadcareCDNURL(rawURL string) string {
+	trimmedURL := strings.TrimSpace(rawURL)
+	if trimmedURL == "" {
+		return ""
+	}
+
+	parsedURL, err := url.Parse(trimmedURL)
+	if err != nil || shareduploadcare.ValidateCDNURL(parsedURL) != nil {
+		return ""
+	}
+
+	return trimmedURL
 }
 
 func attachmentIsStored(attachment MissionAttachment) bool {
