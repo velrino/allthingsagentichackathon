@@ -8,6 +8,10 @@ ClassGame.
 - `architecture.py` — self-contained Pillow renderer with inline `uv`
   dependencies.
 - `architecture.png` — generated 1920×1080 image.
+- `architecture_graphviz.py` — alternate icon-led Graphviz renderer inspired by
+  the `mingrammer/diagrams` layout used by `portfolio-front/diagrams/wpp.py`.
+- `architecture-graphviz.png` — alternate 1920×1080 image for visual
+  comparison.
 
 ## Regenerate
 
@@ -15,6 +19,7 @@ From this directory:
 
 ```bash
 uv run architecture.py
+uv run architecture_graphviz.py
 ```
 
 The renderer uses a fixed manual layout so the labels and cross-layer flows
