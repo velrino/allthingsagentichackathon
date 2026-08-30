@@ -4,6 +4,88 @@ Target runtime: **3:50–4:00** at a calm pace (~440 spoken words ≈ 110 words/
 
 **Names:** **Mia** — the **Multimodal Intelligence Agent** — is the AI agent (the UI says "Mia's preview", "Mia remembers…"). The human teacher and her in-game avatar remain **Emily**. Never call the AI Emily.
 
+## Published video transcript
+
+Source: the `0830.mp4` CapCut export posted to YouTube. Runtime: **3:53**.
+
+This is a lightly cleaned transcript of the recorded video: obvious speech-to-text artifacts and project vocabulary were corrected (`ClassGame`, `Mia`, `Gemini`, `Firestore`, `Cloud Storage`, `Redis`, `Cloud Tasks`, `PostHog`).
+
+**0:00–0:08**
+
+Hi, my name is Denis, and I am here because I believe teachers and AI can work together to help students learn better.
+
+**0:08–0:10**
+
+And have fun doing it.
+
+**0:10–0:19**
+
+I have worked in tech for 12 years, and I built ClassGame alone for this hackathon, for desktop and mobile.
+
+**0:19–0:26**
+
+On the left, Bruce joins the game using the code from the teacher dashboard on the right.
+
+**0:26–0:34**
+
+But how does it work? For example, meet Emily, a fifth-grade math teacher. She wants her students to review what they learned in class today.
+
+**0:34–0:43**
+
+Now Emily uploads a PDF. Mia sends it to Gemini, and Gemini suggests three questions for Emily to approve.
+
+**0:43–1:00**
+
+In Preview, Emily checks every question and answer. And in Flow, she sees how Mia evaluates her students' answers. She can edit everything before approving.
+
+**1:00–1:16**
+
+And now, after Emily approves the mission, a glowing circle appears in Bruce's game. He walks to it, presses Start, and selects the new mission.
+
+**1:16–1:26**
+
+The student gets the first question right. We send the answer to Gemini while the student moves to the next question.
+
+**1:26–1:48**
+
+And now the student makes a mistake. Mia does not show the answer. Instead, she asks why. What happened? The student can choose a reason or write their own answer.
+
+**1:48–2:04**
+
+The student replies to the last question correctly. The mission is completed, and now the student receives an achievement for completing this mission.
+
+**2:04–2:18**
+
+Meanwhile, Mia analyzes the student's reasons to understand the mistake and how this student thinks. This gives teachers deep insight into each student.
+
+**2:18–2:42**
+
+And here, we can see the student's complete learning flow. Mia remembers this and uses it to provide better support in future missions for this student. And now, in the Overview, the teacher Emily can see insights about her class. This is an overview about everything that was processed.
+
+**2:48–2:55**
+
+And here is my favorite content, because it is about the architecture behind my game.
+
+**2:55–3:14**
+
+I prefer Next.js because I have a lot of experience with it. And I chose Go because it is very good. I really like it. It processes many tasks simultaneously, and Go is very good for this.
+
+**3:14–3:21**
+
+I created three agents to talk with Gemini and process simultaneously.
+
+**3:21–3:31**
+
+And I chose Firestore as a database because it is real-time and very good for this game.
+
+**3:31–3:39**
+
+And I chose Google Cloud Storage to store the teacher files.
+
+**3:39–3:53**
+
+And Redis as a database for cache and quotas too. And Cloud Tasks to process queues, and PostHog for analytics and exceptions.
+
 Before recording:
 
 - Prepare a Grade 5 math class with existing learning insights and open its overview. Rename the demo class from `TEST` to something like `Grade 5 Math` so it reads well on camera — every screenshot below still shows the old `Test` name.

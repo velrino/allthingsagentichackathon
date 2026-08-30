@@ -6,7 +6,9 @@
 
 **ClassGame is the optional homework that takes notes for the teacher.**
 
-A teacher types what the class covered today (and optionally attaches the worksheet). **Mia**, the **Multimodal Intelligence Agent** powered by Gemini, turns it into a short 3D review mission. Students play it on their phones for ten minutes: Mia leads them question by question, asks *why* they picked a wrong answer, explains in the style that works for that student, and keeps a memory of each student that survives the tab, the session and the mission. The teacher opens the class page and sees — live — where every student is, what Mia observed, which patterns repeat across the class, and what to teach tomorrow.
+ClassGame is submitted as a production app hosted on **Google Cloud Platform**: the 3D student game and teacher dashboard run on **Cloud Run**, the Go API runs on **Cloud Run**, durable state lives in **Firestore**, attachments are copied into **Cloud Storage**, learning jobs run through **Cloud Tasks**, Gemini calls go through **Vertex AI**, secrets live in **Secret Manager**, and deployment is handled by **Cloud Build**, **Artifact Registry** and **Cloud Logging**.
+
+A teacher types what the class covered today (and optionally attaches the worksheet). **Mia**, the **Multimodal Intelligence Agent** powered by Gemini on Vertex AI, turns it into a short 3D review mission. Students play it on their phones for ten minutes: Mia leads them question by question, asks *why* they picked a wrong answer, explains in the style that works for that student, and keeps a memory of each student that survives the tab, the session and the mission. The teacher opens the class page and sees — live — where every student is, what Mia observed, which patterns repeat across the class, and what to teach tomorrow.
 
 Built for the **All Things Agentic Hackathon**, category **The Collaborative Partner — in depth**.
 
@@ -16,17 +18,44 @@ Built for the **All Things Agentic Hackathon**, category **The Collaborative Par
 
 ClassGame is that example, with a classroom around it: the "dense document" is the teacher's lesson and worksheet, the quiz is the mission, the concepts you struggle with are named misconceptions, and the adaptation is visible on the chalkboard and in the teacher's dashboard.
 
+## Judge this in 3 minutes
+
+The fastest way to evaluate the submission is the hosted Google Cloud production build:
+
+1. Open the **teacher dashboard** on Cloud Run and generate a mission from a lesson prompt or worksheet.
+2. Open the **student game** on Cloud Run, join with the class code, and answer one question incorrectly.
+3. Mia asks *why*, retrieves the relevant lesson chunks, adapts the explanation, and records a teacher-only observation.
+4. Close and reopen the student tab; the exact checkpoint restores from Firestore.
+5. Finish the mission; Cloud Tasks finalizes the learning trace and class synthesis.
+6. Return to the dashboard; Firestore realtime updates show live progress, RAG provenance, student memory and the next-lesson prompt.
+
 ## Explore ClassGame
 
 | Experience | Link |
 |---|---|
-| 🎮 **Student game** | [Enter the 3D classroom](https://classgame-web-mzkj6f7g3a-ue.a.run.app/home) |
-| 🧑‍🏫 **Teacher dashboard** | [Create and monitor missions](https://classgame-web-mzkj6f7g3a-ue.a.run.app/dashboard) |
-| ⚙️ **API** | [Open the production API](https://classgame-api-2057331207.us-east1.run.app/) |
+| 🎮 **Student game on GCP Cloud Run** | [Enter the 3D classroom](https://classgame-web-mzkj6f7g3a-ue.a.run.app/home) |
+| 🧑‍🏫 **Teacher dashboard on GCP Cloud Run** | [Create and monitor missions](https://classgame-web-mzkj6f7g3a-ue.a.run.app/dashboard) |
+| ⚙️ **API on GCP Cloud Run** | [Open the production API](https://classgame-api-2057331207.us-east1.run.app/) |
 | 🎬 **Demo video** | [Watch on YouTube](https://www.youtube.com/watch?v=mvsbSKlGfyE) |
 | 💬 **Build story** | [Read the LinkedIn post](https://www.linkedin.com/posts/velrino_allthingsagentichackathon-ugcPost-7499787792177262593-g9Mz) |
 | 🏆 **Hackathon** | [All Things Agentic on Devpost](https://allthingsagentichackathon.devpost.com/) |
 | 🧪 **Reproduce it** | [Follow the setup and testing instructions](#reproducible-setup-and-testing) |
+
+## GCP production footprint
+
+ClassGame is not a mockup around screenshots. The submitted app is a deployed Google Cloud system:
+
+| Layer | Production service |
+|---|---|
+| Student game and teacher dashboard | GCP Cloud Run service for `apps/web` |
+| Backend API and agent orchestration | GCP Cloud Run service for `apps/api` |
+| Gemini mission generation, tutor turns and learning synthesis | GCP Vertex AI through the Google GenAI SDK |
+| Durable classroom, mission, attempt, memory and summary state | Firestore |
+| Worksheet attachment copies | GCP Cloud Storage |
+| Async attachment copy, completion trace and abandonment watchdog | GCP Cloud Tasks |
+| Runtime secrets | GCP Secret Manager |
+| Distributed GenAI quotas and health gates | Redis, configured from Secret Manager |
+| Production build and rollout | GCP Cloud Build, Artifact Registry, Cloud Logging |
 
 ## Product tour
 
@@ -130,7 +159,7 @@ Status on **August 29, 2026**. Everything below is deployed on Cloud Run unless 
   - **Notebook**: class notebook (current focus, positive signal, who needs follow-up) and next-lesson notes.
 - Realtime: Firestore listeners on `student_mission_attempts` (this class) and `class_learning_summaries/{classId}` trigger a debounced refresh of the server-authorized overview; a 60 s poll and a refresh on tab focus are the fallback.
 
-**API (Go on Cloud Run)** — see [API](#api) below. Gemini through the Google GenAI SDK (Vertex AI backend, `gemini-3.7-flash`), structured output everywhere, deterministic fallbacks everywhere, Firestore as the only database, Cloud Tasks for attachment copies and learning jobs, Cloud Storage for attachments, and Redis for distributed GenAI quotas and health.
+**API (Go on GCP Cloud Run)** — see [API](#api) below. Gemini through the Google GenAI SDK (Vertex AI backend, `gemini-3.7-flash`), structured output everywhere, deterministic fallbacks everywhere, Firestore as the only database, Cloud Tasks for attachment copies and learning jobs, Cloud Storage for attachments, and Redis for distributed GenAI quotas and health.
 
 **Content**: `apps/assets/grade/` holds Grade 5 worksheets (K5 Learning) with ready-to-copy mission setups — mission name, learning goal and teacher prompt for each file — so a mission can be generated from real classroom material in a minute.
 
@@ -145,7 +174,7 @@ Status on **August 29, 2026**. Everything below is deployed on Cloud Run unless 
 
 ## Architecture
 
-One repository, two Cloud Run services, one database.
+One repository, two GCP Cloud Run services, one Firestore database, and Google Cloud services around the full loop.
 
 ```txt
 apps/
@@ -540,4 +569,4 @@ apps/
 
 ## Short pitch
 
-**ClassGame turns tonight's review into a game the teacher can read tomorrow. Mia, the Multimodal Intelligence Agent powered by Gemini, builds the mission from what the teacher taught, leads each student through it, asks why they got things wrong, remembers how each one thinks across sessions, adapts every turn from retrieved lesson material and past interactions — and hands the teacher the evidence, live.**
+**ClassGame turns tonight's review into a Google Cloud-hosted game the teacher can read tomorrow. Mia, the Multimodal Intelligence Agent powered by Gemini on Vertex AI, builds the mission from what the teacher taught, leads each student through it, asks why they got things wrong, remembers how each one thinks across sessions, adapts every turn from retrieved lesson material and past interactions — and hands the teacher the evidence, live.**
