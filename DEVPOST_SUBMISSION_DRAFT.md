@@ -26,7 +26,7 @@ Supporting teachers as they guide their class through Mia, an AI tutor in a 3D w
 
 ## Inspiration
 
-I have spent years building tools for teachers, and one complaint never goes away: homework tells you *who* got it wrong, never *why*. A stack of wrong answers is a pile of question marks the teacher has to guess through the next morning.
+I have spent years building tools for teachers, and one complaint never goes away: homework tells you _who_ got it wrong, never _why_. A stack of wrong answers is a pile of question marks the teacher has to guess through the next morning.
 
 Most educational apps make it worse. Every student gets the same quiz and the same next step, the app never talks back to the teacher, and every session starts from zero. The good tutor at the kitchen table does the opposite: she asks why you picked that, notices what keeps tripping you up, changes how she explains, and remembers you tomorrow.
 
@@ -36,15 +36,15 @@ The Collaborative Partner brief describes exactly that tutor. ClassGame puts her
 
 ## What it does
 
-**The teacher** signs in, creates a class, writes what the lesson covered and what she noticed, and optionally attaches the real worksheets (PDF, images, text). **Mia** — the Multimodal Intelligence Agent, powered by Gemini — turns that into a mission: 3–4 stages, questions whose wrong options are deliberate traps tied to *named* misconceptions, step-by-step explanations, a lesson flow map, and a set of knowledge chunks distilled from the teacher's material that Mia will retrieve from while tutoring. The teacher reviews the preview, adjusts the prompt, regenerates (every revision stays on the same mission), and approves. The mission appears in the class in real time.
+**The teacher** signs in, creates a class, writes what the lesson covered and what she noticed, and optionally attaches the real worksheets (PDF, images, text). **Mia** — the Multimodal Intelligence Agent, powered by Gemini — turns that into a mission: 3–4 stages, questions whose wrong options are deliberate traps tied to _named_ misconceptions, step-by-step explanations, a lesson flow map, and a set of knowledge chunks distilled from the teacher's material that Mia will retrieve from while tutoring. The teacher reviews the preview, adjusts the prompt, regenerates (every revision stays on the same mission), and approves. The mission appears in the class in real time.
 
 **The student** enters the class's six-digit code and a name, picks a character, and walks into a low-poly 3D classroom. A glowing circle appears by the desk the moment the teacher publishes. Mia runs the mission on the chalkboard:
 
 - She asks every question and decides every next step.
-- When the answer is wrong she does not reveal the solution. She asks *why you picked it*, with reasons written in the student's voice and generated for that specific wrong answer.
+- When the answer is wrong she does not reveal the solution. She asks _why you picked it_, with reasons written in the student's voice and generated for that specific wrong answer.
 - She explains in short steps or draws it, depending on what has worked for this student before.
-- The student rates each explanation — helpful, confusing, too easy, too hard — and Mia adapts and says why: *"You marked 'confusing' → I'll draw the next one."*
-- Close the tab, come back tomorrow: *"Welcome back — last time you were on Fractions."* Same question, same step, same lines on the board.
+- The student rates each explanation — helpful, confusing, too easy, too hard — and Mia adapts and says why: _"You marked 'confusing' → I'll draw the next one."_
+- Close the tab, come back tomorrow: _"Welcome back — last time you were on Fractions."_ Same question, same step, same lines on the board.
 
 **Back on the dashboard**, the teacher watches the class live from Firestore: who has not started, who is at the desk with Mia right now, who left early, who finished. Then what Mia observed per student: a summary, strengths, areas to revisit, a learning-flow graph of the path they took, and the evidence behind every claim — each answer, each explicit reason, each feedback tap, each tutor turn with Mia's teacher-only observation and the ids of the chunks she retrieved. Across the class: clustered strengths and needs and a tiered plan for the next lesson. One button, **Build tomorrow's mission**, turns those patterns into the next prompt. That closes the loop.
 
@@ -52,9 +52,9 @@ The Collaborative Partner brief describes exactly that tutor. ClassGame puts her
 
 One repository, two Cloud Run services, one database, built alone in three days.
 
-**The agent.** Go with the Google GenAI SDK on Vertex AI (`gemini-3.7-flash`), structured JSON output, four generators in one orchestrator: `BuildMission`, `BuildTutorTurn`, `BuildLearningTrace` (after a completed *or abandoned* attempt) and `BuildClassLearningSynthesis`. Every generator has a deterministic fallback, so no endpoint fails because of the model, and every output records provider, model, `generated_by_ai`, `fallback_reason` and token usage.
+**The agent.** Go with the Google GenAI SDK on Vertex AI (`gemini-3.7-flash`), structured JSON output, four generators in one orchestrator: `BuildMission`, `BuildTutorTurn`, `BuildLearningTrace` (after a completed _or abandoned_ attempt) and `BuildClassLearningSynthesis`. Every generator has a deterministic fallback, so no endpoint fails because of the model, and every output records provider, model, `generated_by_ai`, `fallback_reason` and token usage.
 
-**One tutor turn.** The game dispatches a deterministic tutor locally so the chalkboard never waits; the API turn overwrites Mia's message, the "why" prompt, the explanation steps and the style/difficulty when it lands. Server-side: ground the request against the pinned published question → retrieve the top 5 knowledge chunks for *this question and this response* → load the student's memory, the attempt history (last 24 observable events, last 12 tutor turns) and the class context → Gemini → a **leak guard** that discards any output mentioning teacher-only or class context → persist idempotently by event id → return only student-safe fields.
+**One tutor turn.** The game dispatches a deterministic tutor locally so the chalkboard never waits; the API turn overwrites Mia's message, the "why" prompt, the explanation steps and the style/difficulty when it lands. Server-side: ground the request against the pinned published question → retrieve the top 5 knowledge chunks for _this question and this response_ → load the student's memory, the attempt history (last 24 observable events, last 12 tutor turns) and the class context → Gemini → a **leak guard** that discards any output mentioning teacher-only or class context → persist idempotently by event id → return only student-safe fields.
 
 **Memory.** Three layers in Firestore: the **attempt** (progress, events, decisions, exact checkpoint, tutor turns, trace), the **student** (`learning_memory`: strengths, improvement areas, preferred explanation style, `next_adaptation` — carried into the next mission) and the **class** (clustered patterns across students). The game writes a monotonic snapshot 450 ms after every state change, every 30 s while visible, and on `pagehide`. Cloud Tasks runs finalization on completion and a 120 s abandonment watchdog that still writes a partial trace for a student who gave up; the same queue copies attachments into Cloud Storage. Redis rate-limits generation per teacher, student and IP. Firebase Auth: Google for teachers, anonymous for students.
 
@@ -99,7 +99,7 @@ I did not build ClassGame to win a hackathon. I built it because I have watched 
 
 Here is the dream, in the order I want to chase it.
 
-**More worlds, more subjects.** Today Mia teaches Grade 5 math on one chalkboard. I want her in a science lab where a wrong hypothesis makes the beaker fizz, in a history classroom where the map redraws itself as the student argues, in a language room where the conversation partner is another chibi. Every scenario is a new set of misconceptions to model — and a new way for a kid to *want* to do the optional homework.
+**More worlds, more subjects.** Today Mia teaches Grade 5 math on one chalkboard. I want her in a science lab where a wrong hypothesis makes the beaker fizz, in a history classroom where the map redraws itself as the student argues, in a language room where the conversation partner is another chibi. Every scenario is a new set of misconceptions to model — and a new way for a kid to _want_ to do the optional homework.
 
 **Play that teaches.** The 3D room is still mostly a stage. I want the game itself to carry the pedagogy: the "pick the next move" equation duels I prototyped, cooperative missions where two classmates have to explain to each other before Mia lets them advance, a classroom that visibly changes as the class masters something together. Fun is not decoration here; it is the reason a student comes back on a Saturday.
 
@@ -236,7 +236,7 @@ cloudhackathons@google.com
 Yes
 ```
 
-`apps/README.md` → *Run it locally* and *Testing instructions (hosted)*.
+`apps/README.md` → _Run it locally_ and _Testing instructions (hosted)_.
 
 ### Hosted Project URL If Available
 

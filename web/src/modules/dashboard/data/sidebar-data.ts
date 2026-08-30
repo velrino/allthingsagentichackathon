@@ -1,11 +1,9 @@
 import {
   BookOpenCheck,
-  ClipboardList,
   Gamepad2,
   LayoutDashboard,
   Network,
   Settings,
-  Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -54,24 +52,14 @@ export const dashboardSidebarData: DashboardSidebarData = {
           icon: LayoutDashboard,
         },
         {
-          title: "Classes",
-          url: "/dashboard/classes",
-          icon: BookOpenCheck,
-        },
-        {
-          title: "Missions",
-          url: "/dashboard#mission-builder",
-          icon: ClipboardList,
-        },
-        {
-          title: "Students",
-          url: "/dashboard#students",
-          icon: Users,
-        },
-        {
           title: "Architecture",
           url: "/dashboard/architecture",
           icon: Network,
+        },
+        {
+          title: "Classes",
+          url: "/dashboard/classes",
+          icon: BookOpenCheck,
         },
       ],
     },
