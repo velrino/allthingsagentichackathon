@@ -18,7 +18,7 @@ ClassGame
 
 ### Elevator Pitch
 
-Supporting teachers as they guide their class through Mia, the Multimodal Intelligence Agent, in a 3D world of missions that adapt to every student — so each one learns and levels up.
+Supporting teachers as they guide their class through Mia, an AI tutor in a 3D world of missions that adapt to every student — rewarding the thinking, not just the right answer.
 
 ## Project Details
 
@@ -102,6 +102,8 @@ Here is the dream, in the order I want to chase it.
 **More worlds, more subjects.** Today Mia teaches Grade 5 math on one chalkboard. I want her in a science lab where a wrong hypothesis makes the beaker fizz, in a history classroom where the map redraws itself as the student argues, in a language room where the conversation partner is another chibi. Every scenario is a new set of misconceptions to model — and a new way for a kid to *want* to do the optional homework.
 
 **Play that teaches.** The 3D room is still mostly a stage. I want the game itself to carry the pedagogy: the "pick the next move" equation duels I prototyped, cooperative missions where two classmates have to explain to each other before Mia lets them advance, a classroom that visibly changes as the class masters something together. Fun is not decoration here; it is the reason a student comes back on a Saturday.
+
+**Rewards that follow the thinking.** Today a student earns the next stage and a progress bar that fills — honest, but thin. I want the loop to pay off: points for explaining a mistake rather than for guessing right, streaks for coming back on their own, characters and classroom items unlocked by mastering a topic instead of by grinding, and a class goal the group only reaches together. One rule holds it in place: the reward follows the reasoning. A student who answers wrong, says why, and gets there should out-earn one who guessed correctly — otherwise the game teaches the opposite of what Mia does.
 
 **A tutor that gets wiser.** Semantic retrieval over the teacher's material next to the traceable lexical pass, memory that spans weeks and subjects instead of one mission, and Mia's voice on the chalkboard so a student who struggles with reading is not locked out of the help.
 
