@@ -97,7 +97,7 @@ func (repository *Repository) MarkStored(
 	stored missionattachment.StoredObject,
 ) error {
 	return repository.updateRevisionAttachment(ctx, job, target, func(attachment *MissionAttachment) {
-		now := time.Now()
+		now := time.Now().UTC().Truncate(time.Microsecond)
 		storage := copyAttachmentStorage(attachment.Storage)
 		storage.Status = AttachmentStorageStored
 		storage.Bucket = stored.Bucket

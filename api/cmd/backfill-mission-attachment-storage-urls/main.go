@@ -429,7 +429,7 @@ func storageVersion(storage map[string]any) string {
 		switch value := storage[key].(type) {
 		case time.Time:
 			if !value.IsZero() {
-				return fmt.Sprintf("%d", value.UnixNano())
+				return fmt.Sprintf("%d", value.UTC().Truncate(time.Microsecond).UnixNano())
 			}
 		case string:
 			if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value)); err == nil && !parsed.IsZero() {

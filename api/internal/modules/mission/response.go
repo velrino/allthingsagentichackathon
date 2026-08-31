@@ -201,7 +201,7 @@ func escapeObjectPath(objectPath string) string {
 func attachmentStoragePublicURLVersion(storage *MissionAttachmentStorage) string {
 	for _, timestamp := range []time.Time{storage.UpdatedAt, storage.StoredAt} {
 		if !timestamp.IsZero() {
-			return strconv.FormatInt(timestamp.UnixNano(), 10)
+			return strconv.FormatInt(timestamp.UTC().Truncate(time.Microsecond).UnixNano(), 10)
 		}
 	}
 
