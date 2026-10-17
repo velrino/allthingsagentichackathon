@@ -1,17 +1,21 @@
 # ClassGame
 
-**For judges with little time:** no local setup is needed. Start with the hosted **Google Cloud production build**.
+> **Hosting status — October 17, 2026:** the `classgame-api` and `classgame-web` Cloud Run services were deleted from project `rare-tape-466414-f4`, region `us-east1`, to take the hosted application offline. Their former URLs below are historical references and no longer serve the application. Watch the demo video or follow [Path B](#path-b--spin-up-from-a-clean-clone) to run it locally.
+>
+> This change only removed the two Cloud Run services. Other cloud resources and stored data were not removed, so it does not establish that the project's total cloud bill is zero. Existing deployment triggers were not changed; a future deployment can recreate the services.
+
+**For judges with little time:** start with the demo video. The former Google Cloud production links are retained below for reference.
 
 | Start here | Link | What to verify |
 |---|---|---|
 | **3:53 demo video** | [Watch the full loop](https://www.youtube.com/watch?v=mvsbSKlGfyE) | Teacher creates a mission, student plays, Mia adapts, dashboard receives evidence. |
 | **Teacher dashboard** | [Open on GCP Cloud Run](https://classgame-web-2057331207.us-east1.run.app/dashboard) | Use the Devpost credentials, generate or inspect a mission, then open student evidence. |
 | **Student game** | [Open with class code `367501`](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501) | Enter any name, start the mission, answer wrong once, see Mia ask *why*. |
-| **API health** | [Open production API](https://classgame-api-2057331207.us-east1.run.app/) | Cloud Run API is live with Firebase and Redis health checks. |
+| **API health** | [Open production API](https://classgame-api-2057331207.us-east1.run.app/) | Offline; formerly provided Firebase and Redis health checks. |
 
 **ClassGame is the optional homework that takes notes for the teacher.**
 
-ClassGame is submitted as a production app hosted on **Google Cloud Platform**: the 3D student game and teacher dashboard run on **Cloud Run**, the Go API runs on **Cloud Run**, durable state lives in **Firestore**, attachments are copied into **Cloud Storage**, learning jobs run through **Cloud Tasks**, Gemini calls go through **Vertex AI**, secrets live in **Secret Manager**, and deployment is handled by **Cloud Build**, **Artifact Registry** and **Cloud Logging**.
+ClassGame was submitted as a production app hosted on **Google Cloud Platform**. The following describes the submitted architecture before the Cloud Run shutdown: the 3D student game and teacher dashboard run on **Cloud Run**, the Go API runs on **Cloud Run**, durable state lives in **Firestore**, attachments are copied into **Cloud Storage**, learning jobs run through **Cloud Tasks**, Gemini calls go through **Vertex AI**, secrets live in **Secret Manager**, and deployment is handled by **Cloud Build**, **Artifact Registry** and **Cloud Logging**.
 
 A teacher types what the class covered today (and optionally attaches the worksheet). **Mia**, the **Multimodal Intelligence Agent** powered by Gemini on Vertex AI, turns it into a short 3D review mission. Students play it on their phones for ten minutes: Mia leads them question by question, asks *why* they picked a wrong answer, explains in the style that works for that student, and keeps a memory of each student that survives the tab, the session and the mission. The teacher opens the class page and sees — live — where every student is, what Mia observed, which patterns repeat across the class, and what to teach tomorrow.
 
@@ -25,7 +29,7 @@ ClassGame is that example, with a classroom around it: the "dense document" is t
 
 ## Judge Fast Path
 
-If you have only a few minutes, verify this path in the hosted GCP build:
+Historical hosted walkthrough (requires redeploying the two Cloud Run services):
 
 1. Open the **[teacher dashboard](https://classgame-web-2057331207.us-east1.run.app/dashboard)** and sign in with the Devpost credentials.
 2. Open the **[student game with class code `367501`](https://classgame-web-2057331207.us-east1.run.app/home?classCode=367501)**, enter any name, choose the mission and press **Start**.
@@ -48,7 +52,7 @@ If you have only a few minutes, verify this path in the hosted GCP build:
 
 ## GCP production footprint
 
-ClassGame is not a mockup around screenshots. The submitted app is a deployed Google Cloud system:
+The submitted app used the following Google Cloud architecture. The two Cloud Run services are now offline:
 
 | Layer | Production service |
 |---|---|
@@ -147,7 +151,7 @@ When the snapshot says `completed`, or when no checkpoint arrives for `STUDENT_A
 
 ## What exists today
 
-Status on **August 29, 2026**. Everything below is deployed on Cloud Run unless marked.
+Historical status on **August 29, 2026**. Everything below was deployed on Cloud Run unless marked; the two Cloud Run services were removed on **October 17, 2026**.
 
 **Student game (`/home`)**
 - Enter the class's six-digit numeric code and a name. The code is validated (`POST /users/student-session/validate`), the browser signs in anonymously with a **student-only Firebase app instance** (so a teacher signed in on the same browser is untouched), and `POST /users/student-session` joins the class without selecting a mission.
@@ -369,9 +373,11 @@ Four generators live in `api/internal/modules/orchestrator`; each has a determin
 
 ## Reproducible setup and testing
 
-These are the [**Devpost-required spin-up instructions**](https://allthingsagentichackathon.devpost.com/#requirements). The fastest judging path uses the deployed system and needs no paid account or local setup. The local path recreates the two-service application from a clean clone; secrets are supplied through ignored environment files and are never committed.
+These are the [**Devpost-required spin-up instructions**](https://allthingsagentichackathon.devpost.com/#requirements). The former hosted judging path is documented for reference and requires redeployment; use Path B while the services are offline. The local path recreates the two-service application from a clean clone; secrets are supplied through ignored environment files and are never committed.
 
 ### Path A — test the hosted production build
+
+**Currently unavailable:** both Cloud Run services were removed on October 17, 2026. This walkthrough and its expected smoke-check results apply after redeployment.
 
 Allow 10–15 minutes and use two browser windows (or a laptop and a phone). Use Google sign-in or the evaluator credentials supplied privately with the Devpost submission; the repository intentionally does not contain the password.
 
@@ -529,6 +535,8 @@ cd ../api && go build ./... && go vet ./...
 Expected result: all four commands exit with status `0`. Together with the observable teacher/student assertions above, this reproduces the submitted agent behavior end to end.
 
 ## Deployment
+
+**Current status:** `classgame-api` and `classgame-web` were deleted on October 17, 2026, using `gcloud run services delete` with explicit project `rare-tape-466414-f4` and region `us-east1`. The deployment configuration below is retained for future redeployment.
 
 - Repository: `velrino/allthingsagentichackathon` (GitHub). Cloud Build triggers `classgame-web-main` (`web/**`) and `classgame-api-main` (`api/**`) build from `apps/` with an `_APP_DIR` substitution and deploy to Cloud Run in `us-east1`.
 - Production API env (from `api/infra/cloud-run/production/cloudbuild.yaml`): `GENAI_BACKEND=vertex`, `GENAI_MODEL=gemini-3.7-flash`, `GENAI_LOCATION=global`, `CLOUD_TASKS_ENABLED=true`, queue `mission-attachment-copy` (serves attachment copies and learning jobs), `STUDENT_ABANDONMENT_SECONDS=120`.
