@@ -2,7 +2,7 @@
 
 > **Hosting status — October 17, 2026:** the `classgame-api` and `classgame-web` Cloud Run services were deleted from project `rare-tape-466414-f4`, region `us-east1`, to take the hosted application offline. Their former URLs below are historical references and no longer serve the application. Watch the demo video or follow [Path B](#path-b--spin-up-from-a-clean-clone) to run it locally.
 >
-> This change only removed the two Cloud Run services. Other cloud resources and stored data were not removed, so it does not establish that the project's total cloud bill is zero. Existing deployment triggers were not changed; a future deployment can recreate the services.
+> The ClassGame-only Artifact Registry repository (`classgame`, including its images), Cloud Build triggers (`classgame-web-main` and `classgame-api-main`), Cloud Tasks queue (`mission-attachment-copy`) and Secret Manager secret (`allthingsagentichackathon-api-firebase-credentials-json`) were also deleted. Shared resources and Natiely/Unshatter resources were preserved; this does not establish that the project's total cloud bill is zero. Automatic ClassGame deployment triggers no longer exist.
 
 **For judges with little time:** start with the demo video. The former Google Cloud production links are retained below for reference.
 
@@ -536,9 +536,9 @@ Expected result: all four commands exit with status `0`. Together with the obser
 
 ## Deployment
 
-**Current status:** `classgame-api` and `classgame-web` were deleted on October 17, 2026, using `gcloud run services delete` with explicit project `rare-tape-466414-f4` and region `us-east1`. The deployment configuration below is retained for future redeployment.
+**Current status:** `classgame-api` and `classgame-web` were deleted on October 17, 2026, using `gcloud run services delete` with explicit project `rare-tape-466414-f4` and region `us-east1`. The ClassGame-only Docker repository, both deployment triggers, task queue and Firebase credential secret were also deleted. Future redeployment requires recreating these resources and supplying a valid Firebase credential. The configuration below records the former deployment setup.
 
-- Repository: `velrino/allthingsagentichackathon` (GitHub). Cloud Build triggers `classgame-web-main` (`web/**`) and `classgame-api-main` (`api/**`) build from `apps/` with an `_APP_DIR` substitution and deploy to Cloud Run in `us-east1`.
+- Repository: `velrino/allthingsagentichackathon` (GitHub). Former Cloud Build triggers `classgame-web-main` (`web/**`) and `classgame-api-main` (`api/**`) built from `apps/` with an `_APP_DIR` substitution and deployed to Cloud Run in `us-east1`.
 - Production API env (from `api/infra/cloud-run/production/cloudbuild.yaml`): `GENAI_BACKEND=vertex`, `GENAI_MODEL=gemini-3.7-flash`, `GENAI_LOCATION=global`, `CLOUD_TASKS_ENABLED=true`, queue `mission-attachment-copy` (serves attachment copies and learning jobs), `STUDENT_ABANDONMENT_SECONDS=120`.
 - Secrets: Firebase service account and Redis URL from Secret Manager. Uploadcare uses a public key on the web side only.
 - One-time setup for the queue, OIDC identity and IAM is documented in `api/README.md`.
